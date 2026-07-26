@@ -53,7 +53,8 @@ Trước mọi feature, kiểm tra `OPEN_DECISIONS.md`; không implement phạm 
 
 ## Trạng thái hiện tại
 
-- Phase 0 đang triển khai: parent Maven lock, hai shared lib, api-gateway và payment-service skeleton, docker-compose và Keycloak realm đã có code/config.
+- Phase 1A payment intake/outbox core đã có code và test không Docker; PostgreSQL/Kafka gate vẫn chưa chạy.
+- Theo yêu cầu của repository owner, Phase 1B đã bắt đầu sớm ở phạm vi domain core Account/Reservation và Ledger. Module này chưa phải deployable và không đồng nghĩa Phase 1B đã mở gate.
 - Build và test không cần Docker đã pass; hạ tầng Docker **chưa từng được start** và test cần Docker **chưa từng chạy**. Chi tiết và giới hạn nằm trong `IMPLEMENTATION_STATUS.md`.
 - Không mô tả feature là hoàn thành cho tới khi có code, test và lệnh tái tạo kết quả.
 - Spec vẫn là backlog tổng; `DELIVERY_ROADMAP.md` quyết định lát cắt được phép triển khai tiếp theo.

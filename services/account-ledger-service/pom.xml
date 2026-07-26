@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.payflow</groupId>
+        <artifactId>payflow-parent</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>account-ledger-service</artifactId>
+    <name>PayFlow Account Ledger Service</name>
+    <description>
+        Phase 1B core for the Account and Ledger bounded contexts. This module currently contains
+        deterministic domain invariants only; persistence, messaging and deployment bootstrap remain
+        gated by the Phase 1A infrastructure proof and the open cross-service contracts.
+    </description>
+</project>

@@ -28,6 +28,7 @@ File này là bảng bằng chứng sống. Cập nhật sau mỗi milestone; kh
 | Payment intake schema (V2, DDL + constraint) | `IMPLEMENTED` | — | `PaymentIntakeSchemaIT` (23 test) và `PaymentServiceFoundationIT` chưa chạy: cần Docker daemon. Xem "Known deviations" bên dưới |
 | Payment intake REST + application core | `IMPLEMENTED` | `PaymentControllerTest` 6 + `CreatePaymentHandlerTest` 24 + `RequestFingerprintTest` 13 pass, 2026-07-26 | `POST` 202, `GET`, JWT `merchant_id`, typed Problem Details và canonical replay đã có; atomicity/concurrency trên PostgreSQL thật chưa chạy |
 | Outbox polling publisher | `IMPLEMENTED` | `PublishOutboxHandlerTest` 7 + `OutboxPropertiesTest` 1 pass, 2026-07-26 | Lease/backoff/terminal/order policy đã test không Docker; claim SQL, Kafka ack và 9 integration gate ADR-014 chưa chạy |
+| Account/Reservation và Ledger domain core | `VERIFIED_LOCAL` | 21/21 unit test pass; full `-Pno-docker verify` exit 0, 2026-07-26 | Core thuần Java trong `account-ledger-service`; chưa có Spring Boot bootstrap, database, locking, inbox/outbox hoặc Kafka |
 | Happy-path Saga | `PLANNED` | — | Phase 1B |
 | Failure recovery/compensation | `PLANNED` | — | Pre-Phase-2 decision gate (OD-002) |
 | Refund/webhook/reporting | `PLANNED` | — | Phase 2 |
@@ -46,6 +47,7 @@ review sau không phải đoán đó là lệch hay là bug.
 | D-04 | Spec §15.4 index outbox `(status, next_attempt_at, created_at)` | Hai partial index theo `status` | Row `PUBLISHED` sẽ là gần như toàn bộ bảng và không xuất hiện trong query nào của publisher. Ghi trong ADR-014 |
 | D-05 | Spec §7.4 vòng đời payment | DDL cho phép cả 10 status, code Phase 1A chỉ tạo `CREATED` | Tập status do spec cố định nên CHECK đủ 10 không tốn gì và tránh một migration mỗi phase. State machine trong domain mới là chỗ quyết định transition nào hợp lệ |
 | D-06 | — | `merchant` là schema riêng, **không** có FK từ `payment.payments.merchant_id` | Merchant catalog sẽ tách thành service riêng. Một FK cross-schema sẽ biến việc tách đó từ thay đổi code thành một cuộc di trú dữ liệu |
+| D-07 | Roadmap yêu cầu Phase 1A gate trước Phase 1B | Bắt đầu domain core Account/Ledger trước khi chạy gate PostgreSQL/Kafka | Người dùng yêu cầu tiếp tục code core trong lúc chưa chạy Docker. Phạm vi chỉ gồm invariant deterministic và unit test; không thêm persistence, consumer, event contract hay tuyên bố Phase 1B hoàn tất |
 
 ## Evidence record template
 
@@ -122,6 +124,27 @@ Known limitations:
   - Keycloak mapper merchant_id đã có config nhưng realm import/token thật chưa được xác minh.
   - Plain .\mvnw.cmd trước thay đổi lỗi trên PowerShell khi ~/.m2 không phải symlink; wrapper đã được sửa và lệnh trên là lần xác minh sau sửa.
   - Không có CI/commit SHA; capability chưa phải VERIFIED_CI hoặc DEMO_READY.
+```
+
+### 2026-07-26 — Account/Ledger Phase 1B domain core
+
+```text
+Date/time (UTC): 2026-07-26T16:30:10Z
+Commit SHA: N/A (repository chưa có commit)
+Environment: Windows 10; Maven Wrapper 3.9.16; Java 21.0.7; không Docker/PostgreSQL/Kafka runtime
+Capability/scenario: Account balance/reservation state invariants và immutable balanced double-entry Journal core trong account-ledger-service
+Targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/account-ledger-service -am test
+Targeted result: BUILD SUCCESS; 20/20 test pass trước bổ sung regression frozen-release.
+Final command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Final result: exit 0, BUILD SUCCESS trong 47.617 s, 7/7 module SUCCESS.
+  Surefire 177/177 pass — shared libs 47, payment-service 109, account-ledger-service 21.
+  Failsafe 13/13 pass — api-gateway 13; Docker-tagged payment IT bị loại đúng thiết kế.
+Artifacts: services/account-ledger-service/target/surefire-reports và report của từng module (local only)
+Known limitations:
+  - Đây là domain core, chưa phải deployable Spring Boot service và chưa có API/event contract.
+  - Unit test không chứng minh atomic reserve, row locking, unique reservation hoặc journal transaction trên PostgreSQL.
+  - Chưa implement inbox/outbox/Kafka consumer vì OD-007 và các contract Saga liên quan vẫn OPEN.
+  - Happy-path Saga vẫn PLANNED; Phase 1A và Phase 1B chưa đạt integration/E2E gate.
 ```
 
 Quy tắc cập nhật:
