@@ -1,0 +1,120 @@
+# PayFlow CI — Phase 0 skeleton.
+#
+# Two jobs, split the same way the local build is split, so a failure tells you which class of
+# problem you have:
+#
+#   fast-tests  — compile + Surefire. No Docker. Must stay fast enough to gate every push.
+#   verify      — the real gate: Failsafe too, including the Testcontainers-backed tests.
+#
+# The `verify` job is what makes a `VERIFIED_CI` claim in .docs/IMPLEMENTATION_STATUS.md possible.
+# Do not add `-Pno-docker` to it: GitHub's ubuntu runners provide a Docker daemon, so there is no
+# reason to skip the container tests in CI, and skipping them would make the badge meaningless.
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+# A new push to the same branch cancels the previous run. Two runs of the same commit range prove
+# nothing extra and the Testcontainers job is the expensive one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Keep Maven quiet about download progress; the log is read by humans looking for failures.
+  MAVEN_ARGS: -B -ntp
+
+jobs:
+  fast-tests:
+    name: Compile and unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          # Must match the toolchain in the parent POM. ADR-013 locks Java 21.
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Ensure the Maven wrapper is executable
+        # The repository is authored on Windows, where git cannot record the exec bit unless it is
+        # set explicitly (`git update-index --chmod=+x mvnw`). Without this, `./mvnw` fails on the
+        # Linux runner with "Permission denied" and the failure looks nothing like its cause.
+        run: chmod +x ./mvnw
+
+      - name: Compile and run unit and slice tests
+        run: ./mvnw $MAVEN_ARGS clean test
+
+      - name: Upload Surefire reports
+        # Reports matter most when the step above failed, so this must not be skipped on failure.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: surefire-reports
+          path: '**/target/surefire-reports/**'
+          if-no-files-found: warn
+          retention-days: 7
+
+  verify:
+    name: Full verify with Testcontainers
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    # Sequential on purpose: if the code does not compile or a unit test fails, spending runner
+    # minutes on containers tells nobody anything new.
+    needs: fast-tests
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+
+      - name: Ensure the Maven wrapper is executable
+        run: chmod +x ./mvnw
+
+      - name: Confirm a Docker daemon is available
+        # Fail loudly here rather than letting Testcontainers fail later with a message that reads
+        # like a test defect. If this step ever fails, the runner image changed, not the code.
+        run: docker version
+
+      - name: Run the full gate
+        run: ./mvnw $MAVEN_ARGS clean verify
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-reports
+          path: |
+            **/target/surefire-reports/**
+            **/target/failsafe-reports/**
+          if-no-files-found: warn
+          retention-days: 7
+
+  compose-config:
+    name: Validate Docker Compose
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate compose file interpolation
+        # --env-file .env.example, never a real .env: this proves the committed template is complete
+        # enough to render the file. It does not start anything.
+        run: docker compose --env-file .env.example config --quiet

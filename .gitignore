@@ -1,0 +1,60 @@
+# ---------------------------------------------------------------------------
+# Secrets and local environment
+# ---------------------------------------------------------------------------
+# Only .env.example is tracked. AGENTS.md section 8: never commit a credential.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+
+# ---------------------------------------------------------------------------
+# Build output
+# ---------------------------------------------------------------------------
+# The Maven wrapper is configured with distributionType=only-script, so there is no
+# maven-wrapper.jar to track or exclude.
+target/
+.mvn/.develocity/
+build/
+out/
+*.class
+*.jar
+*.war
+
+# ---------------------------------------------------------------------------
+# IDE
+# ---------------------------------------------------------------------------
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.settings/
+.classpath
+.project
+.factorypath
+
+# ---------------------------------------------------------------------------
+# OS
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------------------------------------------------------------------------
+# Logs and local runtime state
+# ---------------------------------------------------------------------------
+*.log
+logs/
+/data/
+
+# ---------------------------------------------------------------------------
+# Scratch
+# ---------------------------------------------------------------------------
+# Spring Initializr download this repository was bootstrapped from. Superseded by the monorepo
+# layout in .docs/ARCHITECTURE.md and kept only because it is the developer's own file.
+payflowPayment.zip
+*.zip

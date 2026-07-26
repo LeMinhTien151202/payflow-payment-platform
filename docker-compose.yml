@@ -1,0 +1,150 @@
+# PayFlow local sandbox infrastructure.
+#
+# Disposable by design: every volume can be deleted and rebuilt from migrations and the realm
+# import. Nothing here is production configuration — no TLS, no hardened passwords, no external
+# network exposure beyond localhost.
+#
+#   cp .env.example .env      # then fill in local values
+#   docker compose up -d
+#   docker compose ps         # all services must report (healthy)
+#
+# Image tags are pinned to exact patch versions. A floating tag would make "works on my machine"
+# unreproducible, and the PostgreSQL version in particular must match the Testcontainers image used
+# by the integration tests, otherwise the tests validate a different database than the one you run.
+name: payflow
+
+services:
+  postgres:
+    image: postgres:17.10-alpine
+    container_name: payflow-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Bootstrap database. Per-service databases are created by the init script below; a service
+      # never connects to this one.
+      POSTGRES_DB: payflow_bootstrap
+      # Consumed by 01-create-databases.sh to provision one owner role per service database.
+      PAYFLOW_PAYMENT_DB_USERNAME: ${PAYFLOW_PAYMENT_DB_USERNAME}
+      PAYFLOW_PAYMENT_DB_PASSWORD: ${PAYFLOW_PAYMENT_DB_PASSWORD}
+      KEYCLOAK_DB_USERNAME: ${KEYCLOAK_DB_USERNAME}
+      KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Runs once, only when the data volume is empty. Delete the volume to re-run it.
+      - ./infrastructure/docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      # -d pins the check to a real database; bare pg_isready can pass while the bootstrap sequence
+      # is still running, which would let dependents start too early.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d payflow_bootstrap"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  redis:
+    image: redis:8.2.8-alpine
+    container_name: payflow-redis
+    restart: unless-stopped
+    # Provisioned in Phase 0 so the infrastructure gate can pass. No service depends on Redis yet;
+    # it will back rate limiting and idempotency caching from Phase 1A. Persistence is deliberately
+    # off: nothing stored here may ever be the source of truth for money.
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "${REDIS_PORT}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  kafka:
+    image: apache/kafka:4.3.1
+    container_name: payflow-kafka
+    restart: unless-stopped
+    # Single-node KRaft: this one process is both broker and controller. No ZooKeeper.
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,HOST:PLAINTEXT
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:19092,CONTROLLER://0.0.0.0:9093,HOST://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # Two advertised listeners because a client inside the compose network must be told "kafka",
+      # while a service running on the developer's host must be told "localhost". Advertising only
+      # one breaks the other caller after the initial metadata exchange.
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19092,HOST://localhost:${KAFKA_PORT}
+      # Replication factor 1 is the only valid choice on a single broker.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Off deliberately. A typo in a topic name must fail loudly rather than silently create an
+      # empty topic that never receives the events anyone is waiting for.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+    ports:
+      - "${KAFKA_PORT}:9092"
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:19092 >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 20s
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7.0
+    container_name: payflow-keycloak
+    restart: unless-stopped
+    # start-dev, not start: HTTP is allowed and no hostname is required. Never use this flag outside
+    # a local sandbox.
+    command:
+      - start-dev
+      - --import-realm
+      - --health-enabled=true
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      # Backed by PostgreSQL rather than the dev-mode in-memory database, so a restart does not
+      # discard clients, scopes, and issued-token history.
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/${KEYCLOAK_DB_NAME}
+      KC_DB_USERNAME: ${KEYCLOAK_DB_USERNAME}
+      KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      KC_HTTP_PORT: 8080
+      # Read by the realm import to fill in the client secrets, so no secret is committed to
+      # realm-payflow.json. Both clients are needed: payflow-readonly exists to prove 403, and a
+      # client whose secret never got substituted cannot obtain a token to prove it with.
+      PAYFLOW_SERVICE_CLIENT_SECRET: ${PAYFLOW_SERVICE_CLIENT_SECRET}
+      PAYFLOW_READONLY_CLIENT_SECRET: ${PAYFLOW_READONLY_CLIENT_SECRET}
+    ports:
+      - "${KEYCLOAK_PORT}:8080"
+    volumes:
+      - ./infrastructure/keycloak:/opt/keycloak/data/import:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # The Keycloak image ships no curl or wget, so the check is a throwaway Java program against
+      # the management port. This is the approach Keycloak's own container documentation gives.
+      test:
+        - CMD-SHELL
+        - >-
+          [ -f /tmp/HealthCheck.java ] || echo "public class HealthCheck {
+          public static void main(String[] args) throws java.lang.Throwable {
+          java.net.URI uri = java.net.URI.create(args[0]);
+          System.exit(java.net.HttpURLConnection.HTTP_OK == ((java.net.HttpURLConnection)
+          uri.toURL().openConnection()).getResponseCode() ? 0 : 1); } }" > /tmp/HealthCheck.java
+          && java /tmp/HealthCheck.java http://localhost:9000/health/ready
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+
+volumes:
+  postgres-data:
+  kafka-data:

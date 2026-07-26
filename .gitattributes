@@ -1,0 +1,23 @@
+# Normalise line endings so a Windows and a Linux checkout produce identical blobs, and CI does not
+# see spurious diffs.
+* text=auto eol=lf
+
+# Windows-only files must keep CRLF or cmd.exe misreads them.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Shell scripts must keep LF even on Windows: a CRLF shebang line makes the container entrypoint
+# fail with "no such file or directory", which is a genuinely confusing way to lose an afternoon.
+*.sh text eol=lf
+mvnw text eol=lf
+
+# Binary: never diffed, never line-ending converted.
+*.jar binary
+*.png binary
+*.jpg binary
+*.pdf binary
+*.zip binary
+
+# Generated or vendored files: collapse in pull request diffs.
+.mvn/wrapper/maven-wrapper.properties text eol=lf

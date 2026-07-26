@@ -1,0 +1,108 @@
+spring:
+  application:
+    name: payment-service
+
+  datasource:
+    # Credentials come from the environment only. AGENTS.md section 8 forbids committing any
+    # credential, so there is no fallback password here.
+    url: ${PAYFLOW_PAYMENT_DB_URL:jdbc:postgresql://localhost:5432/payflow_payment}
+    username: ${PAYFLOW_PAYMENT_DB_USERNAME}
+    password: ${PAYFLOW_PAYMENT_DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      # Flyway owns the schema. Hibernate must never mutate it.
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    # Both schemas belong to this service and no other service may write to either. `merchant` is
+    # separate because the merchant catalog is expected to become its own service (see
+    # V2__payment_intake.sql); until then one Flyway history table, in `payment`, governs both.
+    schemas: payment,merchant
+    default-schema: payment
+    create-schemas: true
+    # Seed data is not here. It is added by the `local` profile below, so no environment can load it
+    # by forgetting to exclude it.
+    locations: classpath:db/migration
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${PAYFLOW_OIDC_ISSUER_URI:http://localhost:8180/realms/payflow}
+
+  kafka:
+    bootstrap-servers: ${PAYFLOW_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        delivery.timeout.ms: ${PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS:30000}
+
+  mvc:
+    problemdetails:
+      enabled: true
+
+server:
+  port: ${PAYFLOW_PAYMENT_PORT:8081}
+
+payflow:
+  outbox:
+    enabled: ${PAYFLOW_OUTBOX_ENABLED:true}
+    poll-interval: ${PAYFLOW_OUTBOX_POLL_INTERVAL:500ms}
+    batch-size: ${PAYFLOW_OUTBOX_BATCH_SIZE:100}
+    lease: ${PAYFLOW_OUTBOX_LEASE:120s}
+    max-attempts: ${PAYFLOW_OUTBOX_MAX_ATTEMPTS:10}
+    max-backoff: ${PAYFLOW_OUTBOX_MAX_BACKOFF:300s}
+    # Bound to the same environment value as Kafka's producer property. A single value prevents the
+    # lease guard and the actual network timeout from silently disagreeing.
+    delivery-timeout: ${PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS:30000}ms
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    # Readiness must fail when the database is unreachable, otherwise the service would accept
+    # traffic it cannot serve. This is the Phase 0 gate on meaningful readiness.
+    db:
+      enabled: true
+    readiness-state:
+      enabled: true
+
+logging:
+  structured:
+    format:
+      console: ecs
+  level:
+    root: INFO
+
+---
+# Local development only.
+#
+# DATABASE_RULES.md section 15.3 allows seed data in the `local` and `test` profiles and nowhere else.
+# Making it a profile override rather than a default means a deployment loads the seed only if someone
+# explicitly asks for the `local` profile, instead of only if someone remembers to turn it off.
+#
+# The seed is a Flyway afterMigrate callback, not a versioned migration: it must not occupy a version
+# number that other environments would then be missing from their history.
+spring:
+  config:
+    activate:
+      on-profile: local
+  flyway:
+    locations: classpath:db/migration,classpath:db/seed

@@ -1,0 +1,40 @@
+spring:
+  application:
+    name: api-gateway
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Keycloak realm issuer. Overridden per environment; never hardcode a secret here.
+          issuer-uri: ${PAYFLOW_OIDC_ISSUER_URI:http://localhost:8180/realms/payflow}
+
+server:
+  port: ${PAYFLOW_GATEWAY_PORT:8080}
+  # Edge request-size limit. AGENTS.md section 8 requires the gateway to bound request size.
+  max-http-request-header-size: 16KB
+
+payflow:
+  gateway:
+    downstream:
+      payment-service: ${PAYFLOW_PAYMENT_SERVICE_URI:http://localhost:8081}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        # Only health is exposed. Widening this needs a security review, not a config tweak.
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+
+logging:
+  structured:
+    format:
+      # Machine-readable logs so correlationId is a queryable field rather than free text.
+      console: ecs
+  level:
+    root: INFO

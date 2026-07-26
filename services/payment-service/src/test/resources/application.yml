@@ -1,0 +1,38 @@
+# Test-only overrides.
+#
+# The production configuration deliberately has no default for the database username and password:
+# an unset credential must fail startup rather than silently fall back to something. That strictness
+# would otherwise make every test depend on the developer's environment, so placeholder values live
+# here instead.
+#
+# Integration tests that touch a real database override these anyway through Testcontainers
+# @ServiceConnection, which supplies connection details as a bean and takes precedence over
+# properties.
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/payflow_payment_unused
+    username: test
+    password: test
+
+  flyway:
+    # Seed data is allowed in the test profile (DATABASE_RULES.md 15.3) and integration tests need a
+    # merchant to exist before a payment can be accepted. Tests must still not depend on the seed for
+    # anything they assert about their own behaviour: a test that needs a specific merchant state
+    # creates it, so that changing a fixture cannot quietly change what a test proves.
+    locations: classpath:db/migration,classpath:db/seed
+
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Never contacted: tests supply their own JwtDecoder. Present so that configuration
+          # binding has a value to bind.
+          issuer-uri: http://localhost:8180/realms/payflow
+
+logging:
+  # Plain text rather than ECS JSON: a failing test is read by a human, not shipped to a log store.
+  structured:
+    format:
+      console: ""
+  level:
+    org.springframework.security: INFO

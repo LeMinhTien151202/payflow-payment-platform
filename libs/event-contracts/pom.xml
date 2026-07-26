@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.payflow</groupId>
+        <artifactId>payflow-parent</artifactId>
+        <version>0.0.1-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>event-contracts</artifactId>
+    <name>PayFlow Event Contracts</name>
+    <description>
+        Versioned Kafka event envelope, topic names, and event payload schemas shared by producers
+        and consumers. MODULE_MAP.md permits "event envelope và schema contract ổn định" in a shared
+        library; it forbids shared domain services, state machines, and money policy, so nothing in
+        this module may contain behaviour beyond contract validation.
+    </description>
+
+    <dependencies>
+        <!--
+          For the correlation id header name and its safety rules. The envelope persists and logs a
+          correlation id, so it must apply the same validation as the HTTP boundary rather than
+          re-implementing it with a slightly different character set.
+        -->
+        <dependency>
+            <groupId>com.payflow</groupId>
+            <artifactId>observability-support</artifactId>
+        </dependency>
+
+        <!--
+          Test scope only. This module deliberately has no compile-time JSON dependency: the wire
+          format is a contract, not a library choice, and nothing here is annotated. Jackson is
+          present so the tests can prove the serialised shape actually matches spec 8.2 instead of
+          asserting it in a comment.
+        -->
+        <dependency>
+            <groupId>tools.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

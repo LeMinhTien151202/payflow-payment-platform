@@ -1,0 +1,4 @@
+interface:
+  display_name: "PayFlow Backend"
+  short_description: "Build and verify reliable PayFlow services"
+  default_prompt: "Use $payflow-backend to implement a PayFlow backend feature while preserving financial invariants and distributed-system reliability."

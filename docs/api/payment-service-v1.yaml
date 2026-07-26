@@ -1,0 +1,203 @@
+openapi: 3.1.0
+info:
+  title: PayFlow Payment Service API
+  version: 1.0.0
+  description: Sandbox payment intake contract implemented in Phase 1A.
+servers:
+  - url: http://localhost:8080
+    description: Local API Gateway
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/payments:
+    post:
+      operationId: createPayment
+      summary: Accept a payment for asynchronous processing
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentRequest'
+      responses:
+        '202':
+          description: New payment accepted or an identical idempotent request replayed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentAcceptanceResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/v1/payments/{paymentId}:
+    get:
+      operationId: getPayment
+      summary: Read one payment visible to the authenticated merchant
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Merchant-owned payment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthenticated'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Payment absent or owned by another merchant
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetails'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+        maxLength: 100
+    CorrelationId:
+      name: X-Correlation-Id
+      in: header
+      required: false
+      schema:
+        type: string
+        maxLength: 64
+  schemas:
+    CreatePaymentRequest:
+      type: object
+      required: [merchantReference, customerId, sourceAccountId, amount, currency]
+      properties:
+        merchantReference:
+          type: string
+          minLength: 1
+          maxLength: 100
+        customerId:
+          type: string
+          format: uuid
+        sourceAccountId:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          exclusiveMinimum: 0
+          multipleOf: 0.0001
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          examples: [VND]
+        description:
+          type: [string, 'null']
+          maxLength: 500
+        metadata:
+          type: [object, 'null']
+          maxProperties: 20
+          additionalProperties:
+            type: string
+            maxLength: 512
+    PaymentAcceptance:
+      type: object
+      required: [paymentId, status, amount, currency, createdAt]
+      properties:
+        paymentId: {type: string, format: uuid}
+        status: {type: string, enum: [CREATED]}
+        amount: {type: number}
+        currency: {type: string}
+        createdAt: {type: string, format: date-time}
+    PaymentDetail:
+      allOf:
+        - $ref: '#/components/schemas/PaymentAcceptance'
+        - type: object
+          required: [merchantId, merchantReference, customerId, sourceAccountId, updatedAt]
+          properties:
+            merchantId: {type: string, format: uuid}
+            merchantReference: {type: string}
+            customerId: {type: string, format: uuid}
+            sourceAccountId: {type: string, format: uuid}
+            description: {type: [string, 'null']}
+            metadata: {type: object, additionalProperties: {type: string}}
+            updatedAt: {type: string, format: date-time}
+    ResponseMeta:
+      type: object
+      required: [correlationId, timestamp]
+      properties:
+        correlationId: {type: string}
+        timestamp: {type: string, format: date-time}
+    PaymentAcceptanceResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: {$ref: '#/components/schemas/PaymentAcceptance'}
+        meta: {$ref: '#/components/schemas/ResponseMeta'}
+    PaymentDetailResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: {$ref: '#/components/schemas/PaymentDetail'}
+        meta: {$ref: '#/components/schemas/ResponseMeta'}
+    FieldViolation:
+      type: object
+      required: [field, message]
+      properties:
+        field: {type: string}
+        message: {type: string}
+    ProblemDetails:
+      type: object
+      required: [status, code, detail, timestamp, fieldErrors]
+      properties:
+        type: {type: string, format: uri-reference}
+        title: {type: string}
+        status: {type: integer}
+        detail: {type: string}
+        instance: {type: string, format: uri-reference}
+        code: {type: string}
+        correlationId: {type: string}
+        timestamp: {type: string, format: date-time}
+        fieldErrors:
+          type: array
+          items: {$ref: '#/components/schemas/FieldViolation'}
+  responses:
+    BadRequest:
+      description: Validation or idempotency header error
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ProblemDetails'}
+    Unauthenticated:
+      description: Missing or invalid bearer token
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ProblemDetails'}
+    Forbidden:
+      description: Missing scope or merchant identity
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ProblemDetails'}
+    Conflict:
+      description: Duplicate merchant reference, state conflict, or idempotency conflict
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/ProblemDetails'}
