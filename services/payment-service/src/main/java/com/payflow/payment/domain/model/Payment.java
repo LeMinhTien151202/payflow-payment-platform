@@ -4,6 +4,7 @@ import com.payflow.payment.domain.exception.CurrencyNotAcceptedException;
 import com.payflow.payment.domain.exception.IllegalStatusTransitionException;
 import com.payflow.payment.domain.exception.MerchantNotAcceptingPaymentsException;
 import com.payflow.payment.domain.exception.PaymentLimitExceededException;
+import com.payflow.payment.domain.exception.UnexpectedPaymentStatusException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -165,6 +166,46 @@ public final class Payment {
         recordedChanges.add(new PaymentStatusChange(status, target, reasonCode, at));
         status = target;
         updatedAt = at;
+    }
+
+    /**
+     * Marks that the committed {@code payment.created} outbox event has handed this payment to Risk.
+     * The caller still returns the immutable CREATED acceptance snapshot required by the public API.
+     */
+    public void submitForRisk(Instant at) {
+        transitionTo(PaymentStatus.RISK_CHECKING, "RISK_SUBMITTED", at);
+    }
+
+    /**
+     * Applies the decision semantics fixed by ADR-016 without performing any I/O.
+     *
+     * <p>The application consumer will persist the transition and its outgoing outbox event in one
+     * local transaction after OD-007 is implemented. REVIEW_REQUIRED deliberately records no status
+     * transition: the published state machine has no review status, so the payment remains
+     * RISK_CHECKING and no money is touched.
+     */
+    public PaymentRiskAction applyRiskDecision(PaymentRiskDecision decision, Instant at) {
+        Objects.requireNonNull(decision, "decision");
+        Objects.requireNonNull(at, "at");
+        requireStatus(PaymentStatus.RISK_CHECKING, "risk decision");
+
+        return switch (decision) {
+            case APPROVED -> {
+                transitionTo(PaymentStatus.RESERVING_FUNDS, "RISK_APPROVED", at);
+                yield PaymentRiskAction.REQUEST_FUNDS_RESERVATION;
+            }
+            case REJECTED -> {
+                transitionTo(PaymentStatus.RISK_REJECTED, "RISK_REJECTED", at);
+                yield PaymentRiskAction.PUBLISH_PAYMENT_FAILED;
+            }
+            case REVIEW_REQUIRED -> PaymentRiskAction.AWAIT_MANUAL_REVIEW;
+        };
+    }
+
+    private void requireStatus(PaymentStatus expected, String operation) {
+        if (status != expected) {
+            throw new UnexpectedPaymentStatusException(id, expected, status, operation);
+        }
     }
 
     /** True when the payment can no longer move. See {@link PaymentStatus#isTerminal()}. */

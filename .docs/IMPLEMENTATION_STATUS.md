@@ -24,14 +24,15 @@ File này là bảng bằng chứng sống. Cập nhật sau mỗi milestone; kh
 | Docker Compose infrastructure | `IMPLEMENTED` | `docker compose --env-file .env.example config --quiet` → exit 0, 2026-07-26 | Chỉ validate client-side; chưa start container nào |
 | Payment schema và Flyway baseline | `IMPLEMENTED` | — | `PaymentServiceFoundationIT` (9 test) chưa chạy: cần Docker daemon. Không hạ xuống H2 để lấy badge |
 | CI pipeline | `IMPLEMENTED` | — | `.github/workflows/ci.yml` có 3 job; **chưa chạy lần nào** vì repo chưa có commit và chưa có remote. YAML cũng chưa được lint (không có `yq`/PyYAML trong môi trường) |
-| Event envelope v1 và topic contract | `VERIFIED_LOCAL` | `./mvnw -B -ntp -pl libs/event-contracts -am test` → 27/27 pass, 2026-07-26 | Wire format được chứng minh bằng round-trip Jackson 3 thật, không chỉ mô tả bằng văn bản. Chỉ có `payment.created` v1 |
+| Event envelope v1 và topic contract | `VERIFIED_LOCAL` | 39/39 contract test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | Wire format round-trip Jackson 3 cho `payment.created`, `risk.assessment.completed` và `payment.failed` v1 |
 | Payment intake schema (V2, DDL + constraint) | `IMPLEMENTED` | — | `PaymentIntakeSchemaIT` (23 test) và `PaymentServiceFoundationIT` chưa chạy: cần Docker daemon. Xem "Known deviations" bên dưới |
 | Payment intake REST + application core | `IMPLEMENTED` | `PaymentControllerTest` 6 + `CreatePaymentHandlerTest` 24 + `RequestFingerprintTest` 13 pass, 2026-07-26 | `POST` 202, `GET`, JWT `merchant_id`, typed Problem Details và canonical replay đã có; atomicity/concurrency trên PostgreSQL thật chưa chạy |
 | Outbox polling publisher | `IMPLEMENTED` | `PublishOutboxHandlerTest` 7 + `OutboxPropertiesTest` 1 pass, 2026-07-26 | Lease/backoff/terminal/order policy đã test không Docker; claim SQL, Kafka ack và 9 integration gate ADR-014 chưa chạy |
 | Account/Reservation và Ledger domain core | `VERIFIED_LOCAL` | 21/21 unit test pass; full `-Pno-docker verify` exit 0, 2026-07-26 | Core thuần Java trong `account-ledger-service`; chưa có Spring Boot bootstrap, database, locking, inbox/outbox hoặc Kafka |
-| Risk rule engine domain core | `VERIFIED_LOCAL` | 19/19 unit test pass; full `-Pno-docker verify` exit 0, 2026-07-27 | ADR-015 saturation/level bands; core thuần Java, chưa có Redis/PostgreSQL/Kafka hay event Risk→Payment |
+| Risk rule engine + assessment event factory | `VERIFIED_LOCAL` | 26/26 Risk test + 39/39 event-contract test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | ADR-015/016; giữ payment key, correlation và causation; chưa có Redis/PostgreSQL/Kafka adapter |
 | Notification record và email mock core | `VERIFIED_LOCAL` | 14/14 unit test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | Core thuần Java trong `notification-service`; chưa có Spring Boot, database, Kafka inbox/outbox, webhook, retry/DLT hoặc Keycloak runtime |
-| Happy-path Saga | `PLANNED` | — | Phase 1B |
+| Risk→Payment Saga decision core | `VERIFIED_LOCAL` | Payment 118/118 test pass, gồm risk policy và state transition; full `-Pno-docker verify` exit 0, 2026-07-28 | `APPROVED/REJECTED/REVIEW_REQUIRED` đã khóa; chưa có Kafka consumer, inbox/outbox transaction hoặc Account command |
+| Happy-path Saga E2E | `PLANNED` | — | Phase 1B; OD-007 chặn consumer, OD-001 chặn financial finalization |
 | Failure recovery/compensation | `PLANNED` | — | Pre-Phase-2 decision gate (OD-002) |
 | Refund/webhook/reporting | `PLANNED` | — | Phase 2 |
 | Settlement/reconciliation/Kubernetes/load | `PLANNED` | — | Phase 3 |
@@ -47,10 +48,10 @@ review sau không phải đoán đó là lệch hay là bug.
 | D-02 | Spec §7.4 bảng `payments` | Thêm cột `source_account_id` | Request tạo payment (§7.4) và event `payment.created` (§8.4) đều cần nó; bảng trong spec thiếu. Đây là lỗ hổng của spec, không phải lựa chọn thiết kế |
 | D-03 | Spec §8.6 bảng `outbox_events` | Thêm `topic`, `lock_owner`, `lock_until`, `last_error` | `topic` để publisher không cần một bảng routing thứ hai phải đồng bộ. Ba cột còn lại do ADR-014 yêu cầu; thiếu chúng thì row `PROCESSING` sau khi publisher chết là row không ai reclaim được |
 | D-04 | Spec §15.4 index outbox `(status, next_attempt_at, created_at)` | Hai partial index theo `status` | Row `PUBLISHED` sẽ là gần như toàn bộ bảng và không xuất hiện trong query nào của publisher. Ghi trong ADR-014 |
-| D-05 | Spec §7.4 vòng đời payment | DDL cho phép cả 10 status, code Phase 1A chỉ tạo `CREATED` | Tập status do spec cố định nên CHECK đủ 10 không tốn gì và tránh một migration mỗi phase. State machine trong domain mới là chỗ quyết định transition nào hợp lệ |
+| D-05 | Spec §7.4 vòng đời payment | DDL cho phép cả 10 status; Phase 1B intake lưu `RISK_CHECKING` nhưng response/idempotency snapshot vẫn `CREATED` | Tập status do spec cố định. Payment chuyển `CREATED -> RISK_CHECKING` trong cùng transaction append `payment.created`, loại bỏ cửa sổ risk result tới trước state transition; API 202 vẫn giữ contract ban đầu |
 | D-06 | — | `merchant` là schema riêng, **không** có FK từ `payment.payments.merchant_id` | Merchant catalog sẽ tách thành service riêng. Một FK cross-schema sẽ biến việc tách đó từ thay đổi code thành một cuộc di trú dữ liệu |
 | D-07 | Roadmap yêu cầu Phase 1A gate trước Phase 1B | Bắt đầu domain core Account/Ledger trước khi chạy gate PostgreSQL/Kafka | Người dùng yêu cầu tiếp tục code core trong lúc chưa chạy Docker. Phạm vi chỉ gồm invariant deterministic và unit test; không thêm persistence, consumer, event contract hay tuyên bố Phase 1B hoàn tất |
-| D-08 | Roadmap yêu cầu Phase 1A gate trước Phase 1B | Bắt đầu Risk domain core trước integration gate | Người dùng tiếp tục yêu cầu code core không Docker. OD-009 được resolve chính thức bằng ADR-015 trước implementation; OD-003 vẫn chặn event/integration nên module chỉ chứa deterministic policy và unit test |
+| D-08 | Roadmap yêu cầu Phase 1A gate trước Phase 1B | Bắt đầu Risk domain/event core trước integration gate | Người dùng tiếp tục yêu cầu code core không Docker. OD-009/OD-003 được resolve bằng ADR-015/016; phạm vi chỉ gồm deterministic policy, versioned contract/factory và Payment decision policy, không có consumer/persistence/Kafka |
 | D-09 | Roadmap yêu cầu Phase 1A gate trước Phase 1B | Bắt đầu Notification email-mock core trước integration gate | Người dùng tiếp tục yêu cầu code core không Docker. Phạm vi chỉ gồm notification state policy, application port và in-memory email adapter; OD-007 chặn Kafka consumer/inbox, còn webhook/retry/DLT thuộc Phase 2 |
 
 ## Evidence record template
@@ -191,6 +192,31 @@ Known limitations:
   - Đây là domain/application core và in-memory adapter, chưa phải Spring Boot deployable.
   - Không có test nào chứng minh persistence, transaction, duplicate Kafka event, timeout hoặc crash recovery.
   - OD-007 vẫn chặn consumer/inbox; webhook HMAC, retry/DLT và operations retry thuộc Phase 2.
+  - Keycloak được giữ nguyên nhưng không chạy trong gate không Docker này.
+```
+
+### 2026-07-28 — Risk event contract và Payment Saga decision core
+
+```text
+Date/time (UTC): 2026-07-28T08:55:07Z
+Commit SHA: N/A (working tree chưa có commit cho change này)
+Environment: Windows 10; Maven Wrapper 3.9.16; Java 21.0.7; không Docker/PostgreSQL/Redis/Kafka/Keycloak runtime
+Capability/scenario: ADR-016 risk taxonomy; risk.assessment.completed/payment.failed v1; Risk event factory; Payment CREATED -> RISK_CHECKING intake và APPROVED/REJECTED/REVIEW_REQUIRED decision policy
+Targeted command 1: .\mvnw.cmd -B -ntp -Pno-docker -pl services/risk-service -am test
+Targeted result 1: exit 0, BUILD SUCCESS; event-contracts 35/35 và risk-service 25/25 trước regression aggregate-key.
+Targeted command 2: .\mvnw.cmd -B -ntp -Pno-docker -pl services/payment-service -am test
+Targeted result 2: exit 0, BUILD SUCCESS; event-contracts 39/39 và payment-service 118/118.
+Final command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Final result: exit 0, BUILD SUCCESS trong 53.636 s, 9/9 module SUCCESS.
+  Surefire 238/238 pass — observability 15, error-contract 5, event-contracts 39, payment-service 118, account-ledger-service 21, risk-service 26, notification-service 14.
+  Failsafe 13/13 pass — api-gateway 13; Docker-tagged payment IT bị loại đúng thiết kế.
+Artifacts: target/surefire-reports và target/failsafe-reports từng module (local only)
+Decision/contracts: docs/adr/ADR-016-risk-assessment-event-taxonomy.md; docs/events/risk-assessment-completed-v1.md; docs/events/payment-failed-v1.md
+Known limitations:
+  - Contract/factory/policy đã verified; không có Kafka producer/consumer hay Risk database transaction.
+  - OD-007 vẫn chặn consumer inbox insert-if-new và atomic business change + outbox.
+  - OD-001 vẫn chặn ledger/capture/payment-success finalization; không có payment.succeeded contract trong change này.
+  - PostgreSQL persistence của intake RISK_CHECKING và hai history row chưa được chứng minh vì Docker-tagged IT chưa chạy.
   - Keycloak được giữ nguyên nhưng không chạy trong gate không Docker này.
 ```
 

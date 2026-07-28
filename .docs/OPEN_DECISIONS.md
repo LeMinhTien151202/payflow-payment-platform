@@ -15,7 +15,7 @@ File này ghi các điểm chưa đủ rõ trong spec hoặc đang mâu thuẫn 
 | --- | --- | --- | --- |
 | OD-001 | OPEN | Thứ tự ledger post, account capture và payment success | Phase 1B finalization |
 | OD-002 | OPEN | Failure-recovery gate được remap từ spec Phase 2 | Transition sau Phase 1B |
-| OD-003 | OPEN | Risk decision và payment rejection event taxonomy | Risk/Payment integration |
+| OD-003 | RESOLVED | Risk decision và payment rejection event taxonomy | Mở khóa bằng ADR-016 |
 | OD-004 | OPEN | Fee policy/rate/rounding snapshot lịch sử | Fee, refund economics, settlement |
 | OD-005 | OPEN | Atomic refundable-capacity reservation | Refund intake/concurrency |
 | OD-006 | OPEN | Payment state khi Saga cần manual review | Timeout/recovery API và event |
@@ -58,6 +58,16 @@ Quyết định phải khóa:
 - producer/consumer/topic/key;
 - compatibility strategy và contract test;
 - payment outcome event cho risk rejection.
+
+**Đã chốt** bằng [`docs/adr/ADR-016`](../docs/adr/ADR-016-risk-assessment-event-taxonomy.md):
+Risk publish một `risk.assessment.completed` v1 trên `payflow.risk.events.v1`, key
+theo `paymentId`, payload gồm decision/score/level/matchedRules/policyVersion. Payment
+dùng `payment.failed` với `failureCode=RISK_REJECTED` cho outcome bị từ chối;
+`REVIEW_REQUIRED` giữ payment ở `RISK_CHECKING`, không reserve tiền và chờ workflow
+manual review Phase 2.
+
+Implementation gate: contract/factory test không Docker phải xanh; consumer/inbox và
+outbox atomicity chỉ được triển khai sau OD-007 và phải có Testcontainers evidence.
 
 ## OD-004 — Historical fee snapshot
 

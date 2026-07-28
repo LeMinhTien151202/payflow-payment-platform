@@ -147,7 +147,11 @@ public class CreatePaymentHandler {
                         now);
 
         Payment payment = Payment.create(merchant, intake);
+        // The public 202 contract returns the initial CREATED snapshot. The stored aggregate advances
+        // to RISK_CHECKING in the same transaction that appends payment.created, so a later Risk result
+        // cannot arrive while Payment still claims it was never submitted.
         PaymentAcceptance acceptance = PaymentAcceptance.of(payment);
+        payment.submitForRisk(now);
 
         idempotency.record(
                 scope,

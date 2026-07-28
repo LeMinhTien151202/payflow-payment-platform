@@ -8,6 +8,7 @@ import static org.junit.jupiter.params.provider.EnumSource.Mode.EXCLUDE;
 import com.payflow.payment.domain.exception.IllegalStatusTransitionException;
 import com.payflow.payment.domain.exception.MerchantNotAcceptingPaymentsException;
 import com.payflow.payment.domain.exception.PaymentLimitExceededException;
+import com.payflow.payment.domain.exception.UnexpectedPaymentStatusException;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -168,6 +169,76 @@ class PaymentTest {
     }
 
     @Test
+    @DisplayName("submitting for risk records the explicit CREATED to RISK_CHECKING edge")
+    void submitsForRisk() {
+        Payment payment = Payment.create(activeMerchant(), intake("500000"));
+
+        payment.submitForRisk(LATER);
+
+        assertThat(payment.status()).isEqualTo(PaymentStatus.RISK_CHECKING);
+        assertThat(payment.recordedStatusChanges().getLast().reasonCode())
+                .isEqualTo("RISK_SUBMITTED");
+    }
+
+    @Test
+    @DisplayName("approved risk decision advances to reservation without touching money")
+    void approvedRiskRequestsReservation() {
+        Payment payment = paymentCheckingRisk();
+
+        PaymentRiskAction action =
+                payment.applyRiskDecision(PaymentRiskDecision.APPROVED, LATER.plusSeconds(1));
+
+        assertThat(action).isEqualTo(PaymentRiskAction.REQUEST_FUNDS_RESERVATION);
+        assertThat(payment.status()).isEqualTo(PaymentStatus.RESERVING_FUNDS);
+        assertThat(payment.recordedStatusChanges().getLast().reasonCode())
+                .isEqualTo("RISK_APPROVED");
+    }
+
+    @Test
+    @DisplayName("rejected risk decision terminates before reservation")
+    void rejectedRiskPublishesFailure() {
+        Payment payment = paymentCheckingRisk();
+
+        PaymentRiskAction action =
+                payment.applyRiskDecision(PaymentRiskDecision.REJECTED, LATER.plusSeconds(1));
+
+        assertThat(action).isEqualTo(PaymentRiskAction.PUBLISH_PAYMENT_FAILED);
+        assertThat(payment.status()).isEqualTo(PaymentStatus.RISK_REJECTED);
+        assertThat(payment.isTerminal()).isTrue();
+    }
+
+    @Test
+    @DisplayName("review-required leaves payment waiting and creates no false status history")
+    void reviewRequiredWaitsWithoutTouchingPaymentState() {
+        Payment payment = paymentCheckingRisk();
+        int historySize = payment.recordedStatusChanges().size();
+
+        PaymentRiskAction action = payment.applyRiskDecision(
+                PaymentRiskDecision.REVIEW_REQUIRED, LATER.plusSeconds(1));
+
+        assertThat(action).isEqualTo(PaymentRiskAction.AWAIT_MANUAL_REVIEW);
+        assertThat(payment.status()).isEqualTo(PaymentStatus.RISK_CHECKING);
+        assertThat(payment.recordedStatusChanges()).hasSize(historySize);
+    }
+
+    @Test
+    @DisplayName("risk result cannot be applied before the payment is checking risk")
+    void refusesRiskDecisionInUnexpectedStatus() {
+        Payment payment = Payment.create(activeMerchant(), intake("500000"));
+
+        assertThatThrownBy(() -> payment.applyRiskDecision(PaymentRiskDecision.APPROVED, LATER))
+                .isInstanceOf(UnexpectedPaymentStatusException.class)
+                .satisfies(failure -> {
+                    UnexpectedPaymentStatusException statusFailure =
+                            (UnexpectedPaymentStatusException) failure;
+                    assertThat(statusFailure.expected()).isEqualTo(PaymentStatus.RISK_CHECKING);
+                    assertThat(statusFailure.actual()).isEqualTo(PaymentStatus.CREATED);
+                });
+        assertThat(payment.status()).isEqualTo(PaymentStatus.CREATED);
+        assertThat(payment.recordedStatusChanges()).hasSize(1);
+    }
+
+    @Test
     @DisplayName("a terminal payment refuses every further move")
     void terminalPaymentIsFrozen() {
         Payment payment = Payment.create(activeMerchant(), intake("500000"));
@@ -269,5 +340,11 @@ class PaymentTest {
                 "Payment[id=" + PAYMENT_ID + ", merchantId=" + MERCHANT_ID
                         + ", amount=500000.0000 VND, status=CREATED]");
         assertThat(payment.toString()).doesNotContain("Thanh toán", "ORDER-2026-00001");
+    }
+
+    private static Payment paymentCheckingRisk() {
+        Payment payment = Payment.create(activeMerchant(), intake("500000"));
+        payment.submitForRisk(LATER);
+        return payment;
     }
 }

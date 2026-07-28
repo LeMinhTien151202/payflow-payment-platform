@@ -38,7 +38,7 @@ account-ledger-service/
 | Event/command | Producer | Consumer chính | Key | Side effect |
 | --- | --- | --- | --- | --- |
 | `payment.created` | Payment | Risk, reporting | `paymentId` | Tạo assessment/projection |
-| Risk decision event (`OD-003`) | Risk | Payment | `paymentId` | Tiến/reject/manual-review Saga sau khi taxonomy được chốt |
+| `risk.assessment.completed` | Risk | Payment, reporting | `paymentId` | Tiến/reject/giữ chờ review theo ADR-016 |
 | `account.reserve.requested` | Payment | Account | `paymentId` | Tạo một reservation |
 | `account.funds-reserved` | Account | Payment | `paymentId` | Yêu cầu post ledger |
 | `account.funds-reservation-failed` | Account | Payment | `paymentId` | Fail Saga |

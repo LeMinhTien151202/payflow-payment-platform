@@ -17,4 +17,11 @@
         Phase 1B deterministic Risk domain core. Persistence, Redis velocity collection, Kafka
         consumers/producers, and deployment bootstrap remain outside this Docker-free slice.
     </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.payflow</groupId>
+            <artifactId>event-contracts</artifactId>
+        </dependency>
+    </dependencies>
 </project>

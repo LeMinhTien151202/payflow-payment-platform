@@ -32,6 +32,7 @@ ADR chính thức (đã viết) nằm ở [`docs/adr/`](../../docs/adr/README.md
 | ADR-013 | Platform version baseline: Spring Boot 4.0.7 + Spring Cloud 2025.1.2 | ACCEPTED — [docs/adr/ADR-013](../../docs/adr/ADR-013-platform-version-baseline.md) |
 | ADR-014 | Outbox claim lease, stale recovery và crash semantics | ACCEPTED — [docs/adr/ADR-014](../../docs/adr/ADR-014-outbox-claim-lease-and-recovery.md) |
 | ADR-015 | Risk score v1 dùng saturation và level band cố định | ACCEPTED — [docs/adr/ADR-015](../../docs/adr/ADR-015-risk-score-saturation-and-level-bands.md) |
+| ADR-016 | Một `risk.assessment.completed` hợp nhất | ACCEPTED — [docs/adr/ADR-016](../../docs/adr/ADR-016-risk-assessment-event-taxonomy.md) |
 
 ADR-013 không có trong backlog gốc: nó phát sinh khi Phase 0 phát hiện spec §3.1 khai báo một cặp version không tồn tại (Spring Boot 4.1.x + Spring Cloud 2025.1.x). Quyết định được ghi lại thay vì âm thầm chọn một phía.
 
@@ -40,6 +41,9 @@ ADR-014 cũng không có trong backlog gốc. ADR-004 chỉ chọn *cơ chế* p
 ADR-015 phát sinh từ OD-009: tổng điểm rule mẫu lớn hơn range 0–100 mà spec công bố.
 ADR chốt saturation và level band trước khi tạo Risk rule engine, thay vì để code âm
 thầm trở thành contract.
+
+ADR-016 giải quyết hai taxonomy Risk cạnh tranh trong spec bằng một event hợp nhất,
+đồng thời khóa semantics `REVIEW_REQUIRED` mà không thêm Payment status ngoài spec.
 
 ## Quy tắc tạo ADR
 

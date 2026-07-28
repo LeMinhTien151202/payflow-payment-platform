@@ -10,11 +10,9 @@ import com.payflow.events.EventType;
  * on a producer's internals. Ownership stays with payment-service: it alone may add an event type
  * here or bump a version, and it alone answers for compatibility.
  *
- * <p>Only {@code payment.created} exists so far. The rest of the payment lifecycle
- * ({@code payment.succeeded}, {@code payment.failed}, the account and risk commands) is deliberately
- * absent — those belong to Phase 1B, and several depend on decisions still marked {@code OPEN} in
- * {@code .docs/OPEN_DECISIONS.md}. Adding a contract before its decision is resolved would turn a
- * guess into a published schema.
+ * <p>{@code payment.failed} is available for terminal unsuccessful outcomes whose taxonomy is
+ * already resolved. Success/finalization remains absent because OD-001 is still open; adding it now
+ * would turn a guess about capture ordering into a published schema.
  */
 public final class PaymentEvents {
 
@@ -23,6 +21,9 @@ public final class PaymentEvents {
 
     /** A payment was accepted for processing. Spec 8.4. */
     public static final EventType PAYMENT_CREATED = new EventType("payment.created", 1, AGGREGATE_TYPE);
+
+    /** A payment reached an unsuccessful terminal outcome. Spec 8.4 and ADR-016. */
+    public static final EventType PAYMENT_FAILED = new EventType("payment.failed", 1, AGGREGATE_TYPE);
 
     private PaymentEvents() {
     }

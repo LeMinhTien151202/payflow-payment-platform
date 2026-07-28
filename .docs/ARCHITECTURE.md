@@ -210,7 +210,7 @@ sequenceDiagram
     C->>P: POST payment + Idempotency-Key
     P-->>C: 202 Accepted
     P->>R: payment.created
-    R->>P: risk decision event (OD-003)
+    R->>P: risk.assessment.completed (ADR-016)
     P->>A: account.reserve.requested
     A->>P: funds-reserved/reservation-failed
     P->>L: ledger.post-payment.requested

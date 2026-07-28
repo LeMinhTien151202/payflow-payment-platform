@@ -141,9 +141,10 @@ class CreatePaymentHandlerTest {
         assertThat(saved.merchantReference()).isEqualTo(MERCHANT_REFERENCE);
         assertThat(saved.idempotencyKey()).isEqualTo(IDEMPOTENCY_KEY);
         assertThat(saved.amount()).isEqualTo(Money.of("500000", "VND"));
-        assertThat(saved.status()).isEqualTo(PaymentStatus.CREATED);
+        assertThat(saved.status()).isEqualTo(PaymentStatus.RISK_CHECKING);
         assertThat(saved.createdAt()).isEqualTo(NOW);
-        assertThat(saved.recordedStatusChanges()).hasSize(1);
+        assertThat(saved.recordedStatusChanges()).hasSize(2);
+        assertThat(saved.recordedStatusChanges().getLast().reasonCode()).isEqualTo("RISK_SUBMITTED");
     }
 
     /**
