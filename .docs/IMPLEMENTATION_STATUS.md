@@ -29,6 +29,8 @@ File này là bảng bằng chứng sống. Cập nhật sau mỗi milestone; kh
 | Payment intake REST + application core | `IMPLEMENTED` | `PaymentControllerTest` 6 + `CreatePaymentHandlerTest` 24 + `RequestFingerprintTest` 13 pass, 2026-07-26 | `POST` 202, `GET`, JWT `merchant_id`, typed Problem Details và canonical replay đã có; atomicity/concurrency trên PostgreSQL thật chưa chạy |
 | Outbox polling publisher | `IMPLEMENTED` | `PublishOutboxHandlerTest` 7 + `OutboxPropertiesTest` 1 pass, 2026-07-26 | Lease/backoff/terminal/order policy đã test không Docker; claim SQL, Kafka ack và 9 integration gate ADR-014 chưa chạy |
 | Account/Reservation và Ledger domain core | `VERIFIED_LOCAL` | 21/21 unit test pass; full `-Pno-docker verify` exit 0, 2026-07-26 | Core thuần Java trong `account-ledger-service`; chưa có Spring Boot bootstrap, database, locking, inbox/outbox hoặc Kafka |
+| Risk rule engine domain core | `VERIFIED_LOCAL` | 19/19 unit test pass; full `-Pno-docker verify` exit 0, 2026-07-27 | ADR-015 saturation/level bands; core thuần Java, chưa có Redis/PostgreSQL/Kafka hay event Risk→Payment |
+| Notification record và email mock core | `VERIFIED_LOCAL` | 14/14 unit test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | Core thuần Java trong `notification-service`; chưa có Spring Boot, database, Kafka inbox/outbox, webhook, retry/DLT hoặc Keycloak runtime |
 | Happy-path Saga | `PLANNED` | — | Phase 1B |
 | Failure recovery/compensation | `PLANNED` | — | Pre-Phase-2 decision gate (OD-002) |
 | Refund/webhook/reporting | `PLANNED` | — | Phase 2 |
@@ -48,6 +50,8 @@ review sau không phải đoán đó là lệch hay là bug.
 | D-05 | Spec §7.4 vòng đời payment | DDL cho phép cả 10 status, code Phase 1A chỉ tạo `CREATED` | Tập status do spec cố định nên CHECK đủ 10 không tốn gì và tránh một migration mỗi phase. State machine trong domain mới là chỗ quyết định transition nào hợp lệ |
 | D-06 | — | `merchant` là schema riêng, **không** có FK từ `payment.payments.merchant_id` | Merchant catalog sẽ tách thành service riêng. Một FK cross-schema sẽ biến việc tách đó từ thay đổi code thành một cuộc di trú dữ liệu |
 | D-07 | Roadmap yêu cầu Phase 1A gate trước Phase 1B | Bắt đầu domain core Account/Ledger trước khi chạy gate PostgreSQL/Kafka | Người dùng yêu cầu tiếp tục code core trong lúc chưa chạy Docker. Phạm vi chỉ gồm invariant deterministic và unit test; không thêm persistence, consumer, event contract hay tuyên bố Phase 1B hoàn tất |
+| D-08 | Roadmap yêu cầu Phase 1A gate trước Phase 1B | Bắt đầu Risk domain core trước integration gate | Người dùng tiếp tục yêu cầu code core không Docker. OD-009 được resolve chính thức bằng ADR-015 trước implementation; OD-003 vẫn chặn event/integration nên module chỉ chứa deterministic policy và unit test |
+| D-09 | Roadmap yêu cầu Phase 1A gate trước Phase 1B | Bắt đầu Notification email-mock core trước integration gate | Người dùng tiếp tục yêu cầu code core không Docker. Phạm vi chỉ gồm notification state policy, application port và in-memory email adapter; OD-007 chặn Kafka consumer/inbox, còn webhook/retry/DLT thuộc Phase 2 |
 
 ## Evidence record template
 
@@ -145,6 +149,49 @@ Known limitations:
   - Unit test không chứng minh atomic reserve, row locking, unique reservation hoặc journal transaction trên PostgreSQL.
   - Chưa implement inbox/outbox/Kafka consumer vì OD-007 và các contract Saga liên quan vẫn OPEN.
   - Happy-path Saga vẫn PLANNED; Phase 1A và Phase 1B chưa đạt integration/E2E gate.
+```
+
+### 2026-07-27 — Risk Phase 1B domain core
+
+```text
+Date/time (UTC): 2026-07-26T17:11:06Z
+Commit SHA: N/A (working tree chưa có commit cho change này)
+Environment: Windows 10; Maven Wrapper 3.9.16; Java 21.0.7; không Docker/PostgreSQL/Redis/Kafka runtime
+Capability/scenario: ADR-015 risk score saturation/level bands và bảy deterministic rule trong risk-service
+Targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/risk-service -am test
+Targeted result: exit 0, BUILD SUCCESS trong 6.425 s; risk-service 19/19 test pass.
+Final command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Final result: exit 0, BUILD SUCCESS trong 48.596 s, 8/8 module SUCCESS.
+  Surefire 196/196 pass — shared libs 47, payment-service 109, account-ledger-service 21, risk-service 19.
+  Failsafe 13/13 pass — api-gateway 13; Docker-tagged payment IT bị loại đúng thiết kế.
+Artifacts: services/risk-service/target/surefire-reports và report của từng module (local only)
+Decision: docs/adr/ADR-015-risk-score-saturation-and-level-bands.md; OD-009 chuyển RESOLVED.
+Known limitations:
+  - Đây là domain core, chưa phải deployable Spring Boot service.
+  - Chưa có Redis velocity counter, PostgreSQL assessment, inbox/outbox hoặc Kafka integration.
+  - OD-003 vẫn OPEN nên chưa tạo risk.assessment.completed hay payment rejection event.
+  - Unit test không chứng minh duplicate delivery, transaction hoặc E2E Saga; Phase 1B vẫn chưa đạt gate.
+```
+
+### 2026-07-28 — Notification Phase 1B domain core
+
+```text
+Date/time (UTC): 2026-07-28T07:22:30Z
+Commit SHA: N/A (working tree chưa có commit cho change này)
+Environment: Windows 10; Maven Wrapper 3.9.16; Java 21.0.7; không Docker/PostgreSQL/Kafka/Keycloak runtime
+Capability/scenario: Notification aggregate PENDING -> SENT/FAILED, duplicate terminal delivery no-op và in-memory email mock không tạo side effect trùng theo notification id
+Targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/notification-service -am test
+Targeted result: exit 0, BUILD SUCCESS; notification-service 14/14 test pass.
+Final command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Final result: exit 0, BUILD SUCCESS trong 01:00, 9/9 module SUCCESS.
+  Surefire 210/210 pass — shared libs 47, payment-service 109, account-ledger-service 21, risk-service 19, notification-service 14.
+  Failsafe 13/13 pass — api-gateway 13; Docker-tagged payment IT bị loại đúng thiết kế.
+Artifacts: services/notification-service/target/surefire-reports và report của từng module (local only)
+Known limitations:
+  - Đây là domain/application core và in-memory adapter, chưa phải Spring Boot deployable.
+  - Không có test nào chứng minh persistence, transaction, duplicate Kafka event, timeout hoặc crash recovery.
+  - OD-007 vẫn chặn consumer/inbox; webhook HMAC, retry/DLT và operations retry thuộc Phase 2.
+  - Keycloak được giữ nguyên nhưng không chạy trong gate không Docker này.
 ```
 
 Quy tắc cập nhật:

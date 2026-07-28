@@ -14,6 +14,7 @@ quy tắc an toàn trong [`.agent/AGENTS.md`](../../.agent/AGENTS.md).
 | [ADR-007](ADR-007-postgresql-money-representation.md) | PostgreSQL với `NUMERIC(19,4)` và `BigDecimal` cho mọi giá trị tiền | ACCEPTED | 2026-07-26 |
 | [ADR-013](ADR-013-platform-version-baseline.md) | Platform version baseline là Spring Boot 4.0.7 + Spring Cloud 2025.1.2 | ACCEPTED | 2026-07-26 |
 | [ADR-014](ADR-014-outbox-claim-lease-and-recovery.md) | Outbox claim lease, stale recovery và crash semantics — resolves OD-008 | ACCEPTED | 2026-07-26 |
+| [ADR-015](ADR-015-risk-score-saturation-and-level-bands.md) | Risk score v1 dùng saturation và level band cố định — resolves OD-009 | ACCEPTED | 2026-07-27 |
 
 Các ADR còn lại trong khoảng ADR-001…ADR-012 vẫn ở trạng thái `PROPOSED` và chưa có
 file: chúng thuộc phạm vi Phase 1B trở đi và sẽ được viết khi đúng lát cắt được triển

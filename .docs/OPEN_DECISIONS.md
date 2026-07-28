@@ -21,7 +21,7 @@ File này ghi các điểm chưa đủ rõ trong spec hoặc đang mâu thuẫn 
 | OD-006 | OPEN | Payment state khi Saga cần manual review | Timeout/recovery API và event |
 | OD-007 | OPEN | PostgreSQL inbox insert-if-new semantics | Kafka consumer implementation |
 | OD-008 | RESOLVED | Outbox claim lease và stale recovery | Đã mở khoá bằng ADR-004 + ADR-014 |
-| OD-009 | OPEN | Risk score normalization/range | Risk rule engine |
+| OD-009 | RESOLVED | Risk score normalization/range | Đã mở khoá bằng ADR-015 |
 | OD-010 | OPEN | Audit snapshot allowlist, retention và access | Privileged audit logging |
 
 ## OD-001 — Financial finalization boundary
@@ -99,11 +99,15 @@ Quyết định phải nêu:
 
 Implementation gate: 9 test bắt buộc trong ADR-014 §Verification phải xanh trước khi outbox publisher được coi là xong. Tại thời điểm resolve, **chưa test nào chạy** — ADR mở khoá quyền implement, không phải chứng nhận đã implement.
 
-## OD-009 — Risk score range
+## OD-009 — Risk score range — RESOLVED 2026-07-27
 
 Tổng điểm rule mẫu có thể vượt 100 trong khi schema/threshold công bố 0–100. Chọn saturation tại 100, normalization khác, hoặc nới range và định nghĩa `score >= 70` rõ ràng. Khóa bằng test nhiều rule đồng thời.
+
+**Đã chốt** bằng [`docs/adr/ADR-015`](../docs/adr/ADR-015-risk-score-saturation-and-level-bands.md):
+cộng nguyên điểm rule rồi dùng `min(rawScore, 100)`; level band cố định LOW 0–19,
+MEDIUM 20–39, HIGH 40–69, CRITICAL 70–100. OD-003 vẫn độc lập và tiếp tục chặn
+event Risk→Payment.
 
 ## OD-010 — Audit data safety
 
 `before_data`/`after_data` dạng JSONB không được trở thành đường vòng lưu API key, hash, token, webhook secret hoặc PII. Quyết định phải có field allowlist/redaction trước persistence, append-only protection, access control, retention và test chống secret leakage.
-

@@ -31,10 +31,15 @@ ADR chính thức (đã viết) nằm ở [`docs/adr/`](../../docs/adr/README.md
 | ADR-012 | Đưa failure-recovery hardening thành gate trước service split | PROPOSED |
 | ADR-013 | Platform version baseline: Spring Boot 4.0.7 + Spring Cloud 2025.1.2 | ACCEPTED — [docs/adr/ADR-013](../../docs/adr/ADR-013-platform-version-baseline.md) |
 | ADR-014 | Outbox claim lease, stale recovery và crash semantics | ACCEPTED — [docs/adr/ADR-014](../../docs/adr/ADR-014-outbox-claim-lease-and-recovery.md) |
+| ADR-015 | Risk score v1 dùng saturation và level band cố định | ACCEPTED — [docs/adr/ADR-015](../../docs/adr/ADR-015-risk-score-saturation-and-level-bands.md) |
 
 ADR-013 không có trong backlog gốc: nó phát sinh khi Phase 0 phát hiện spec §3.1 khai báo một cặp version không tồn tại (Spring Boot 4.1.x + Spring Cloud 2025.1.x). Quyết định được ghi lại thay vì âm thầm chọn một phía.
 
 ADR-014 cũng không có trong backlog gốc. ADR-004 chỉ chọn *cơ chế* publish; phần OD-008 yêu cầu (claim lease, stale recovery, crash window, backoff, terminal state, metric) là một quyết định riêng với trade-off riêng, nên tách thành ADR-014 thay vì nhồi vào ADR-004. Đây là hai ADR giải chung một blocker: OD-008 chỉ `RESOLVED` khi có cả hai.
+
+ADR-015 phát sinh từ OD-009: tổng điểm rule mẫu lớn hơn range 0–100 mà spec công bố.
+ADR chốt saturation và level band trước khi tạo Risk rule engine, thay vì để code âm
+thầm trở thành contract.
 
 ## Quy tắc tạo ADR
 
