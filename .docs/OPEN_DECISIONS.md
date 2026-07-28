@@ -13,7 +13,7 @@ File này ghi các điểm chưa đủ rõ trong spec hoặc đang mâu thuẫn 
 
 | ID | Trạng thái | Blocker | Phạm vi bị chặn |
 | --- | --- | --- | --- |
-| OD-001 | OPEN | Thứ tự ledger post, account capture và payment success | Phase 1B finalization |
+| OD-001 | RESOLVED | Thứ tự ledger post, account capture và payment success | Mở khóa bằng ADR-011 |
 | OD-002 | OPEN | Failure-recovery gate được remap từ spec Phase 2 | Transition sau Phase 1B |
 | OD-003 | RESOLVED | Risk decision và payment rejection event taxonomy | Mở khóa bằng ADR-016 |
 | OD-004 | OPEN | Fee policy/rate/rounding snapshot lịch sử | Fee, refund economics, settlement |
@@ -37,6 +37,15 @@ Quyết định phải nêu:
 - reconciliation source of truth và invariant E2E.
 
 Giải quyết qua ADR-011 và cập nhật sequence/state/test trước khi implement Phase 1B finalization.
+
+**Đã chốt** bằng [`docs/adr/ADR-011`](../docs/adr/ADR-011-ledger-capture-payment-success-ordering.md):
+Ledger post trước, Payment phát explicit `account.capture.requested`, Account xác nhận
+`account.funds-captured`, rồi Payment mới được chuyển `SUCCEEDED` và phát `payment.succeeded`.
+Trong cửa sổ này client thấy `PROCESSING`. Sau journal POSTED không tự release reservation; bounded
+retry, manual review và reconciliation xử lý capture không hoàn tất.
+
+Implementation gate: pure contract/policy test không Docker phải xanh. Kafka consumer và durability
+vẫn bị chặn bởi OD-007; recovery/manual-review runtime còn phụ thuộc OD-006 và Testcontainers evidence.
 
 ## OD-002 — Roadmap remapping
 

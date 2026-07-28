@@ -12,6 +12,7 @@ quy tắc an toàn trong [`.agent/AGENTS.md`](../../.agent/AGENTS.md).
 | --- | --- | --- | --- |
 | [ADR-004](ADR-004-transactional-outbox-polling-publisher.md) | Transactional Outbox với polling publisher, Debezium để sau | ACCEPTED | 2026-07-26 |
 | [ADR-007](ADR-007-postgresql-money-representation.md) | PostgreSQL với `NUMERIC(19,4)` và `BigDecimal` cho mọi giá trị tiền | ACCEPTED | 2026-07-26 |
+| [ADR-011](ADR-011-ledger-capture-payment-success-ordering.md) | Ledger posted → explicit capture → payment success — resolves OD-001 | ACCEPTED | 2026-07-28 |
 | [ADR-013](ADR-013-platform-version-baseline.md) | Platform version baseline là Spring Boot 4.0.7 + Spring Cloud 2025.1.2 | ACCEPTED | 2026-07-26 |
 | [ADR-014](ADR-014-outbox-claim-lease-and-recovery.md) | Outbox claim lease, stale recovery và crash semantics — resolves OD-008 | ACCEPTED | 2026-07-26 |
 | [ADR-015](ADR-015-risk-score-saturation-and-level-bands.md) | Risk score v1 dùng saturation và level band cố định — resolves OD-009 | ACCEPTED | 2026-07-27 |

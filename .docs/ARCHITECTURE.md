@@ -215,9 +215,9 @@ sequenceDiagram
     A->>P: funds-reserved/reservation-failed
     P->>L: ledger.post-payment.requested
     L->>P: payment-posted/posting-failed
-    Note over P,A: Finalization order is blocked by OD-001 / ADR-011
-    P-->>A: capture/outcome exchange per accepted ADR
-    P->>N: final payment outcome event
+    P->>A: account.capture.requested (ADR-011)
+    A->>P: account.funds-captured
+    P->>N: payment.succeeded only after ledger + capture commit
 ```
 
 Mỗi mũi tên bất đồng bộ được tạo qua outbox; mỗi receiver xử lý idempotent.
@@ -232,9 +232,12 @@ Mỗi mũi tên bất đồng bộ được tạo qua outbox; mỗi receiver x�
 | Duplicate command/event | Trả/no-op theo kết quả cũ, không side effect mới |
 | Orchestrator restart | Tiếp tục từ persisted Saga state/deadline |
 | Compensation timeout | `MANUAL_REVIEW_REQUIRED`, alert và runbook; không giả vờ thành công |
-| Capture/finalization confirmation chậm | Thực hiện recovery/reconciliation theo ADR-011; không công bố outcome sai |
+| Capture/finalization confirmation chậm | Giữ `PROCESSING`; bounded retry rồi manual review/reconciliation theo ADR-011; không release sau journal POSTED và không công bố outcome sai |
 
-Trạng thái cuối chỉ được phát khi tất cả precondition tài chính tương ứng đã commit. OD-001/ADR-011 là blocker: không implement đoạn finalization cho tới khi thứ tự `mark SUCCEEDED`/`capture`, crash window và reconciliation được chấp thuận.
+Trạng thái cuối chỉ được phát khi tất cả precondition tài chính tương ứng đã commit. ADR-011 đã chốt
+thứ tự `ledger.payment-posted` → `account.capture.requested` → `account.funds-captured` →
+`payment.succeeded`. Kafka consumer/durability vẫn bị chặn bởi OD-007; manual-review recovery cần
+OD-006.
 
 ## 9. Atomicity pattern
 

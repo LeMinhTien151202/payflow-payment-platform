@@ -43,9 +43,11 @@ account-ledger-service/
 | `account.funds-reserved` | Account | Payment | `paymentId` | Yêu cầu post ledger |
 | `account.funds-reservation-failed` | Account | Payment | `paymentId` | Fail Saga |
 | `ledger.post-payment.requested` | Payment | Ledger | `paymentId` | Tạo balanced journal một lần |
-| `ledger.payment-posted` | Ledger | Payment | `paymentId` | Hoàn tất payment |
+| `ledger.payment-posted` | Ledger | Payment | `paymentId` | Tạo explicit capture request; Payment vẫn `PROCESSING` |
+| `account.capture.requested` | Payment | Account | `paymentId` | Capture đúng reservation sau ledger POSTED |
+| `account.funds-captured` | Account | Payment | `paymentId` | Xác nhận capture đã commit |
 | `account.release.requested` | Payment | Account | `paymentId` | Compensation idempotent |
-| `payment.succeeded/failed` | Payment | Account, notification, reporting, settlement | `paymentId` | Capture/notify/project |
+| `payment.succeeded/failed` | Payment | notification, reporting, settlement | `paymentId` | Outcome fact để notify/project; success không còn ra lệnh capture |
 | Refund commands/events | Payment | Account, Ledger, reporting, settlement | `paymentId` | Credit/reversal/projection |
 
 Tên/schema cuối cùng phải được định nghĩa trong event-contract module và contract docs; bảng trên xác định ownership, không thay cho schema versioned.

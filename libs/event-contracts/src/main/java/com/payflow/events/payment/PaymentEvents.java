@@ -10,9 +10,8 @@ import com.payflow.events.EventType;
  * on a producer's internals. Ownership stays with payment-service: it alone may add an event type
  * here or bump a version, and it alone answers for compatibility.
  *
- * <p>{@code payment.failed} is available for terminal unsuccessful outcomes whose taxonomy is
- * already resolved. Success/finalization remains absent because OD-001 is still open; adding it now
- * would turn a guess about capture ordering into a published schema.
+ * <p>{@code payment.succeeded} follows the financial preconditions fixed by ADR-011; it is an
+ * outcome fact and must never be reused as Account's capture command.
  */
 public final class PaymentEvents {
 
@@ -24,6 +23,10 @@ public final class PaymentEvents {
 
     /** A payment reached an unsuccessful terminal outcome. Spec 8.4 and ADR-016. */
     public static final EventType PAYMENT_FAILED = new EventType("payment.failed", 1, AGGREGATE_TYPE);
+
+    /** Ledger and capture have both committed, per ADR-011. */
+    public static final EventType PAYMENT_SUCCEEDED =
+            new EventType("payment.succeeded", 1, AGGREGATE_TYPE);
 
     private PaymentEvents() {
     }
