@@ -30,10 +30,8 @@ public final class RiskAssessmentEventFactory {
         Objects.requireNonNull(occurredAt, "occurredAt");
         requirePaymentCreated(cause);
         requireSamePaymentContext(cause.data(), assessment);
-        if (occurredAt.isBefore(cause.occurredAt())) {
-            throw new RiskInvariantViolationException(
-                    "risk assessment event cannot occur before payment.created");
-        }
+        // Payment and Risk own different clocks. Logical order comes from causationId; rejecting a
+        // valid assessment because Risk's wall clock is slightly behind Payment's would be unsafe.
 
         RiskAssessmentCompletedData data = new RiskAssessmentCompletedData(
                 assessment.paymentId(),

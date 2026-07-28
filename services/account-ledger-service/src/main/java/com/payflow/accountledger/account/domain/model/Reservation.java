@@ -16,6 +16,7 @@ public final class Reservation {
     private final UUID accountId;
     private final Money amount;
     private final Instant createdAt;
+    private final Instant expiresAt;
     private ReservationStatus status;
     private Instant completedAt;
 
@@ -26,6 +27,7 @@ public final class Reservation {
             Money amount,
             ReservationStatus status,
             Instant createdAt,
+            Instant expiresAt,
             Instant completedAt) {
         this.id = Objects.requireNonNull(id, "id");
         this.paymentId = Objects.requireNonNull(paymentId, "paymentId");
@@ -33,13 +35,30 @@ public final class Reservation {
         this.amount = Objects.requireNonNull(amount, "amount").requirePositive();
         this.status = Objects.requireNonNull(status, "status");
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
+        this.expiresAt = Objects.requireNonNull(expiresAt, "expiresAt");
+        if (!expiresAt.isAfter(createdAt)) {
+            throw new AccountInvariantViolationException(
+                    "reservation expiry must be after creation");
+        }
         this.completedAt = completedAt;
     }
 
     static Reservation active(
-            UUID id, UUID paymentId, UUID accountId, Money amount, Instant createdAt) {
+            UUID id,
+            UUID paymentId,
+            UUID accountId,
+            Money amount,
+            Instant createdAt,
+            Instant expiresAt) {
         return new Reservation(
-                id, paymentId, accountId, amount, ReservationStatus.ACTIVE, createdAt, null);
+                id,
+                paymentId,
+                accountId,
+                amount,
+                ReservationStatus.ACTIVE,
+                createdAt,
+                expiresAt,
+                null);
     }
 
     boolean transitionTo(ReservationStatus target, Instant at) {
@@ -85,6 +104,15 @@ public final class Reservation {
 
     public Instant createdAt() {
         return createdAt;
+    }
+
+    public Instant expiresAt() {
+        return expiresAt;
+    }
+
+    public boolean isExpiredAt(Instant at) {
+        Objects.requireNonNull(at, "at");
+        return !at.isBefore(expiresAt);
     }
 
     public Instant completedAt() {

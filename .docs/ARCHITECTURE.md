@@ -236,8 +236,8 @@ Mỗi mũi tên bất đồng bộ được tạo qua outbox; mỗi receiver x�
 
 Trạng thái cuối chỉ được phát khi tất cả precondition tài chính tương ứng đã commit. ADR-011 đã chốt
 thứ tự `ledger.payment-posted` → `account.capture.requested` → `account.funds-captured` →
-`payment.succeeded`. Kafka consumer/durability vẫn bị chặn bởi OD-007; manual-review recovery cần
-OD-006.
+`payment.succeeded`. ADR-017 đã khóa inbox insert-if-new; Kafka consumer/durability vẫn cần
+PostgreSQL/Kafka integration gate, còn manual-review recovery cần OD-006.
 
 ## 9. Atomicity pattern
 

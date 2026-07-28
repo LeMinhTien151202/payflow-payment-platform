@@ -7,10 +7,10 @@ account/  -> account balance and reservation lifecycle
 ledger/   -> immutable double-entry journals
 ```
 
-The current slice is **domain core only**. It is a normal Maven module but not yet a runnable Spring
-Boot application. That is intentional: Phase 1A still lacks its PostgreSQL/Kafka gate, and the
-cross-service consumer/finalization contracts are blocked by open decisions. Adding listeners,
-tables, or HTTP endpoints now would silently choose those contracts.
+The current slice is **domain/application core only**. It is a normal Maven module but not yet a
+runnable Spring Boot application. Reserve command/result contracts, deadline enforcement and
+duplicate-intent policy now exist; persistence/listeners remain gated by OD-007 and by the missing
+PostgreSQL/Kafka evidence.
 
 ## Run the Docker-free tests
 
@@ -33,7 +33,8 @@ After the Phase 1A gate and relevant ADRs are resolved, the next vertical slice 
 3. Atomic reserve using a conditional update or row lock; never unlocked read-then-write.
 4. Unique reservation by `payment_id` and unique journal by
    `(reference_type, reference_id, journal_type)`.
-5. Application handlers and ports with local transaction boundaries.
+5. Application handlers and ports with local transaction boundaries; pure reserve policy is already
+   available and must be invoked inside that boundary.
 6. Inbox/processed-event insert-if-new semantics after OD-007 is resolved.
 7. Outbox rows committed with each balance/journal mutation.
 8. PostgreSQL concurrency and transaction tests through Testcontainers; Kafka integration tests for

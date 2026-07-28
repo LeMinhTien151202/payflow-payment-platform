@@ -167,14 +167,14 @@ class RiskAssessmentEventFactoryTest {
     }
 
     @Test
-    void refusesAnEventTimestampBeforeItsCause() {
-        assertThatThrownBy(() -> factory.completed(
-                        RISK_EVENT_ID,
-                        paymentCreated(),
-                        assessment(),
-                        PAYMENT_CREATED_AT.minusNanos(1)))
-                .isInstanceOf(RiskInvariantViolationException.class)
-                .hasMessageContaining("before payment.created");
+    void causationNotCrossServiceWallClockDefinesLogicalOrder() {
+        Instant skewedRiskClock = PAYMENT_CREATED_AT.minusSeconds(30);
+
+        EventEnvelope<RiskAssessmentCompletedData> event = factory.completed(
+                RISK_EVENT_ID, paymentCreated(), assessment(), skewedRiskClock);
+
+        assertThat(event.occurredAt()).isEqualTo(skewedRiskClock);
+        assertThat(event.causationId()).isEqualTo(PAYMENT_EVENT_ID.toString());
     }
 
     private void assertContextMismatch(RiskAssessment mismatched) {

@@ -47,9 +47,19 @@ public final class Account {
     }
 
     public Reservation reserve(
-            UUID reservationId, UUID paymentId, Money amount, Instant occurredAt) {
+            UUID reservationId,
+            UUID paymentId,
+            Money amount,
+            Instant occurredAt,
+            Instant expiresAt) {
         requireActiveForNewReservation();
         Objects.requireNonNull(amount, "amount").requirePositive();
+        Objects.requireNonNull(occurredAt, "occurredAt");
+        Objects.requireNonNull(expiresAt, "expiresAt");
+        if (!expiresAt.isAfter(occurredAt)) {
+            throw new AccountInvariantViolationException(
+                    "reservation expiry must be after creation");
+        }
         requireAccountCurrency(amount);
         if (availableBalance.isLessThan(amount)) {
             throw new InsufficientFundsException(id, availableBalance.amount(), amount.amount());
@@ -57,7 +67,8 @@ public final class Account {
 
         availableBalance = availableBalance.subtract(amount);
         reservedBalance = reservedBalance.add(amount);
-        return Reservation.active(reservationId, paymentId, id, amount, occurredAt);
+        return Reservation.active(
+                reservationId, paymentId, id, amount, occurredAt, expiresAt);
     }
 
     public boolean capture(Reservation reservation, Instant occurredAt) {
@@ -66,6 +77,10 @@ public final class Account {
             return false;
         }
         requireActiveReservation(reservation, ReservationStatus.CAPTURED);
+        if (reservation.isExpiredAt(occurredAt)) {
+            throw new AccountInvariantViolationException(
+                    "reservation deadline has passed and cannot be captured");
+        }
         ensureReservedBalanceCovers(reservation.amount());
 
         reservation.transitionTo(ReservationStatus.CAPTURED, occurredAt);
@@ -78,6 +93,12 @@ public final class Account {
     }
 
     public boolean expire(Reservation reservation, Instant occurredAt) {
+        requireOwnedReservation(reservation);
+        Objects.requireNonNull(occurredAt, "occurredAt");
+        if (occurredAt.isBefore(reservation.expiresAt())) {
+            throw new AccountInvariantViolationException(
+                    "reservation cannot expire before its deadline");
+        }
         return returnReservation(reservation, ReservationStatus.EXPIRED, occurredAt);
     }
 

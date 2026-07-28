@@ -11,6 +11,12 @@ public final class AccountEvents {
     public static final EventType FUNDS_RESERVED =
             new EventType("account.funds-reserved", 1, AGGREGATE_TYPE);
 
+    public static final EventType RESERVE_REQUESTED =
+            new EventType("account.reserve.requested", 1, AGGREGATE_TYPE);
+
+    public static final EventType FUNDS_RESERVATION_FAILED =
+            new EventType("account.funds-reservation-failed", 1, AGGREGATE_TYPE);
+
     public static final EventType CAPTURE_REQUESTED =
             new EventType("account.capture.requested", 1, AGGREGATE_TYPE);
 

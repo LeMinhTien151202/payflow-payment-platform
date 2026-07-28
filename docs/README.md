@@ -6,10 +6,10 @@ giai đoạn xây dựng nằm ở [`.docs/`](../.docs/README.md) và
 
 | Thư mục | Nội dung | Trạng thái |
 | --- | --- | --- |
-| [adr/](adr/README.md) | ADR chính thức | ADR-004, ADR-007, ADR-013–ADR-016 `ACCEPTED` |
+| [adr/](adr/README.md) | ADR chính thức | ADR-004, ADR-007, ADR-011, ADR-013–ADR-017 `ACCEPTED` |
 | [runbooks/](runbooks/local-development.md) | Vận hành và chạy local | Có runbook local-development |
 | [api/](api/payment-service-v1.yaml) | OpenAPI contract | Payment create/get v1 |
-| [events/](events/risk-assessment-completed-v1.md) | Kafka event contract | Risk assessment completed và payment failed v1 |
+| [events/](events/risk-assessment-completed-v1.md) | Kafka event contract | Payment Saga v1: risk, reserve, ledger, capture, success/failure |
 | `architecture/` | Sơ đồ và mô tả kiến trúc bàn giao | Chưa có |
 | `diagrams/` | Sequence/state diagram | Chưa có |
 | `postman/` | Collection để thử API | Chưa có — Phase 1A |

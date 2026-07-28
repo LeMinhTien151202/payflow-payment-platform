@@ -48,14 +48,14 @@ Trước mọi feature, kiểm tra `OPEN_DECISIONS.md`; không implement phạm 
 | Tài liệu | Nội dung |
 | --- | --- |
 | [../docs/README.md](../docs/README.md) | Index tài liệu bàn giao |
-| [../docs/adr/README.md](../docs/adr/README.md) | ADR đã viết (ADR-004, ADR-007, ADR-013–ADR-016 `ACCEPTED`) |
+| [../docs/adr/README.md](../docs/adr/README.md) | ADR đã viết (ADR-004, ADR-007, ADR-011, ADR-013–ADR-017 `ACCEPTED`) |
 | [../docs/runbooks/local-development.md](../docs/runbooks/local-development.md) | Build, test, bật hạ tầng Docker, xử lý sự cố |
 
 ## Trạng thái hiện tại
 
 - Phase 1A payment intake/outbox core đã có code và test không Docker; PostgreSQL/Kafka gate vẫn chưa chạy.
-- Theo yêu cầu của repository owner, Phase 1B đã bắt đầu sớm ở phạm vi domain core Account/Reservation, Ledger, Risk và Notification email mock. Các module này chưa phải deployable và không đồng nghĩa Phase 1B đã mở gate.
-- ADR-016 đã khóa `risk.assessment.completed` v1; Risk event factory và Payment risk-decision policy đã có test không Docker. Kafka consumer/inbox/outbox integration chưa được triển khai.
+- Theo yêu cầu của repository owner, Phase 1B đã bắt đầu sớm ở phạm vi core Account/Reservation, Ledger, Risk, Payment Saga và Notification email mock. Các module này chưa phải deployable và không đồng nghĩa Phase 1B đã mở gate.
+- ADR-011/016 đã khóa risk decision và thứ tự financial finalization. Chuỗi contract/policy thuần `risk -> reserve -> ledger -> capture -> success` đã có test không Docker; Kafka consumer/inbox/outbox integration chưa được triển khai.
 - Build và test không cần Docker đã pass; hạ tầng Docker **chưa từng được start** và test cần Docker **chưa từng chạy**. Chi tiết và giới hạn nằm trong `IMPLEMENTATION_STATUS.md`.
 - Không mô tả feature là hoàn thành cho tới khi có code, test và lệnh tái tạo kết quả.
 - Spec vẫn là backlog tổng; `DELIVERY_ROADMAP.md` quyết định lát cắt được phép triển khai tiếp theo.

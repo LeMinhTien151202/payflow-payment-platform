@@ -52,7 +52,7 @@ Toàn bộ gate **trừ** những test cần Docker:
 ./mvnw -B -Pno-docker clean verify
 ```
 
-Đã chạy gần nhất: BUILD SUCCESS trong 53.422s, 6/6 module SUCCESS, 156
+Đã chạy gần nhất: BUILD SUCCESS trong 51.386s, 9/9 module SUCCESS, 293
 unit/slice test + 13 gateway integration test pass. Các test PostgreSQL/Kafka vẫn bị
 loại bởi profile `no-docker` đúng thiết kế.
 
@@ -62,7 +62,7 @@ Cách phân chia test:
 | --- | --- | --- | --- |
 | Surefire | `*Test` | Không gì cả | Chạy được, gồm domain/application/web/outbox policy |
 | Failsafe | `*IT` không có tag `docker` | WireMock stub (tự start trong process) | 13/13 pass |
-| Failsafe | `*IT` có `@Tag("docker")` | Docker daemon | **Chưa chạy** — foundation/schema và outbox integration gate |
+| Failsafe | `*IT` có `@Tag("docker")` | Docker daemon | **Chưa chạy** — 37 payment foundation/schema/inbox case; Kafka outbox gate còn phải bổ sung |
 
 `-Pno-docker` là **opt-in** có chủ đích. `./mvnw verify` không có profile là gate
 thật và sẽ chạy cả test cần Docker; ai bỏ qua chúng phải tự khai trên dòng lệnh.
@@ -198,17 +198,15 @@ Admin console: <http://localhost:8180> — đăng nhập bằng `KEYCLOAK_ADMIN`
 ./mvnw -B clean verify
 ```
 
-**Chưa chạy.** Lệnh này thêm `PaymentServiceFoundationIT` (8 test) so với
+**Chưa chạy.** Lệnh này thêm 37 payment Testcontainers test so với
 `-Pno-docker`. Nó không dùng PostgreSQL trong compose: Testcontainers tự start một
 container `postgres:17.10-alpine` riêng, chạy Flyway trên đó rồi xoá đi. Nghĩa là
 `docker compose up` **không** phải điều kiện tiên quyết — chỉ cần Docker daemon
 đang chạy.
 
-Test này kiểm chứng: Flyway apply baseline thành công đúng một version, schema
-`payment` tồn tại, comment quyền sở hữu schema có mặt, Phase 0 chưa tạo bảng
-nghiệp vụ nào, readiness phụ thuộc database reachability, `/actuator/health` mở
-công khai còn các actuator endpoint khác thì không, và route nghiệp vụ vẫn trả 401
-khi không có token.
+Các test này kiểm chứng Flyway V1–V3, schema/constraint/index payment intake, readiness và actuator,
+đồng thời kiểm chứng inbox duplicate/concurrency/rollback trên PostgreSQL thật. Chúng chưa kiểm chứng
+Kafka delivery hoặc offset commit vì consumer listener chưa được nối.
 
 Nếu Docker chưa bật, các test này fail vì không tìm được daemon — đó là fail đúng,
 không phải flaky. Dùng `-Pno-docker` nếu chủ ý bỏ qua.
@@ -409,7 +407,7 @@ việc quên lệnh này không làm CI đỏ — nó chỉ tạo ra diff mode r
   vết được.
 - CI đã có file workflow nhưng **chưa chạy lần nào**; không capability nào ở trạng
   thái `VERIFIED_CI`.
-- 10 mục `OPEN` trong [`.docs/OPEN_DECISIONS.md`](../../.docs/OPEN_DECISIONS.md)
+- 5 mục `OPEN` trong [`.docs/OPEN_DECISIONS.md`](../../.docs/OPEN_DECISIONS.md)
   vẫn chặn scope tương ứng của chúng.
 - `.docs/DELIVERY_ROADMAP.md` quyết định lát cắt được phép làm tiếp; không nhảy
   sang phase sau.

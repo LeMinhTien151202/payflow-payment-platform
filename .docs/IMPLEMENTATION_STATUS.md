@@ -24,16 +24,18 @@ File này là bảng bằng chứng sống. Cập nhật sau mỗi milestone; kh
 | Docker Compose infrastructure | `IMPLEMENTED` | `docker compose --env-file .env.example config --quiet` → exit 0, 2026-07-26 | Chỉ validate client-side; chưa start container nào |
 | Payment schema và Flyway baseline | `IMPLEMENTED` | — | `PaymentServiceFoundationIT` (9 test) chưa chạy: cần Docker daemon. Không hạ xuống H2 để lấy badge |
 | CI pipeline | `IMPLEMENTED` | — | `.github/workflows/ci.yml` có 3 job; **chưa chạy lần nào** vì repo chưa có commit và chưa có remote. YAML cũng chưa được lint (không có `yq`/PyYAML trong môi trường) |
-| Event envelope v1 và topic contract | `VERIFIED_LOCAL` | 50/50 contract test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | Thêm versioned Account reserve/capture, Ledger posted và Payment success contracts theo ADR-011 |
+| Event envelope v1 và topic contract | `VERIFIED_LOCAL` | 52/52 contract test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | Thêm versioned Account reserve/outcome/capture, Ledger post-requested/posted và Payment success contracts theo ADR-011 |
 | Payment intake schema (V2, DDL + constraint) | `IMPLEMENTED` | — | `PaymentIntakeSchemaIT` (23 test) và `PaymentServiceFoundationIT` chưa chạy: cần Docker daemon. Xem "Known deviations" bên dưới |
 | Payment intake REST + application core | `IMPLEMENTED` | `PaymentControllerTest` 6 + `CreatePaymentHandlerTest` 24 + `RequestFingerprintTest` 13 pass, 2026-07-26 | `POST` 202, `GET`, JWT `merchant_id`, typed Problem Details và canonical replay đã có; atomicity/concurrency trên PostgreSQL thật chưa chạy |
 | Outbox polling publisher | `IMPLEMENTED` | `PublishOutboxHandlerTest` 7 + `OutboxPropertiesTest` 1 pass, 2026-07-26 | Lease/backoff/terminal/order policy đã test không Docker; claim SQL, Kafka ack và 9 integration gate ADR-014 chưa chạy |
-| Account/Reservation và Ledger domain core | `VERIFIED_LOCAL` | 21/21 unit test pass; full `-Pno-docker verify` exit 0, 2026-07-26 | Core thuần Java trong `account-ledger-service`; chưa có Spring Boot bootstrap, database, locking, inbox/outbox hoặc Kafka |
-| Risk rule engine + assessment event factory | `VERIFIED_LOCAL` | 26/26 Risk test + 50/50 event-contract test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | ADR-015/016; giữ payment key, correlation và causation; chưa có Redis/PostgreSQL/Kafka adapter |
+| Account/Reservation và Ledger domain/application core | `VERIFIED_LOCAL` | 38/38 Account/Ledger test + 52/52 event-contract test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | Reserve deadline, duplicate intent, stable failure outcome và Ledger posted factory đã có; chưa có Spring Boot, database locking, inbox/outbox hoặc Kafka |
+| Risk rule engine + assessment event factory | `VERIFIED_LOCAL` | 26/26 Risk test + 52/52 event-contract test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | ADR-015/016; giữ payment key, correlation và causation; không dùng wall-clock khác service để suy luận thứ tự; chưa có Redis/PostgreSQL/Kafka adapter |
 | Notification record và email mock core | `VERIFIED_LOCAL` | 14/14 unit test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | Core thuần Java trong `notification-service`; chưa có Spring Boot, database, Kafka inbox/outbox, webhook, retry/DLT hoặc Keycloak runtime |
-| Risk→Payment Saga decision core | `VERIFIED_LOCAL` | Payment 118/118 test pass, gồm risk policy và state transition; full `-Pno-docker verify` exit 0, 2026-07-28 | `APPROVED/REJECTED/REVIEW_REQUIRED` đã khóa; chưa có Kafka consumer, inbox/outbox transaction hoặc Account command |
-| Financial finalization contract + Payment policy | `VERIFIED_LOCAL` | ADR-011; event-contracts 50/50 + Payment 126/126; full `-Pno-docker verify` exit 0, 2026-07-28 | Ledger posted → explicit capture → captured → success; pure policy chưa phải durable Saga/consumer |
-| Happy-path Saga E2E | `PLANNED` | — | Phase 1B; OD-001 đã resolve nhưng OD-007 vẫn chặn inbox/consumer và chưa có PostgreSQL/Kafka runtime |
+| Risk→Payment Saga decision core | `VERIFIED_LOCAL` | Payment 138/138 test pass, gồm risk, reserve và finalization policy/factory; full `-Pno-docker verify` exit 0, 2026-07-28 | `APPROVED/REJECTED/REVIEW_REQUIRED` đã khóa; reserve/ledger/capture/success command chain đã có pure core, chưa có Kafka consumer hay inbox/outbox transaction |
+| Financial finalization contract + Payment policy | `VERIFIED_LOCAL` | ADR-011; event-contracts 52/52 + Payment 138/138; full `-Pno-docker verify` exit 0, 2026-07-28 | Ledger posted → explicit capture → captured → success; pure policy chưa phải durable Saga/consumer |
+| Phase 1B Saga command/outcome orchestration core | `VERIFIED_LOCAL` | Event contracts 52/52, Payment 138/138, Account/Ledger 38/38; full `-Pno-docker verify` exit 0, 2026-07-28 | Correlation/causation và aggregate key được bảo toàn; đây là pure core, không phải Kafka/PostgreSQL E2E |
+| Payment consumer inbox foundation | `IMPLEMENTED` | ADR-017; 5/5 unit test pass; `PaymentInboxSchemaIT` compile nhưng chưa chạy | V3 tạo `(event_id, consumer_name)` PK; adapter dùng `ON CONFLICT DO NOTHING` + transaction `MANDATORY`; PostgreSQL/Kafka gate còn thiếu |
+| Happy-path Saga E2E | `PLANNED` | — | Phase 1B; OD-001/007 đã resolve nhưng consumer wiring và PostgreSQL/Kafka runtime chưa được kiểm chứng |
 | Failure recovery/compensation | `PLANNED` | — | Pre-Phase-2 decision gate (OD-002) |
 | Refund/webhook/reporting | `PLANNED` | — | Phase 2 |
 | Settlement/reconciliation/Kubernetes/load | `PLANNED` | — | Phase 3 |
@@ -55,6 +57,7 @@ review sau không phải đoán đó là lệch hay là bug.
 | D-08 | Roadmap yêu cầu Phase 1A gate trước Phase 1B | Bắt đầu Risk domain/event core trước integration gate | Người dùng tiếp tục yêu cầu code core không Docker. OD-009/OD-003 được resolve bằng ADR-015/016; phạm vi chỉ gồm deterministic policy, versioned contract/factory và Payment decision policy, không có consumer/persistence/Kafka |
 | D-09 | Roadmap yêu cầu Phase 1A gate trước Phase 1B | Bắt đầu Notification email-mock core trước integration gate | Người dùng tiếp tục yêu cầu code core không Docker. Phạm vi chỉ gồm notification state policy, application port và in-memory email adapter; OD-007 chặn Kafka consumer/inbox, còn webhook/retry/DLT thuộc Phase 2 |
 | D-10 | Spec §9.2 đánh dấu Payment `SUCCEEDED` trước khi Account capture | ADR-011 đổi thành ledger posted → explicit capture → funds captured → payment success | Thứ tự baseline có thể công bố success khi tiền chưa capture. Thứ tự mới giữ Payment `PROCESSING` đến khi cả journal và capture đã commit; sau journal POSTED không tự release reservation |
+| D-11 | Roadmap Phase 1B yêu cầu Kafka/PostgreSQL E2E | Hoàn thiện trước command/outcome contract và orchestration core bằng unit/contract test không Docker | Repository owner yêu cầu viết xong code core rồi mới bật hạ tầng. Phạm vi này không tuyên bố atomic inbox/outbox, locking, duplicate delivery, crash recovery hay Phase 1B E2E đã đạt gate |
 
 ## Evidence record template
 
@@ -244,6 +247,53 @@ Known limitations:
   - OD-006 còn chặn manual-review state/runtime khi capture không hoàn tất sau journal POSTED.
   - Không có E2E Saga, compensation hay reconciliation runtime; không được coi Phase 1B đã hoàn tất.
   - Keycloak được giữ nguyên nhưng không chạy trong gate không Docker này.
+```
+
+### 2026-07-28 — Phase 1B Saga command/outcome orchestration core
+
+```text
+Date/time (UTC): 2026-07-28T09:59:12Z
+Commit SHA: N/A (change chưa commit)
+Environment: Windows 10; Maven Wrapper 3.9.16; Java 21.0.7; không Docker/PostgreSQL/Kafka/Keycloak runtime
+Capability/scenario: Payment phát reserve/ledger/capture command theo state; Account reserve có deadline, duplicate-intent và stable failure; Ledger chỉ phát posted sau journal local đã POSTED; mọi event giữ payment key, correlation và causation
+Targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/payment-service,services/account-ledger-service,services/risk-service -am test
+Targeted result: exit 0, BUILD SUCCESS; event-contracts 52/52, payment-service 138/138, account-ledger-service 37/37 và risk-service 26/26 trước regression ownership-expiry cuối.
+Regression command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/account-ledger-service -am test
+Regression result: exit 0, BUILD SUCCESS; event-contracts 52/52 và account-ledger-service 38/38. Lần chạy ngay trước đó chỉ fail một assertion message mới; production invariant đã ném đúng exception và assertion được sửa.
+Final command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Final result: exit 0, BUILD SUCCESS trong 51.328 s, 9/9 module SUCCESS.
+  Surefire 288/288 pass — observability 15, error-contract 5, event-contracts 52, payment-service 138, account-ledger-service 38, risk-service 26, notification-service 14.
+  Failsafe 13/13 pass — api-gateway 13; Docker-tagged payment IT bị loại đúng theo profile.
+Contracts: docs/events/account-reserve-requested-v1.md; account-funds-reservation-failed-v1.md; ledger-post-payment-requested-v1.md; các contract finalization theo ADR-011.
+Known limitations:
+  - Chưa có Spring/Kafka consumer, durable inbox, local business + outbox transaction hoặc Kafka acknowledgement; OD-007 vẫn là blocker.
+  - Atomic reserve/duplicate reservation và journal uniqueness chưa được chứng minh bằng PostgreSQL/Testcontainers.
+  - Fee-aware journal posting chưa được suy đoán vì OD-004 vẫn OPEN; factory hiện chỉ kiểm chứng fact journal đã POSTED và balanced theo domain.
+  - Không so timestamp giữa service để quyết định thứ tự; `causationId` là quan hệ logic, giảm lỗi do clock skew.
+  - Happy-path E2E, timeout/compensation, manual review và restart recovery chưa chạy; Phase 1B chưa đạt integration gate.
+  - Keycloak được giữ nguyên nhưng không chạy trong gate không Docker này.
+```
+
+### 2026-07-28 — ADR-017 payment consumer inbox foundation
+
+```text
+Date/time (UTC): 2026-07-28T10:07:43Z
+Commit SHA: N/A (change chưa commit)
+Environment: Windows 10; Maven Wrapper 3.9.16; Java 21.0.7; không Docker/PostgreSQL/Kafka/Keycloak runtime
+Capability/scenario: Durable inbox identity, PostgreSQL insert-if-new adapter, V3 migration và Docker-tagged duplicate/concurrency/rollback tests
+Targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/payment-service -am test
+Targeted result: exit 0, BUILD SUCCESS; payment-service 143/143 và upstream contract/library test pass. `PaymentInboxSchemaIT` được testCompile nhưng bị loại khỏi execution bởi profile không Docker.
+Final command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Final result: exit 0, BUILD SUCCESS trong 51.386 s lúc 2026-07-28T10:10:09Z, 9/9 module SUCCESS.
+  Surefire 293/293 pass — payment-service tăng lên 143; các module còn lại giữ nguyên.
+  Failsafe 13/13 pass — api-gateway 13; Docker-tagged payment IT, gồm 5 inbox case, bị loại đúng theo profile.
+Governance: validate-governance.ps1 pass; git diff --check exit 0.
+Decision/schema: docs/adr/ADR-017-postgresql-inbox-insert-if-new.md; V3__consumer_inbox.sql.
+Known limitations:
+  - Trạng thái là IMPLEMENTED, không phải VERIFIED_LOCAL cho PostgreSQL semantics: 5 Testcontainers case chưa chạy vì Docker daemon chưa được bật.
+  - Chưa có Kafka listener/application consumer cụ thể, nên chưa chứng minh inbox + payment mutation + outbox commit/rollback cùng nhau hoặc offset-after-commit.
+  - Mỗi service deployable sau này phải sở hữu bảng inbox trong schema riêng; không dùng chung bảng payment.
+  - Keycloak không thay đổi và không chạy trong gate này.
 ```
 
 Quy tắc cập nhật:

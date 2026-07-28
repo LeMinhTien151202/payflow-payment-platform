@@ -23,8 +23,11 @@ class AccountFinancialEventsTest {
     private static final Instant CAPTURED_AT = Instant.parse("2026-07-28T09:00:03Z");
 
     @Test
-    void definesTheThreeAdr011Contracts() {
+    void definesThePhase1bAccountContracts() {
         assertThat(AccountEvents.FUNDS_RESERVED.name()).isEqualTo("account.funds-reserved");
+        assertThat(AccountEvents.RESERVE_REQUESTED.name()).isEqualTo("account.reserve.requested");
+        assertThat(AccountEvents.FUNDS_RESERVATION_FAILED.name())
+                .isEqualTo("account.funds-reservation-failed");
         assertThat(AccountEvents.CAPTURE_REQUESTED.name()).isEqualTo("account.capture.requested");
         assertThat(AccountEvents.FUNDS_CAPTURED.name()).isEqualTo("account.funds-captured");
         assertThat(AccountEvents.FUNDS_CAPTURED.version()).isEqualTo(1);
@@ -98,6 +101,31 @@ class AccountFinancialEventsTest {
                         .propertyNames())
                 .containsExactlyInAnyOrder(
                         "paymentId", "accountId", "reservationId", "amount", "currency");
+    }
+
+    @Test
+    void reserveRequestAndFailureExposeOnlyStableV1Fields() {
+        JsonMapper mapper = JsonMapper.builder()
+                .disable(DateTimeFeature.WRITE_DATES_AS_TIMESTAMPS)
+                .build();
+        var request = new AccountReserveRequestedData(
+                PAYMENT_ID,
+                ACCOUNT_ID,
+                new BigDecimal("500000"),
+                "VND",
+                CAPTURED_AT.plusSeconds(900));
+        var failed = new AccountFundsReservationFailedData(
+                PAYMENT_ID, ACCOUNT_ID, "ACCOUNT_INSUFFICIENT_FUNDS");
+
+        assertThat(mapper.valueToTree(request).propertyNames())
+                .containsExactlyInAnyOrder(
+                        "paymentId", "accountId", "amount", "currency", "expiresAt");
+        assertThat(mapper.valueToTree(failed).propertyNames())
+                .containsExactlyInAnyOrder("paymentId", "accountId", "reasonCode");
+        assertThatThrownBy(() -> new AccountFundsReservationFailedData(
+                        PAYMENT_ID, ACCOUNT_ID, "not-stable"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("uppercase");
     }
 
     private static AccountFundsReservedData reserved(String amount, String currency) {

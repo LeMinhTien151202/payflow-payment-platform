@@ -17,6 +17,7 @@ quy tắc an toàn trong [`.agent/AGENTS.md`](../../.agent/AGENTS.md).
 | [ADR-014](ADR-014-outbox-claim-lease-and-recovery.md) | Outbox claim lease, stale recovery và crash semantics — resolves OD-008 | ACCEPTED | 2026-07-26 |
 | [ADR-015](ADR-015-risk-score-saturation-and-level-bands.md) | Risk score v1 dùng saturation và level band cố định — resolves OD-009 | ACCEPTED | 2026-07-27 |
 | [ADR-016](ADR-016-risk-assessment-event-taxonomy.md) | Một `risk.assessment.completed` hợp nhất — resolves OD-003 | ACCEPTED | 2026-07-28 |
+| [ADR-017](ADR-017-postgresql-inbox-insert-if-new.md) | PostgreSQL inbox insert-if-new trong local transaction — resolves OD-007 | ACCEPTED | 2026-07-28 |
 
 Các ADR còn lại trong khoảng ADR-001…ADR-012 vẫn ở trạng thái `PROPOSED` và chưa có
 file: chúng thuộc phạm vi Phase 1B trở đi và sẽ được viết khi đúng lát cắt được triển

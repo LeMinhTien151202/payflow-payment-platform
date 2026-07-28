@@ -202,6 +202,19 @@ public final class Payment {
         };
     }
 
+    /** Account confirmed the reservation, so Ledger posting may begin. */
+    public void confirmFundsReserved(Instant at) {
+        requireStatus(PaymentStatus.RESERVING_FUNDS, "confirm reserved funds");
+        transitionTo(PaymentStatus.PROCESSING, "FUNDS_RESERVED", at);
+    }
+
+    /** Account definitively rejected reservation before any journal was requested. */
+    public void failFundsReservation(String reasonCode, Instant at) {
+        Objects.requireNonNull(reasonCode, "reasonCode");
+        requireStatus(PaymentStatus.RESERVING_FUNDS, "fail funds reservation");
+        transitionTo(PaymentStatus.FAILED, reasonCode, at);
+    }
+
     private void requireStatus(PaymentStatus expected, String operation) {
         if (status != expected) {
             throw new UnexpectedPaymentStatusException(id, expected, status, operation);

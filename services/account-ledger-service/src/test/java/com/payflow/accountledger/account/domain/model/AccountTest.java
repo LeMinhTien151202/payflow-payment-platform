@@ -118,7 +118,8 @@ class AccountTest {
                                         UUID.randomUUID(),
                                         UUID.randomUUID(),
                                         new Money(new BigDecimal("1"), "USD"),
-                                        NOW))
+                                        NOW,
+                                        NOW.plusSeconds(60)))
                 .isInstanceOf(AccountInvariantViolationException.class)
                 .hasMessageContaining("currency");
     }
@@ -132,8 +133,59 @@ class AccountTest {
                 .hasMessageContaining("reserved");
     }
 
+    @Test
+    void reservationExpiryMustBeAfterCreation() {
+        assertThatThrownBy(() -> account.reserve(
+                        UUID.randomUUID(),
+                        UUID.randomUUID(),
+                        money("1"),
+                        NOW,
+                        NOW))
+                .isInstanceOf(AccountInvariantViolationException.class)
+                .hasMessageContaining("expiry");
+        assertThat(account.availableBalance().amount()).isEqualByComparingTo("1000000");
+        assertThat(account.reservedBalance().amount()).isZero();
+    }
+
+    @Test
+    void cannotExpireBeforeDeadlineOrCaptureAtDeadline() {
+        Reservation reservation = reserve("100");
+
+        assertThatThrownBy(() -> account.expire(reservation, NOW.plusSeconds(59)))
+                .isInstanceOf(AccountInvariantViolationException.class)
+                .hasMessageContaining("before its deadline");
+        assertThatThrownBy(() -> account.capture(reservation, NOW.plusSeconds(60)))
+                .isInstanceOf(AccountInvariantViolationException.class)
+                .hasMessageContaining("deadline");
+        assertThat(reservation.status()).isEqualTo(ReservationStatus.ACTIVE);
+        assertThat(account.reservedBalance().amount()).isEqualByComparingTo("100");
+    }
+
+    @Test
+    void cannotInspectOrExpireAReservationOwnedByAnotherAccount() {
+        Account otherAccount = Account.open(UUID.randomUUID(), money("1000"));
+        Reservation otherReservation = otherAccount.reserve(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                money("100"),
+                NOW,
+                NOW.plusSeconds(60));
+
+        assertThatThrownBy(() -> account.expire(otherReservation, NOW.plusSeconds(1)))
+                .isInstanceOf(AccountInvariantViolationException.class)
+                .hasMessageContaining("another account");
+        assertThat(otherReservation.status()).isEqualTo(ReservationStatus.ACTIVE);
+        assertThat(account.availableBalance().amount()).isEqualByComparingTo("1000000");
+        assertThat(account.reservedBalance().amount()).isZero();
+    }
+
     private Reservation reserve(String amount) {
-        return account.reserve(UUID.randomUUID(), UUID.randomUUID(), money(amount), NOW);
+        return account.reserve(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                money(amount),
+                NOW,
+                NOW.plusSeconds(60));
     }
 
     private static Money money(String amount) {

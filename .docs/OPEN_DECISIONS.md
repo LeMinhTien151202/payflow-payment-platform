@@ -19,7 +19,7 @@ File này ghi các điểm chưa đủ rõ trong spec hoặc đang mâu thuẫn 
 | OD-004 | OPEN | Fee policy/rate/rounding snapshot lịch sử | Fee, refund economics, settlement |
 | OD-005 | OPEN | Atomic refundable-capacity reservation | Refund intake/concurrency |
 | OD-006 | OPEN | Payment state khi Saga cần manual review | Timeout/recovery API và event |
-| OD-007 | OPEN | PostgreSQL inbox insert-if-new semantics | Kafka consumer implementation |
+| OD-007 | RESOLVED | PostgreSQL inbox insert-if-new semantics | Mở khóa bằng ADR-017; runtime vẫn cần PostgreSQL/Kafka test |
 | OD-008 | RESOLVED | Outbox claim lease và stale recovery | Đã mở khoá bằng ADR-004 + ADR-014 |
 | OD-009 | RESOLVED | Risk score normalization/range | Đã mở khoá bằng ADR-015 |
 | OD-010 | OPEN | Audit snapshot allowlist, retention và access | Privileged audit logging |
@@ -101,6 +101,14 @@ Quyết định phải nêu Payment status/API response/event, allowed operation
 PostgreSQL unique violation làm transaction hiện tại aborted nếu chỉ `INSERT` rồi catch như thao tác bình thường. Consumer phải dùng insert-if-new an toàn, ví dụ `INSERT ... ON CONFLICT DO NOTHING` và chỉ chạy business logic khi affected row bằng 1, hoặc một cơ chế savepoint tương đương đã test.
 
 Spec §8.5 phải được làm rõ trước khi tạo consumer template.
+
+**Đã chốt** bằng [`docs/adr/ADR-017`](../docs/adr/ADR-017-postgresql-inbox-insert-if-new.md):
+mỗi service dùng primary key `(event_id, consumer_name)` và `INSERT ... ON CONFLICT DO NOTHING`.
+Chỉ affected row bằng `1` mới được chạy business change và append outbox trong cùng local transaction;
+adapter bắt buộc phải được gọi bên trong transaction. Kafka offset chỉ commit sau local commit.
+
+Implementation gate: PostgreSQL duplicate/concurrency/rollback test và Kafka redelivery/offset test
+phải xanh. ADR mở khóa implementation nhưng không tự chứng minh runtime đã đúng.
 
 ## OD-008 — Outbox claim and recovery — RESOLVED 2026-07-26
 

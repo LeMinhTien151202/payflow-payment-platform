@@ -18,4 +18,11 @@
         deterministic domain invariants only; persistence, messaging and deployment bootstrap remain
         gated by the Phase 1A infrastructure proof and the open cross-service contracts.
     </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.payflow</groupId>
+            <artifactId>event-contracts</artifactId>
+        </dependency>
+    </dependencies>
 </project>

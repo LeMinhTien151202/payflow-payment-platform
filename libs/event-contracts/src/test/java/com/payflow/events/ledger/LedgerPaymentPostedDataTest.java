@@ -39,4 +39,17 @@ class LedgerPaymentPostedDataTest {
         assertThat(JsonMapper.builder().build().valueToTree(data).propertyNames())
                 .containsExactlyInAnyOrder("paymentId", "journalId", "amount", "currency");
     }
+
+    @Test
+    void postPaymentCommandCarriesOwnerReferencesWithoutLedgerInternalIds() {
+        var command = new LedgerPostPaymentRequestedData(
+                ID, UUID.randomUUID(), UUID.randomUUID(), new BigDecimal("500000"), "VND");
+
+        assertThat(LedgerEvents.POST_PAYMENT_REQUESTED.name())
+                .isEqualTo("ledger.post-payment.requested");
+        assertThat(JsonMapper.builder().build().valueToTree(command).propertyNames())
+                .containsExactlyInAnyOrder(
+                        "paymentId", "customerId", "merchantId", "amount", "currency");
+        assertThat(command.amount()).isEqualTo(new BigDecimal("500000.0000"));
+    }
 }
