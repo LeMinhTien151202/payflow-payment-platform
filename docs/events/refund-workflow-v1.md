@@ -36,5 +36,7 @@ unverified until the infrastructure gate is run.
 
 Account-Ledger also has code-first consumers for `refund.requested` and
 `account.refund-credit.requested`. They use separate Account/Ledger schemas, a shared operational
-inbox/outbox schema, business-reference duplicate checks and Account row locking. Its outbox polling
-publisher is still pending, so these durable output rows cannot reach Kafka yet.
+inbox/outbox schema, business-reference duplicate checks and Account row locking. Its ADR-014
+polling publisher now has lease recovery, bounded retry and conditional owner marks. The policy is
+covered by no-Docker tests; actual PostgreSQL claims and Kafka delivery remain unverified until the
+infrastructure gate is run.

@@ -7,7 +7,11 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /** Shared PostgreSQL 17 container. Compiled but excluded by the no-docker profile. */
 @Tag("docker")
-@TestPropertySource(properties = "payflow.refund-consumer.enabled=false")
+@TestPropertySource(
+        properties = {
+            "payflow.refund-consumer.enabled=false",
+            "payflow.outbox.enabled=false"
+        })
 public abstract class AbstractPostgresIT {
 
     @ServiceConnection

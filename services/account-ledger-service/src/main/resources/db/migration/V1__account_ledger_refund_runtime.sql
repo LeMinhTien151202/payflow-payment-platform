@@ -131,6 +131,13 @@ CREATE TABLE account_ledger.outbox_events (
     CONSTRAINT account_ledger_outbox_attempt_non_negative CHECK (attempt_count >= 0)
 );
 
-CREATE INDEX idx_account_ledger_outbox_due
+CREATE INDEX idx_account_ledger_outbox_pending_due
     ON account_ledger.outbox_events (next_attempt_at, created_at)
-    WHERE status IN ('PENDING', 'PROCESSING');
+    WHERE status = 'PENDING';
+
+CREATE INDEX idx_account_ledger_outbox_expired_lease
+    ON account_ledger.outbox_events (lock_until)
+    WHERE status = 'PROCESSING';
+
+CREATE INDEX idx_account_ledger_outbox_aggregate_order
+    ON account_ledger.outbox_events (aggregate_type, aggregate_id, created_at);

@@ -37,17 +37,17 @@ Docker-tagged PostgreSQL tests or prove broker offset/crash behavior.
 5. Typed Kafka router/listener for `refund.requested` and `account.refund-credit.requested`, manual
    acknowledgement after commit, bounded retry and DLT recovery.
 6. Prepared Testcontainers cases for happy-path deduplication and injected outbox rollback.
+7. ADR-014 polling outbox publisher with PostgreSQL lease claiming, stale-lease recovery,
+   conditional owner marks, bounded exponential retry and Micrometer signals.
 
 ## Remaining infrastructure work
 
-1. Add the ADR-014 polling publisher for this service's outbox; until then rows are durable but do
-   not leave the database.
-2. Run Flyway/JPA and transaction tests on PostgreSQL 17, then run real Kafka redelivery and
+1. Run Flyway/JPA, transaction and outbox lease tests on PostgreSQL 17, then run real Kafka redelivery and
    crash-window tests.
-3. Connect the existing reserve/capture/release pure policies using the same transaction pattern.
-4. Add unique reservation by `payment_id` and retain unique journal by
+2. Connect the existing reserve/capture/release pure policies using the same transaction pattern.
+3. Add unique reservation by `payment_id` and retain unique journal by
    `(reference_type, reference_id, journal_type)`.
-5. Add seed/profile data for demo accounts and Ledger account mappings without putting it in the
+4. Add seed/profile data for demo accounts and Ledger account mappings without putting it in the
    production migration path.
 
 The refund core follows ADR-021: Ledger posts a new balanced `REFUND_REVERSAL` journal first,

@@ -32,6 +32,7 @@ spring:
       acks: all
       properties:
         enable.idempotence: true
+        delivery.timeout.ms: ${PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS:30000}
     consumer:
       enable-auto-commit: false
       auto-offset-reset: earliest
@@ -46,6 +47,14 @@ server:
 payflow:
   refund-consumer:
     enabled: ${PAYFLOW_REFUND_CONSUMER_ENABLED:true}
+  outbox:
+    enabled: ${PAYFLOW_OUTBOX_ENABLED:true}
+    poll-interval: ${PAYFLOW_OUTBOX_POLL_INTERVAL:500ms}
+    batch-size: ${PAYFLOW_OUTBOX_BATCH_SIZE:100}
+    lease: ${PAYFLOW_OUTBOX_LEASE:120s}
+    max-attempts: ${PAYFLOW_OUTBOX_MAX_ATTEMPTS:10}
+    max-backoff: ${PAYFLOW_OUTBOX_MAX_BACKOFF:300s}
+    delivery-timeout: ${PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS:30000}ms
 
 management:
   endpoints:

@@ -27,7 +27,8 @@ File này là bảng bằng chứng sống. Cập nhật sau mỗi milestone; kh
 | Event envelope v1 và topic contract | `VERIFIED_LOCAL` | 52/52 contract test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | Thêm versioned Account reserve/outcome/capture, Ledger post-requested/posted và Payment success contracts theo ADR-011 |
 | Payment intake schema (V2, DDL + constraint) | `IMPLEMENTED` | — | `PaymentIntakeSchemaIT` (23 test) và `PaymentServiceFoundationIT` chưa chạy: cần Docker daemon. Xem "Known deviations" bên dưới |
 | Payment intake REST + application core | `IMPLEMENTED` | `PaymentControllerTest` 6 + `CreatePaymentHandlerTest` 24 + `RequestFingerprintTest` 13 pass, 2026-07-26 | `POST` 202, `GET`, JWT `merchant_id`, typed Problem Details và canonical replay đã có; atomicity/concurrency trên PostgreSQL thật chưa chạy |
-| Outbox polling publisher | `IMPLEMENTED` | `PublishOutboxHandlerTest` 7 + `OutboxPropertiesTest` 1 pass, 2026-07-26 | Lease/backoff/terminal/order policy đã test không Docker; claim SQL, Kafka ack và 9 integration gate ADR-014 chưa chạy |
+| Payment outbox polling publisher | `IMPLEMENTED` | `PublishOutboxHandlerTest` 7 + `OutboxPropertiesTest` 1 pass, 2026-07-26 | Lease/backoff/terminal/order policy đã test không Docker; claim SQL, Kafka ack và 9 integration gate ADR-014 chưa chạy |
+| Account-Ledger outbox polling publisher | `IMPLEMENTED` | `PublishOutboxHandlerTest` 7 + `OutboxPropertiesTest` 1 pass, 2026-07-29 | ADR-014 lease/backoff/terminal/order policy pass; PostgreSQL lease IT đã prepared nhưng chưa chạy; Kafka ack/crash window chưa kiểm chứng |
 | Account/Reservation và Ledger domain/application core | `VERIFIED_LOCAL` | 38/38 Account/Ledger test + 52/52 event-contract test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | Reserve deadline, duplicate intent, stable failure outcome và Ledger posted factory đã có; chưa có Spring Boot, database locking, inbox/outbox hoặc Kafka |
 | Risk rule engine + assessment event factory | `VERIFIED_LOCAL` | 26/26 Risk test + 52/52 event-contract test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | ADR-015/016; giữ payment key, correlation và causation; không dùng wall-clock khác service để suy luận thứ tự; chưa có Redis/PostgreSQL/Kafka adapter |
 | Notification record và email mock core | `VERIFIED_LOCAL` | 14/14 unit test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | Core thuần Java trong `notification-service`; chưa có Spring Boot, database, Kafka inbox/outbox, webhook, retry/DLT hoặc Keycloak runtime |
@@ -471,6 +472,29 @@ Known limitations:
   - Reserve/capture/release runtime cho payment happy path vẫn là pure core và chưa dùng persistence/listener mới.
   - Chưa có local seed profile cho Account/Ledger account mapping; production migration cố ý không chứa demo data.
   - Keycloak contract giữ nguyên; runtime chưa chạy trong gate no-docker.
+```
+
+### 2026-07-29 — Account-Ledger ADR-014 outbox publisher
+
+```text
+Date/time (UTC): 2026-07-29T15:02:25Z
+Commit SHA: N/A (working tree change chưa commit; HEAD efb1129)
+Environment: Windows 10; Maven Wrapper 3.9.16; Java 21.0.7; không Docker/PostgreSQL/Kafka/Keycloak runtime
+Capability/scenario: Account-Ledger polling publisher; short PostgreSQL lease claims; stale lease reclaim; stable event id; conditional owner marks; bounded exponential retry/terminal FAILED; same-aggregate ordering guard; synchronous Kafka acknowledgement boundary; Micrometer counters/gauge
+Targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/account-ledger-service -am test
+Targeted result: exit 0, BUILD SUCCESS trong 18.916 s; event-contracts 63/63 và account-ledger-service 74/74 pass.
+Final command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Final result: exit 0, BUILD SUCCESS trong 01:00; 9/9 module SUCCESS; Surefire 428/428 và Failsafe 13/13 pass.
+Governance: validate-governance.ps1 pass 18 required paths/16 Markdown files; git diff --check exit 0.
+Schema/config: V1 index được hoàn thiện trước lần chạy đầu thành pending-due, expired-lease và aggregate-order indexes; payflow.outbox.* fail-fast defaults; Kafka delivery timeout luôn nhỏ hơn lease.
+Prepared Docker evidence: OutboxLeaseStorePersistenceIT có pending claim + conditional owner mark và expired-vs-active lease recovery; test compile nhưng bị loại đúng theo profile no-docker.
+Operations: docs/runbooks/outbox-recovery.md mô tả read-only triage, single-row conditional requeue và cấm sửa payload/business identity.
+Known limitations:
+  - PostgreSQL SKIP LOCKED, clock_timestamp, partial indexes và transaction boundary mới compile; chưa VERIFIED_LOCAL vì Docker/PostgreSQL chưa bật.
+  - Kafka acknowledgement, ambiguous timeout duplicate, broker redelivery và kill/restart crash window chưa chạy.
+  - Không tuyên bố exactly-once; consumer inbox/idempotency vẫn là bắt buộc.
+  - V1 migration chưa được apply ở bất kỳ database nào theo xác nhận của repository owner; do đó index được hoàn thiện ngay trong initial migration, không sửa lịch sử database đã chạy.
+  - Keycloak giữ nguyên và không tham gia gate no-docker.
 ```
 
 Quy tắc cập nhật:

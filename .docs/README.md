@@ -51,6 +51,7 @@ Trước mọi feature, kiểm tra `OPEN_DECISIONS.md`; không implement phạm 
 | [../docs/adr/README.md](../docs/adr/README.md) | ADR đã viết (ADR-004, ADR-007, ADR-011–ADR-021 theo index) |
 | [../docs/runbooks/local-development.md](../docs/runbooks/local-development.md) | Build, test và bật hạ tầng Docker |
 | [../docs/runbooks/saga-manual-review.md](../docs/runbooks/saga-manual-review.md) | Triage và resolution an toàn cho Saga manual review |
+| [../docs/runbooks/outbox-recovery.md](../docs/runbooks/outbox-recovery.md) | Triage và requeue có kiểm soát cho outbox publisher |
 
 ## Trạng thái hiện tại
 
@@ -60,8 +61,8 @@ Trước mọi feature, kiểm tra `OPEN_DECISIONS.md`; không implement phạm 
 - ADR-019/020/021 đã khóa fee snapshot, refundable capacity và thứ tự Ledger reversal → Account
   credit → refund success. Pure core/contract cho cả ba boundary đã có; Payment refund outcome
   consumer đã nối inbox + row lock + state + outbox transaction và lưu durable journal/credit ID.
-  Account-Ledger đã có Spring Boot, Flyway/JPA/JDBC và refund consumers code-first; outbox publisher
-  của module này và toàn bộ PostgreSQL/Kafka runtime vẫn chưa được nối/chạy.
+  Account-Ledger đã có Spring Boot, Flyway/JPA/JDBC, refund consumers và ADR-014 outbox publisher
+  code-first; toàn bộ PostgreSQL/Kafka runtime vẫn chưa được chạy.
 - Build và test không cần Docker đã pass; hạ tầng Docker **chưa từng được start** và test cần Docker **chưa từng chạy**. Chi tiết và giới hạn nằm trong `IMPLEMENTATION_STATUS.md`.
 - Không mô tả feature là hoàn thành cho tới khi có code, test và lệnh tái tạo kết quả.
 - Spec vẫn là backlog tổng; `DELIVERY_ROADMAP.md` quyết định lát cắt được phép triển khai tiếp theo.
