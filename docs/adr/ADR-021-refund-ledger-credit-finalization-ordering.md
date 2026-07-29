@@ -65,13 +65,15 @@ Mandatory rules:
    `(reference_type='REFUND', reference_id=refundId, journal_type='REFUND_REVERSAL')`. It never edits
    the original payment journal.
 2. `ledger.refund-posted` moves Refund from `CREATED` to `PROCESSING` and causes exactly one
-   `account.refund-credit.requested`. Payment status remains unchanged.
+   `account.refund-credit.requested`. Payment status remains unchanged. Payment persists the
+   immutable `journalId` before emitting that command so a restart cannot lose the causal fact.
 3. Account credits the original source account. A frozen account may receive a refund; a closed
    account cannot and requires operations recovery. Duplicate credit with the same refund intent is
    a no-op; a different intent for the same `refundId` is an invariant violation.
 4. Only matching `account.refund-credited` may move Payment reserved capacity to succeeded total,
    compute the cumulative fee-reversal delta, mark Refund `SUCCEEDED`, and append
-   `refund.succeeded` in one Payment local transaction.
+   `refund.succeeded` in one Payment local transaction. The Refund row also persists the unique
+   `creditId` as terminal evidence.
 5. A definitive Ledger rejection before a journal is posted may mark Refund `FAILED` and release
    its reserved capacity atomically. After `ledger.refund-posted`, automatic failure and capacity
    release are forbidden: Account credit is retried with a bound and then routed to manual review
@@ -90,8 +92,12 @@ credit-pending refund is deliberately recoverable rather than automatically fail
 
 - Add `ledger.refund-posted`, `ledger.refund-posting-failed`,
   `account.refund-credit.requested`, `account.refund-credited`, and `refund.succeeded` v1.
-- Ledger and Account persistence later require unique refund business references, inbox/outbox
-  atomicity and PostgreSQL concurrency tests.
+- Payment migration V7 adds durable, uniquely indexed `ledger_journal_id` and
+  `account_credit_id` facts with status-consistency checks. It rejects any legacy
+  `PROCESSING`/`SUCCEEDED` Refund row whose identities cannot be reconstructed safely.
+- Ledger and Account persistence code uses unique refund business references and inbox/outbox local
+  transactions; the prepared PostgreSQL concurrency/rollback tests remain unverified until Docker
+  is started.
 - No public REST shape changes.
 
 ## Verification
@@ -99,5 +105,6 @@ credit-pending refund is deliberately recoverable rather than automatically fail
 - Exact JSON contract tests for every new v1 payload and envelope identity.
 - Pure tests for balanced reversal journals, duplicate/mismatched Account credit and Refund
   finalization matching.
-- PostgreSQL tests later prove unique journal/credit, local rollback and Payment row locking.
+- PostgreSQL tests are prepared for durable journal/credit facts, inbox deduplication and rollback
+  of inbox + aggregate + outbox, but are not verified until Docker is started.
 - Kafka/E2E tests later prove redelivery, crash windows, ordering and no early success.

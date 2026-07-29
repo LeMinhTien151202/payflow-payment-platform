@@ -429,6 +429,50 @@ Known limitations:
   - Ledger v1 chỉ reverse principal, đồng nhất với payment capture v1. Fee-aware ledger cần contract version mới; refund.succeeded hiện mang fee-reversal fact cho Settlement tương lai.
 ```
 
+### 2026-07-29 — Payment refund outcome transactional runtime
+
+```text
+Date/time (UTC): 2026-07-29T12:45:58Z
+Commit SHA: N/A (working tree change chưa commit; HEAD 29e30e6)
+Environment: Windows 10; Maven Wrapper 3.9.16; Java 21.0.7; không Docker/PostgreSQL/Kafka/Keycloak runtime
+Capability/scenario: Payment refund outcome router/consumer; inbox + Payment/Refund row locks + aggregate state + causal outbox transaction; durable Ledger journal/Account credit IDs; V7 status/identity constraints; pre-journal failure boundary
+Targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/payment-service -am test
+Targeted result: exit 0, BUILD SUCCESS trong 24.645 s; event-contracts 63/63 và payment-service 231/231 pass.
+Final command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Final result: exit 0, BUILD SUCCESS trong 01:00; 9/9 module SUCCESS; Surefire 408/408 và Failsafe 13/13 pass.
+Governance: validate-governance.ps1 pass 18 required paths/16 Markdown files; git diff --check exit 0.
+Contract/schema: không thêm event mới ngoài ADR-021 pure-core checkpoint; V7__refund_financial_workflow_facts.sql thêm ledger_journal_id/account_credit_id, unique partial indexes và status consistency checks.
+Prepared Docker evidence: RefundCapacityPersistenceIT có thêm happy path journal → credit → success + duplicate delivery, và injected refund.succeeded outbox failure để chứng minh rollback inbox + Refund credit fact + Payment capacity. Các case chỉ compile, chưa chạy.
+Known limitations:
+  - V7 Flyway, PESSIMISTIC_WRITE và PostgreSQL atomic rollback chưa VERIFIED_LOCAL vì Docker/PostgreSQL chưa bật.
+  - Kafka listener dùng router chung và đã compile/unit-test, nhưng broker redelivery, offset-after-commit, DLT, ordering và crash window chưa chạy.
+  - Account-Ledger refund runtime vẫn là pure core: chưa có Spring Boot bootstrap, database ownership, inbox/outbox hoặc Kafka consumer/producer, nên chưa có refund E2E.
+  - Sau journal posted, bounded retry/manual-review cho Account credit vẫn là backlog; theo ADR-021 không được tự fail hoặc release capacity trong cửa sổ này.
+  - Keycloak contract giữ nguyên; runtime chưa chạy trong gate no-docker.
+```
+
+### 2026-07-29 — Account-Ledger refund runtime foundation
+
+```text
+Date/time (UTC): 2026-07-29T13:07:03Z
+Commit SHA: N/A (working tree change chưa commit; HEAD 29e30e6)
+Environment: Windows 10; Maven Wrapper 3.9.16; Java 21.0.7; không Docker/PostgreSQL/Kafka/Keycloak runtime
+Capability/scenario: runnable Account-Ledger Spring Boot module; separate account/ledger/operational schemas; refund reversal and Account credit consumers; inbox + business mutation + causal outbox local transactions; transport/business duplicate distinction; Account row lock; bounded Kafka retry/DLT; producer-owned topic declarations
+Targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/account-ledger-service -am test
+Targeted result: exit 0, BUILD SUCCESS trong 18.149 s; event-contracts 63/63 và account-ledger-service 66/66 pass.
+Final command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Final result: exit 0, BUILD SUCCESS trong 01:01; 9/9 module SUCCESS; Surefire 420/420 và Failsafe 13/13 pass.
+Schema/runtime: V1__account_ledger_refund_runtime.sql; Account JPA adapter; Ledger/inbox/outbox JDBC adapters; typed listeners cho refund.requested và account.refund-credit.requested; Payment khai báo refund topic, Account-Ledger khai báo account/ledger/DLT topics.
+Prepared Docker evidence: RefundWorkflowPersistenceIT có happy path journal cân bằng → credit → hai outbox facts với redelivery, và injected account.refund-credited outbox failure để chứng minh rollback inbox + balance + credit.
+Known limitations:
+  - PostgreSQL V1/Flyway/JPA validation, PESSIMISTIC_WRITE, unique constraints và rollback IT chỉ compile; chưa VERIFIED_LOCAL vì Docker chưa bật.
+  - Kafka broker chưa chạy, nên manual ack, redelivery, DLT send, partition ordering và crash window chưa VERIFIED_LOCAL.
+  - account-ledger-service chưa có ADR-014 polling outbox publisher; output rows đã durable nhưng chưa thể tự phát ra Kafka.
+  - Reserve/capture/release runtime cho payment happy path vẫn là pure core và chưa dùng persistence/listener mới.
+  - Chưa có local seed profile cho Account/Ledger account mapping; production migration cố ý không chứa demo data.
+  - Keycloak contract giữ nguyên; runtime chưa chạy trong gate no-docker.
+```
+
 Quy tắc cập nhật:
 
 - Không ghi `VERIFIED_*` nếu thiếu command và kết quả.

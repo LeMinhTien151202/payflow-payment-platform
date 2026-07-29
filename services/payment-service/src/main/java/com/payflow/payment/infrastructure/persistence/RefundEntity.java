@@ -50,6 +50,12 @@ class RefundEntity {
     @Column(name = "fee_reversal_amount", precision = 19, scale = 4)
     private BigDecimal feeReversalAmount;
 
+    @Column(name = "ledger_journal_id")
+    private UUID ledgerJournalId;
+
+    @Column(name = "account_credit_id")
+    private UUID accountCreditId;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
     private RefundStatus status;
@@ -88,6 +94,8 @@ class RefundEntity {
                 refund.feeReversalAmount() == null
                         ? null
                         : refund.feeReversalAmount().amount();
+        entity.ledgerJournalId = refund.ledgerJournalId();
+        entity.accountCreditId = refund.accountCreditId();
         entity.status = refund.status();
         entity.failureCode = refund.failureCode();
         entity.createdAt = refund.createdAt();
@@ -106,10 +114,27 @@ class RefundEntity {
                 reason,
                 requestedBy,
                 status,
+                ledgerJournalId,
+                accountCreditId,
                 feeReversalAmount == null ? null : new Money(feeReversalAmount, currency),
                 failureCode,
                 createdAt,
                 updatedAt,
                 completedAt);
+    }
+
+    void applyWorkflowState(Refund refund) {
+        if (!id.equals(refund.id())) {
+            throw new IllegalArgumentException("cannot apply a different Refund aggregate");
+        }
+        status = refund.status();
+        ledgerJournalId = refund.ledgerJournalId();
+        accountCreditId = refund.accountCreditId();
+        feeReversalAmount = refund.feeReversalAmount() == null
+                ? null
+                : refund.feeReversalAmount().amount();
+        failureCode = refund.failureCode();
+        updatedAt = refund.updatedAt();
+        completedAt = refund.completedAt();
     }
 }

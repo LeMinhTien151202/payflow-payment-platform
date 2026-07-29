@@ -25,5 +25,16 @@ A definitive `ledger.refund-posting-failed` before journal creation may release 
 After `ledger.refund-posted`, Account credit failure is retried and reconciled; it must not produce
 `refund.failed` or release capacity automatically.
 
-Runtime producers/consumers are not considered verified until PostgreSQL/Kafka inbox, outbox,
-redelivery and crash-window tests pass.
+Payment now has a transactional outcome consumer for the three inbound result events above. It
+locks Payment before Refund, records the inbox identity, changes local state, and appends the next
+causal outbox event in one local transaction. `ledger_journal_id` and `account_credit_id` are durable
+Refund facts, so finalization does not depend on an earlier message remaining in memory.
+
+This runtime code is covered by no-Docker unit tests. PostgreSQL atomicity tests are prepared but
+not yet executed, and Kafka redelivery, offset commit, ordering and crash-window behavior remain
+unverified until the infrastructure gate is run.
+
+Account-Ledger also has code-first consumers for `refund.requested` and
+`account.refund-credit.requested`. They use separate Account/Ledger schemas, a shared operational
+inbox/outbox schema, business-reference duplicate checks and Account row locking. Its outbox polling
+publisher is still pending, so these durable output rows cannot reach Kafka yet.

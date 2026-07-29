@@ -36,6 +36,12 @@ class OutboxMessagingConfig {
         return TopicBuilder.name(PayFlowTopics.PAYMENT_EVENTS).partitions(3).replicas(1).build();
     }
 
+    /** Payment owns refund lifecycle facts and therefore owns this topic declaration. */
+    @Bean
+    NewTopic refundEventsTopic() {
+        return TopicBuilder.name(PayFlowTopics.REFUND_EVENTS).partitions(3).replicas(1).build();
+    }
+
     /** Consumer recovery publishes the original failed record here after bounded attempts. */
     @Bean
     NewTopic deadLetterTopic() {

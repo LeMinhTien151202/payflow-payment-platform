@@ -11,13 +11,16 @@ import com.payflow.events.EventEnvelope;
 import com.payflow.events.EventType;
 import com.payflow.events.account.AccountEvents;
 import com.payflow.events.account.AccountFundsCapturedData;
+import com.payflow.events.account.AccountRefundCreditedData;
 import com.payflow.events.ledger.LedgerEvents;
 import com.payflow.events.ledger.LedgerPaymentPostedData;
+import com.payflow.events.ledger.LedgerRefundPostedData;
 import com.payflow.events.risk.RiskAssessmentCompletedData;
 import com.payflow.events.risk.RiskDecisionValue;
 import com.payflow.events.risk.RiskEvents;
 import com.payflow.events.risk.RiskLevelValue;
 import com.payflow.payment.application.handler.HandlePaymentWorkflowEventHandler;
+import com.payflow.payment.application.handler.HandleRefundWorkflowEventHandler;
 import com.payflow.payment.application.inbox.EventProcessingResult;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -38,7 +41,10 @@ class PaymentWorkflowEventRouterTest {
     private final JsonMapper mapper = JsonMapper.builder().build();
     private final HandlePaymentWorkflowEventHandler handler =
             mock(HandlePaymentWorkflowEventHandler.class);
-    private final PaymentWorkflowEventRouter router = new PaymentWorkflowEventRouter(mapper, handler);
+    private final HandleRefundWorkflowEventHandler refundHandler =
+            mock(HandleRefundWorkflowEventHandler.class);
+    private final PaymentWorkflowEventRouter router =
+            new PaymentWorkflowEventRouter(mapper, handler, refundHandler);
 
     @Test
     void routesRiskAccountAndLedgerContractsToTheirTypedHandler() {
@@ -84,12 +90,49 @@ class PaymentWorkflowEventRouterTest {
     }
 
     @Test
+    void routesRefundLedgerAndAccountOutcomesToRefundHandler() {
+        UUID refundId = UUID.randomUUID();
+        var ledger = envelope(
+                LedgerEvents.REFUND_POSTED,
+                new LedgerRefundPostedData(
+                        refundId,
+                        PAYMENT_ID,
+                        JOURNAL_ID,
+                        ACCOUNT_ID,
+                        new BigDecimal("40"),
+                        "VND"));
+        var credited = envelope(
+                AccountEvents.REFUND_CREDITED,
+                new AccountRefundCreditedData(
+                        refundId,
+                        PAYMENT_ID,
+                        ACCOUNT_ID,
+                        JOURNAL_ID,
+                        UUID.randomUUID(),
+                        new BigDecimal("40"),
+                        "VND"));
+        when(refundHandler.handleLedgerRefundPosted(ledger))
+                .thenReturn(EventProcessingResult.PROCESSED);
+        when(refundHandler.handleAccountRefundCredited(credited))
+                .thenReturn(EventProcessingResult.DUPLICATE);
+
+        assertThat(router.route(PAYMENT_ID.toString(), mapper.writeValueAsString(ledger)))
+                .isEqualTo(PaymentWorkflowEventRouter.RouteResult.PROCESSED);
+        assertThat(router.route(PAYMENT_ID.toString(), mapper.writeValueAsString(credited)))
+                .isEqualTo(PaymentWorkflowEventRouter.RouteResult.DUPLICATE);
+
+        verify(refundHandler).handleLedgerRefundPosted(ledger);
+        verify(refundHandler).handleAccountRefundCredited(credited);
+    }
+
+    @Test
     void ignoresOtherBoundedContextEventsOnASubscribedTopic() {
         String payload = mapper.writeValueAsString(Map.of("eventType", "account.balance-adjusted"));
 
         assertThat(router.route(PAYMENT_ID.toString(), payload))
                 .isEqualTo(PaymentWorkflowEventRouter.RouteResult.IGNORED);
         verifyNoInteractions(handler);
+        verifyNoInteractions(refundHandler);
     }
 
     @Test
@@ -108,6 +151,7 @@ class PaymentWorkflowEventRouterTest {
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("Kafka key");
         verifyNoInteractions(handler);
+        verifyNoInteractions(refundHandler);
     }
 
     @Test

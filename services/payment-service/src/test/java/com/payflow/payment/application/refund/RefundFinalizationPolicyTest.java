@@ -43,6 +43,7 @@ class RefundFinalizationPolicyTest {
                 fixture.payment(), fixture.refund(), ledger(), CREATED.plusSeconds(2));
 
         assertThat(fixture.refund().status()).isEqualTo(RefundStatus.PROCESSING);
+        assertThat(fixture.refund().ledgerJournalId()).isEqualTo(JOURNAL_ID);
         assertThat(fixture.payment().status()).isEqualTo(PaymentStatus.SUCCEEDED);
         assertThat(command.refundId()).isEqualTo(REFUND_ID);
         assertThat(command.accountId()).isEqualTo(ACCOUNT_ID);
@@ -62,6 +63,8 @@ class RefundFinalizationPolicyTest {
                 CREATED.plusSeconds(3));
 
         assertThat(fixture.refund().status()).isEqualTo(RefundStatus.SUCCEEDED);
+        assertThat(fixture.refund().accountCreditId())
+                .isEqualTo(UUID.fromString("e99ff96f-4df3-4f2a-9433-c9aba292786c"));
         assertThat(fixture.payment().status()).isEqualTo(PaymentStatus.PARTIALLY_REFUNDED);
         assertThat(fixture.payment().reservedRefundAmount()).isEqualTo(Money.zero("VND"));
         assertThat(fixture.payment().totalRefundedAmount()).isEqualTo(Money.of("40", "VND"));

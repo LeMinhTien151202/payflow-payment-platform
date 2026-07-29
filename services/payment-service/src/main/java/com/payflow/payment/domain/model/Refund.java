@@ -23,6 +23,8 @@ public final class Refund {
     private final Instant createdAt;
 
     private RefundStatus status;
+    private UUID ledgerJournalId;
+    private UUID accountCreditId;
     private Money feeReversalAmount;
     private String failureCode;
     private Instant updatedAt;
@@ -37,6 +39,8 @@ public final class Refund {
             String reason,
             String requestedBy,
             RefundStatus status,
+            UUID ledgerJournalId,
+            UUID accountCreditId,
             Money feeReversalAmount,
             String failureCode,
             Instant createdAt,
@@ -50,6 +54,8 @@ public final class Refund {
         this.reason = boundedOptional(reason, MAX_REASON_LENGTH, "reason");
         this.requestedBy = boundedRequired(requestedBy, MAX_ACTOR_ID_LENGTH, "requestedBy");
         this.status = Objects.requireNonNull(status, "status");
+        this.ledgerJournalId = ledgerJournalId;
+        this.accountCreditId = accountCreditId;
         this.feeReversalAmount = feeReversalAmount;
         this.failureCode = boundedOptional(failureCode, MAX_FAILURE_CODE_LENGTH, "failureCode");
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
@@ -82,6 +88,8 @@ public final class Refund {
                 RefundStatus.CREATED,
                 null,
                 null,
+                null,
+                null,
                 createdAt,
                 createdAt,
                 null);
@@ -96,6 +104,8 @@ public final class Refund {
             String reason,
             String requestedBy,
             RefundStatus status,
+            UUID ledgerJournalId,
+            UUID accountCreditId,
             Money feeReversalAmount,
             String failureCode,
             Instant createdAt,
@@ -110,6 +120,8 @@ public final class Refund {
                 reason,
                 requestedBy,
                 status,
+                ledgerJournalId,
+                accountCreditId,
                 feeReversalAmount,
                 failureCode,
                 createdAt,
@@ -117,21 +129,29 @@ public final class Refund {
                 completedAt);
     }
 
-    public void startProcessing(Instant at) {
+    public void startProcessing(UUID journalId, Instant at) {
+        UUID validatedJournalId = Objects.requireNonNull(journalId, "journalId");
         transitionTo(RefundStatus.PROCESSING, at);
+        this.ledgerJournalId = validatedJournalId;
     }
 
-    public void succeed(Money feeReversal, Instant at) {
+    public void succeed(UUID creditId, Money feeReversal, Instant at) {
+        Objects.requireNonNull(ledgerJournalId, "ledgerJournalId");
+        UUID validatedCreditId = Objects.requireNonNull(creditId, "creditId");
         Objects.requireNonNull(feeReversal, "feeReversal");
         if (!feeReversal.currency().equals(amount.currency())) {
             throw new IllegalArgumentException("fee reversal currency differs from refund currency");
         }
         transitionTo(RefundStatus.SUCCEEDED, at);
+        this.accountCreditId = validatedCreditId;
         feeReversalAmount = feeReversal;
         completedAt = at;
     }
 
     public void fail(String code, Instant at) {
+        if (ledgerJournalId != null) {
+            throw new IllegalStateException("posted refund journal cannot be automatically failed");
+        }
         String validatedCode = boundedRequired(code, MAX_FAILURE_CODE_LENGTH, "failureCode");
         transitionTo(RefundStatus.FAILED, at);
         failureCode = validatedCode;
@@ -161,6 +181,13 @@ public final class Refund {
         }
         if ((status == RefundStatus.FAILED) != (failureCode != null)) {
             throw new IllegalArgumentException("failure code must exist only for failed refund");
+        }
+        boolean journalRequired = status == RefundStatus.PROCESSING || status == RefundStatus.SUCCEEDED;
+        if (journalRequired != (ledgerJournalId != null)) {
+            throw new IllegalArgumentException("ledger journal fact does not match refund status");
+        }
+        if ((status == RefundStatus.SUCCEEDED) != (accountCreditId != null)) {
+            throw new IllegalArgumentException("account credit fact must exist only for succeeded refund");
         }
     }
 
@@ -213,6 +240,14 @@ public final class Refund {
 
     public Money feeReversalAmount() {
         return feeReversalAmount;
+    }
+
+    public UUID ledgerJournalId() {
+        return ledgerJournalId;
+    }
+
+    public UUID accountCreditId() {
+        return accountCreditId;
     }
 
     public String failureCode() {

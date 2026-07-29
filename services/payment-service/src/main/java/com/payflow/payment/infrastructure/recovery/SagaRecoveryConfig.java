@@ -5,6 +5,7 @@ import com.payflow.payment.application.saga.ApplyRiskAssessmentPolicy;
 import com.payflow.payment.application.saga.PaymentFinalizationPolicy;
 import com.payflow.payment.application.saga.PaymentFundsReservationPolicy;
 import com.payflow.payment.application.saga.SagaRecoverySettings;
+import com.payflow.payment.application.refund.RefundFinalizationPolicy;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,6 +28,11 @@ class SagaRecoveryConfig {
     @Bean
     PaymentFinalizationPolicy paymentFinalizationPolicy() {
         return new PaymentFinalizationPolicy();
+    }
+
+    @Bean
+    RefundFinalizationPolicy refundFinalizationPolicy() {
+        return new RefundFinalizationPolicy();
     }
 
     @Bean

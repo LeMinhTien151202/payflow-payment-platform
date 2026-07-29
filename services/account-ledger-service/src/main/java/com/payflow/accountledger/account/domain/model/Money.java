@@ -35,6 +35,10 @@ public record Money(BigDecimal amount, String currency) {
         return new Money(BigDecimal.ZERO, currency);
     }
 
+    public static Money of(String amount, String currency) {
+        return new Money(new BigDecimal(amount), currency);
+    }
+
     public Money requirePositive() {
         if (amount.signum() <= 0) {
             throw new AccountInvariantViolationException("operation amount must be greater than zero");

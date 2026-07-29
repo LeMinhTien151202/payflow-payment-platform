@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test;
 class RefundTest {
 
     private static final UUID REFUND_ID = UUID.fromString("73817fe8-219a-4136-921c-2473c1ea9e9b");
+    private static final UUID JOURNAL_ID = UUID.fromString("3f93e522-42e6-4c3f-9099-9ded706aec77");
+    private static final UUID CREDIT_ID = UUID.fromString("e99ff96f-4df3-4f2a-9433-c9aba292786c");
     private static final Instant CREATED = Instant.parse("2026-07-29T09:00:00Z");
 
     @Test
@@ -26,11 +28,13 @@ class RefundTest {
     @Test
     void processingCanSucceedWithExplicitFeeReversal() {
         Refund refund = refund();
-        refund.startProcessing(CREATED.plusSeconds(1));
-        refund.succeed(Money.of("4", "VND"), CREATED.plusSeconds(2));
+        refund.startProcessing(JOURNAL_ID, CREATED.plusSeconds(1));
+        refund.succeed(CREDIT_ID, Money.of("4", "VND"), CREATED.plusSeconds(2));
 
         assertThat(refund.status()).isEqualTo(RefundStatus.SUCCEEDED);
         assertThat(refund.feeReversalAmount()).isEqualTo(Money.of("4", "VND"));
+        assertThat(refund.ledgerJournalId()).isEqualTo(JOURNAL_ID);
+        assertThat(refund.accountCreditId()).isEqualTo(CREDIT_ID);
         assertThat(refund.completedAt()).isEqualTo(CREATED.plusSeconds(2));
     }
 
@@ -49,8 +53,33 @@ class RefundTest {
         Refund refund = refund();
         refund.fail("ACCOUNT_REFUND_REJECTED", CREATED.plusSeconds(1));
 
-        assertThatThrownBy(() -> refund.startProcessing(CREATED.plusSeconds(2)))
+        assertThatThrownBy(() -> refund.startProcessing(JOURNAL_ID, CREATED.plusSeconds(2)))
                 .isInstanceOf(UnexpectedRefundStatusException.class);
+        assertThat(refund.ledgerJournalId()).isNull();
+    }
+
+    @Test
+    void invalidSuccessDoesNotLeakCreditIdentityIntoAggregate() {
+        Refund refund = refund();
+        refund.startProcessing(JOURNAL_ID, CREATED.plusSeconds(1));
+
+        assertThatThrownBy(() -> refund.succeed(CREDIT_ID, null, CREATED.plusSeconds(2)))
+                .isInstanceOf(NullPointerException.class)
+                .hasMessageContaining("feeReversal");
+        assertThat(refund.status()).isEqualTo(RefundStatus.PROCESSING);
+        assertThat(refund.accountCreditId()).isNull();
+        assertThat(refund.feeReversalAmount()).isNull();
+    }
+
+    @Test
+    void postedJournalCannotBeConvertedToAutomaticFailure() {
+        Refund refund = refund();
+        refund.startProcessing(JOURNAL_ID, CREATED.plusSeconds(1));
+
+        assertThatThrownBy(() -> refund.fail("ACCOUNT_CREDIT_TIMEOUT", CREATED.plusSeconds(2)))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("journal");
+        assertThat(refund.status()).isEqualTo(RefundStatus.PROCESSING);
     }
 
     private static Refund refund() {

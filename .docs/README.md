@@ -58,8 +58,10 @@ Trước mọi feature, kiểm tra `OPEN_DECISIONS.md`; không implement phạm 
 - Theo yêu cầu của repository owner, Phase 1B đã bắt đầu sớm ở phạm vi core Account/Reservation, Ledger, Risk, Payment Saga và Notification email mock. Các module này chưa phải deployable và không đồng nghĩa Phase 1B đã mở gate.
 - ADR-011/012/016/018 đã khóa risk decision, financial finalization, recovery gate và manual-review contract. Payment đã có Saga persistence/scheduler và Kafka consumer code với inbox + Payment/Saga + outbox transaction; PostgreSQL/Kafka runtime và E2E vẫn chưa được chạy.
 - ADR-019/020/021 đã khóa fee snapshot, refundable capacity và thứ tự Ledger reversal → Account
-  credit → refund success. Pure core/contract cho cả ba boundary đã có; persistence/listener
-  Account-Ledger và PostgreSQL/Kafka runtime chưa được nối/chạy.
+  credit → refund success. Pure core/contract cho cả ba boundary đã có; Payment refund outcome
+  consumer đã nối inbox + row lock + state + outbox transaction và lưu durable journal/credit ID.
+  Account-Ledger đã có Spring Boot, Flyway/JPA/JDBC và refund consumers code-first; outbox publisher
+  của module này và toàn bộ PostgreSQL/Kafka runtime vẫn chưa được nối/chạy.
 - Build và test không cần Docker đã pass; hạ tầng Docker **chưa từng được start** và test cần Docker **chưa từng chạy**. Chi tiết và giới hạn nằm trong `IMPLEMENTATION_STATUS.md`.
 - Không mô tả feature là hoàn thành cho tới khi có code, test và lệnh tái tạo kết quả.
 - Spec vẫn là backlog tổng; `DELIVERY_ROADMAP.md` quyết định lát cắt được phép triển khai tiếp theo.

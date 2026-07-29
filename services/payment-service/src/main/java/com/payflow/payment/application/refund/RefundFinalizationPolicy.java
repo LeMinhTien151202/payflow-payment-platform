@@ -27,7 +27,7 @@ public final class RefundFinalizationPolicy {
         validateRefundOwnership(payment, refund);
         validateLedger(payment, refund, ledger);
 
-        refund.startProcessing(processedAt);
+        refund.startProcessing(ledger.journalId(), processedAt);
         return new AccountRefundCreditRequestedData(
                 refund.id(),
                 payment.id(),
@@ -50,7 +50,7 @@ public final class RefundFinalizationPolicy {
         validateCredit(payment, refund, ledger, credit);
 
         Money feeReversal = payment.completeRefund(refund.amount(), processedAt);
-        refund.succeed(feeReversal, processedAt);
+        refund.succeed(credit.creditId(), feeReversal, processedAt);
         return new RefundSucceededData(
                 refund.id(),
                 payment.id(),

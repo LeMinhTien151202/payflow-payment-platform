@@ -114,6 +114,20 @@ class JpaPaymentRepository implements PaymentRepository, PaymentWorkflowStore, R
     }
 
     @Override
+    public Optional<Payment> findForRefundWorkflow(UUID paymentId) {
+        return entityManager
+                .createQuery(
+                        "select p from PaymentEntity p where p.id = :id",
+                        PaymentEntity.class)
+                .setParameter("id", paymentId)
+                .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+                .getResultList()
+                .stream()
+                .findFirst()
+                .map(row -> row.toPayment(metadata(row.metadata())));
+    }
+
+    @Override
     public void updateRefundState(Payment payment) {
         PaymentEntity entity = entityManager.find(PaymentEntity.class, payment.id());
         if (entity == null) {

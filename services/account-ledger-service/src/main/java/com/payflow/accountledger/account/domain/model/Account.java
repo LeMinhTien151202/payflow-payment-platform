@@ -46,6 +46,16 @@ public final class Account {
                 AccountStatus.ACTIVE);
     }
 
+    /** Rebuilds a persisted account without replaying historical balance mutations. */
+    public static Account rehydrate(
+            UUID id,
+            String currency,
+            Money availableBalance,
+            Money reservedBalance,
+            AccountStatus status) {
+        return new Account(id, currency, availableBalance, reservedBalance, status);
+    }
+
     public Reservation reserve(
             UUID reservationId,
             UUID paymentId,

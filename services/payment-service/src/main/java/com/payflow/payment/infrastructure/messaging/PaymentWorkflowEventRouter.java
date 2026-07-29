@@ -6,12 +6,16 @@ import com.payflow.events.account.AccountFundsCapturedData;
 import com.payflow.events.account.AccountFundsReleasedData;
 import com.payflow.events.account.AccountFundsReservationFailedData;
 import com.payflow.events.account.AccountFundsReservedData;
+import com.payflow.events.account.AccountRefundCreditedData;
 import com.payflow.events.ledger.LedgerEvents;
 import com.payflow.events.ledger.LedgerPaymentPostedData;
 import com.payflow.events.ledger.LedgerPaymentPostingFailedData;
+import com.payflow.events.ledger.LedgerRefundPostedData;
+import com.payflow.events.ledger.LedgerRefundPostingFailedData;
 import com.payflow.events.risk.RiskAssessmentCompletedData;
 import com.payflow.events.risk.RiskEvents;
 import com.payflow.payment.application.handler.HandlePaymentWorkflowEventHandler;
+import com.payflow.payment.application.handler.HandleRefundWorkflowEventHandler;
 import com.payflow.payment.application.inbox.EventProcessingResult;
 import java.util.Map;
 import java.util.Objects;
@@ -38,14 +42,24 @@ class PaymentWorkflowEventRouter {
             new TypeReference<>() {};
     private static final TypeReference<EventEnvelope<LedgerPaymentPostingFailedData>>
             LEDGER_POSTING_FAILED = new TypeReference<>() {};
+    private static final TypeReference<EventEnvelope<LedgerRefundPostedData>> LEDGER_REFUND_POSTED =
+            new TypeReference<>() {};
+    private static final TypeReference<EventEnvelope<LedgerRefundPostingFailedData>>
+            LEDGER_REFUND_POSTING_FAILED = new TypeReference<>() {};
+    private static final TypeReference<EventEnvelope<AccountRefundCreditedData>> REFUND_CREDITED =
+            new TypeReference<>() {};
 
     private final ObjectMapper objectMapper;
     private final HandlePaymentWorkflowEventHandler handler;
+    private final HandleRefundWorkflowEventHandler refundHandler;
 
     PaymentWorkflowEventRouter(
-            ObjectMapper objectMapper, HandlePaymentWorkflowEventHandler handler) {
+            ObjectMapper objectMapper,
+            HandlePaymentWorkflowEventHandler handler,
+            HandleRefundWorkflowEventHandler refundHandler) {
         this.objectMapper = objectMapper;
         this.handler = handler;
+        this.refundHandler = refundHandler;
     }
 
     RouteResult route(String kafkaKey, String payload) {
@@ -72,6 +86,12 @@ class PaymentWorkflowEventRouter {
                     keyed(kafkaKey, objectMapper.readValue(payload, LEDGER_POSTED)));
             case "ledger.payment-posting-failed" -> handler.handleLedgerPostingFailed(
                     keyed(kafkaKey, objectMapper.readValue(payload, LEDGER_POSTING_FAILED)));
+            case "ledger.refund-posted" -> refundHandler.handleLedgerRefundPosted(
+                    keyed(kafkaKey, objectMapper.readValue(payload, LEDGER_REFUND_POSTED)));
+            case "ledger.refund-posting-failed" -> refundHandler.handleLedgerRefundPostingFailed(
+                    keyed(kafkaKey, objectMapper.readValue(payload, LEDGER_REFUND_POSTING_FAILED)));
+            case "account.refund-credited" -> refundHandler.handleAccountRefundCredited(
+                    keyed(kafkaKey, objectMapper.readValue(payload, REFUND_CREDITED)));
             default -> null;
         };
         return result == null ? RouteResult.IGNORED : RouteResult.valueOf(result.name());

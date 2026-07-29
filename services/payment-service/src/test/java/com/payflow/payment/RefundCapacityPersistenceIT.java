@@ -8,7 +8,15 @@ import com.payflow.payment.application.CreateRefundResult;
 import com.payflow.payment.application.command.CreateRefundCommand;
 import com.payflow.payment.application.exception.IdempotencyConflictException;
 import com.payflow.payment.application.handler.CreateRefundHandler;
+import com.payflow.payment.application.handler.HandleRefundWorkflowEventHandler;
 import com.payflow.payment.application.idempotency.IdempotencyScope;
+import com.payflow.payment.application.inbox.EventProcessingResult;
+import com.payflow.events.EventEnvelope;
+import com.payflow.events.EventType;
+import com.payflow.events.account.AccountEvents;
+import com.payflow.events.account.AccountRefundCreditedData;
+import com.payflow.events.ledger.LedgerEvents;
+import com.payflow.events.ledger.LedgerRefundPostedData;
 import com.payflow.payment.domain.exception.RefundCapacityExceededException;
 import com.payflow.payment.domain.model.Money;
 import com.payflow.payment.domain.model.Payment;
@@ -35,6 +43,161 @@ class RefundCapacityPersistenceIT extends AbstractPostgresIT {
     @Autowired private RefundPaymentStore payments;
     @Autowired private TransactionTemplate transactions;
     @Autowired private CreateRefundHandler createRefund;
+    @Autowired private HandleRefundWorkflowEventHandler refundWorkflow;
+
+    @Test
+    @DisplayName("refund financial outcomes persist inbox, durable facts, capacity and outbox")
+    void workflowCommitsJournalThenCreditAndDeduplicatesRedelivery() {
+        UUID paymentId = insertSucceededPayment("100.0000");
+        UUID merchantId = merchantId(paymentId);
+        UUID accountId = accountId(paymentId);
+        CreateRefundResult accepted = createRefund.handle(new CreateRefundCommand(
+                merchantId,
+                "test-merchant-actor",
+                paymentId,
+                "refund-" + UUID.randomUUID(),
+                new java.math.BigDecimal("40.0000"),
+                null));
+        UUID refundId = accepted.refund().refundId();
+        UUID journalId = UUID.randomUUID();
+        UUID creditId = UUID.randomUUID();
+        var posted = envelope(
+                LedgerEvents.REFUND_POSTED,
+                paymentId,
+                new LedgerRefundPostedData(
+                        refundId,
+                        paymentId,
+                        journalId,
+                        accountId,
+                        new java.math.BigDecimal("40.0000"),
+                        "VND"));
+        var credited = envelope(
+                AccountEvents.REFUND_CREDITED,
+                paymentId,
+                new AccountRefundCreditedData(
+                        refundId,
+                        paymentId,
+                        accountId,
+                        journalId,
+                        creditId,
+                        new java.math.BigDecimal("40.0000"),
+                        "VND"));
+
+        assertThat(refundWorkflow.handleLedgerRefundPosted(posted))
+                .isEqualTo(EventProcessingResult.PROCESSED);
+        assertThat(refundWorkflow.handleAccountRefundCredited(credited))
+                .isEqualTo(EventProcessingResult.PROCESSED);
+        assertThat(refundWorkflow.handleAccountRefundCredited(credited))
+                .isEqualTo(EventProcessingResult.DUPLICATE);
+
+        var refund = jdbc.queryForMap(
+                "SELECT status, ledger_journal_id, account_credit_id, fee_reversal_amount"
+                        + " FROM payment.refunds WHERE id = ?",
+                refundId);
+        assertThat(refund.get("status")).isEqualTo("SUCCEEDED");
+        assertThat(refund.get("ledger_journal_id")).isEqualTo(journalId);
+        assertThat(refund.get("account_credit_id")).isEqualTo(creditId);
+        assertThat((java.math.BigDecimal) refund.get("fee_reversal_amount"))
+                .isEqualByComparingTo("0.8000");
+        assertThat(jdbc.queryForObject(
+                        "SELECT total_refunded_amount FROM payment.payments WHERE id = ?",
+                        java.math.BigDecimal.class,
+                        paymentId))
+                .isEqualByComparingTo("40.0000");
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM payment.outbox_events"
+                                + " WHERE aggregate_id = ? AND event_type IN"
+                                + " ('account.refund-credit.requested', 'refund.succeeded')",
+                        Integer.class,
+                        paymentId.toString()))
+                .isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("refund success outbox failure rolls back inbox, credit fact and capacity completion")
+    void workflowRollsBackAllCreditOutcomeFactsWhenOutboxFails() {
+        UUID paymentId = insertSucceededPayment("100.0000");
+        UUID merchantId = merchantId(paymentId);
+        UUID accountId = accountId(paymentId);
+        UUID refundId = createRefund.handle(new CreateRefundCommand(
+                        merchantId,
+                        "test-merchant-actor",
+                        paymentId,
+                        "refund-" + UUID.randomUUID(),
+                        new java.math.BigDecimal("40.0000"),
+                        null))
+                .refund()
+                .refundId();
+        UUID journalId = UUID.randomUUID();
+        refundWorkflow.handleLedgerRefundPosted(envelope(
+                LedgerEvents.REFUND_POSTED,
+                paymentId,
+                new LedgerRefundPostedData(
+                        refundId,
+                        paymentId,
+                        journalId,
+                        accountId,
+                        new java.math.BigDecimal("40.0000"),
+                        "VND")));
+        UUID creditEventId = UUID.randomUUID();
+        var credited = EventEnvelope.of(
+                creditEventId,
+                AccountEvents.REFUND_CREDITED,
+                paymentId.toString(),
+                "corr-refund-workflow-it",
+                "account-ledger-service",
+                Instant.now(),
+                new AccountRefundCreditedData(
+                        refundId,
+                        paymentId,
+                        accountId,
+                        journalId,
+                        UUID.randomUUID(),
+                        new java.math.BigDecimal("40.0000"),
+                        "VND"));
+        jdbc.execute("""
+                CREATE FUNCTION payment.test_reject_refund_success_outbox() RETURNS TRIGGER
+                LANGUAGE plpgsql AS $$
+                BEGIN
+                    IF NEW.event_type = 'refund.succeeded' THEN
+                        RAISE EXCEPTION 'injected refund success outbox failure';
+                    END IF;
+                    RETURN NEW;
+                END;
+                $$
+                """);
+        jdbc.execute("""
+                CREATE TRIGGER trg_test_reject_refund_success_outbox
+                BEFORE INSERT ON payment.outbox_events
+                FOR EACH ROW EXECUTE FUNCTION payment.test_reject_refund_success_outbox()
+                """);
+
+        try {
+            assertThatThrownBy(() -> refundWorkflow.handleAccountRefundCredited(credited))
+                    .isInstanceOf(RuntimeException.class);
+        } finally {
+            jdbc.execute(
+                    "DROP TRIGGER trg_test_reject_refund_success_outbox ON payment.outbox_events");
+            jdbc.execute("DROP FUNCTION payment.test_reject_refund_success_outbox()");
+        }
+
+        var refund = jdbc.queryForMap(
+                "SELECT status, account_credit_id FROM payment.refunds WHERE id = ?", refundId);
+        assertThat(refund.get("status")).isEqualTo("PROCESSING");
+        assertThat(refund.get("account_credit_id")).isNull();
+        assertThat(jdbc.queryForObject(
+                        "SELECT reserved_refund_amount FROM payment.payments WHERE id = ?",
+                        java.math.BigDecimal.class,
+                        paymentId))
+                .isEqualByComparingTo("40.0000");
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM payment.processed_events"
+                                + " WHERE event_id = ? AND consumer_name = ?",
+                        Integer.class,
+                        creditEventId,
+                        "payment-refund-orchestrator-v1"))
+                .isZero();
+    }
 
     @Test
     @DisplayName("refund, capacity, idempotency and outbox commit atomically and replay once")
@@ -271,6 +434,24 @@ class RefundCapacityPersistenceIT extends AbstractPostgresIT {
     private UUID merchantId(UUID paymentId) {
         return jdbc.queryForObject(
                 "SELECT merchant_id FROM payment.payments WHERE id = ?", UUID.class, paymentId);
+    }
+
+    private UUID accountId(UUID paymentId) {
+        return jdbc.queryForObject(
+                "SELECT source_account_id FROM payment.payments WHERE id = ?",
+                UUID.class,
+                paymentId);
+    }
+
+    private static <T> EventEnvelope<T> envelope(EventType type, UUID paymentId, T data) {
+        return EventEnvelope.of(
+                UUID.randomUUID(),
+                type,
+                paymentId.toString(),
+                "corr-refund-workflow-it",
+                "account-ledger-service",
+                Instant.now(),
+                data);
     }
 
     private static void await(CountDownLatch latch) {

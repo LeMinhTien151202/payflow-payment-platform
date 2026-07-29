@@ -218,6 +218,11 @@ class CreateRefundHandlerTest {
         }
 
         @Override
+        public Optional<Payment> findForRefundWorkflow(UUID paymentId) {
+            return payment.id().equals(paymentId) ? Optional.of(payment) : Optional.empty();
+        }
+
+        @Override
         public void updateRefundState(Payment payment) {
             updates++;
         }
@@ -229,6 +234,16 @@ class CreateRefundHandlerTest {
         @Override
         public void save(Refund refund) {
             saved.add(refund);
+        }
+
+        @Override
+        public Optional<Refund> findForWorkflow(UUID refundId) {
+            return saved.stream().filter(refund -> refund.id().equals(refundId)).findFirst();
+        }
+
+        @Override
+        public void updateWorkflow(Refund refund) {
+            // The intake handler never invokes workflow updates.
         }
     }
 

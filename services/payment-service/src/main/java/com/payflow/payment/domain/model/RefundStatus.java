@@ -12,7 +12,7 @@ public enum RefundStatus {
     public boolean canTransitionTo(RefundStatus target) {
         return switch (this) {
             case CREATED -> target == PROCESSING || target == FAILED;
-            case PROCESSING -> target == SUCCEEDED || target == FAILED;
+            case PROCESSING -> target == SUCCEEDED;
             case SUCCEEDED, FAILED -> false;
         };
     }
@@ -20,7 +20,7 @@ public enum RefundStatus {
     public Set<RefundStatus> allowedTargets() {
         return switch (this) {
             case CREATED -> Set.of(PROCESSING, FAILED);
-            case PROCESSING -> Set.of(SUCCEEDED, FAILED);
+            case PROCESSING -> Set.of(SUCCEEDED);
             case SUCCEEDED, FAILED -> Set.of();
         };
     }
