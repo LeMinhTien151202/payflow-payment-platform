@@ -46,6 +46,13 @@ spring:
       properties:
         enable.idempotence: true
         delivery.timeout.ms: ${PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS:30000}
+    consumer:
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      ack-mode: manual_immediate
 
   mvc:
     problemdetails:
@@ -65,6 +72,16 @@ payflow:
     # Bound to the same environment value as Kafka's producer property. A single value prevents the
     # lease guard and the actual network timeout from silently disagreeing.
     delivery-timeout: ${PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS:30000}ms
+  saga-recovery:
+    enabled: ${PAYFLOW_SAGA_RECOVERY_ENABLED:true}
+    poll-interval: ${PAYFLOW_SAGA_RECOVERY_POLL_INTERVAL:1s}
+    step-timeout: ${PAYFLOW_SAGA_STEP_TIMEOUT:30s}
+    max-retries: ${PAYFLOW_SAGA_MAX_RETRIES:3}
+    batch-size: ${PAYFLOW_SAGA_RECOVERY_BATCH_SIZE:50}
+  workflow-consumer:
+    enabled: ${PAYFLOW_WORKFLOW_CONSUMER_ENABLED:true}
+    retry-backoff: ${PAYFLOW_WORKFLOW_CONSUMER_RETRY_BACKOFF:1s}
+    max-retries: ${PAYFLOW_WORKFLOW_CONSUMER_MAX_RETRIES:3}
 
 management:
   endpoints:

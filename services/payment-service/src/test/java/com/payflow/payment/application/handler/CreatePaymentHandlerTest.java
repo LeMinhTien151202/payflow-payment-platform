@@ -29,6 +29,9 @@ import com.payflow.payment.application.port.IdempotencyStore;
 import com.payflow.payment.application.port.MerchantCatalog;
 import com.payflow.payment.application.port.OutboxAppender;
 import com.payflow.payment.application.port.PaymentRepository;
+import com.payflow.payment.application.port.PaymentSagaStore;
+import com.payflow.payment.application.saga.SagaRecoverySettings;
+import com.payflow.payment.application.saga.VersionedPaymentSaga;
 import com.payflow.payment.domain.exception.MerchantNotAcceptingPaymentsException;
 import com.payflow.payment.domain.exception.PaymentLimitExceededException;
 import com.payflow.payment.domain.exception.UnsupportedCurrencyException;
@@ -37,9 +40,11 @@ import com.payflow.payment.domain.model.MerchantStatus;
 import com.payflow.payment.domain.model.Money;
 import com.payflow.payment.domain.model.Payment;
 import com.payflow.payment.domain.model.PaymentStatus;
+import com.payflow.payment.domain.model.PaymentSaga;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -73,6 +78,7 @@ class CreatePaymentHandlerTest {
 
     private static final Instant NOW = Instant.parse("2026-07-26T09:15:00Z");
     private static final UUID PAYMENT_ID = UUID.fromString("c73e17b5-aaca-48da-9ed5-bb0937499f01");
+    private static final UUID SAGA_ID = UUID.fromString("4e5c1ae0-cba2-45cb-8d75-05868857d415");
     private static final UUID WINNER_PAYMENT_ID = UUID.fromString("8f14e45f-ceea-467a-9cf1-9ba9d1e6b3f2");
     private static final String SCOPE = IdempotencyScope.createPayment(MERCHANT_ID);
 
@@ -80,6 +86,7 @@ class CreatePaymentHandlerTest {
     private final Map<UUID, MerchantSnapshot> catalog = new HashMap<>();
     private final MerchantCatalog merchants = id -> Optional.ofNullable(catalog.get(id));
     private final FakePaymentRepository payments = new FakePaymentRepository(journal);
+    private final FakePaymentSagaStore sagas = new FakePaymentSagaStore(journal);
     private final FakeIdempotencyStore idempotency = new FakeIdempotencyStore(journal);
     private final FakeOutboxAppender outbox = new FakeOutboxAppender(journal);
     private final CountingIdGenerator ids = new CountingIdGenerator(PAYMENT_ID);
@@ -89,10 +96,12 @@ class CreatePaymentHandlerTest {
             new CreatePaymentHandler(
                     merchants,
                     payments,
+                    sagas,
                     idempotency,
                     outbox,
                     ids,
                     Clock.fixed(NOW, ZoneOffset.UTC),
+                    new SagaRecoverySettings(Duration.ofSeconds(30), 3, 50),
                     new TransactionTemplate(transactionManager));
 
     CreatePaymentHandlerTest() {
@@ -101,7 +110,7 @@ class CreatePaymentHandlerTest {
     }
 
     private static MerchantSnapshot merchant(UUID id, MerchantStatus status, String limit) {
-        return new MerchantSnapshot(id, status, "VND", Money.of(limit, "VND"));
+        return MerchantSnapshot.legacyNoFee(id, status, "VND", Money.of(limit, "VND"));
     }
 
     @Test
@@ -145,6 +154,18 @@ class CreatePaymentHandlerTest {
         assertThat(saved.createdAt()).isEqualTo(NOW);
         assertThat(saved.recordedStatusChanges()).hasSize(2);
         assertThat(saved.recordedStatusChanges().getLast().reasonCode()).isEqualTo("RISK_SUBMITTED");
+    }
+
+    @Test
+    @DisplayName("the accepted payment starts one durable risk-assessment Saga")
+    void startsThePaymentSaga() {
+        handler.handle(request().build());
+
+        assertThat(sagas.saved()).hasSize(1);
+        PaymentSaga saga = sagas.saved().getFirst();
+        assertThat(saga.id()).isEqualTo(SAGA_ID);
+        assertThat(saga.paymentId()).isEqualTo(PAYMENT_ID);
+        assertThat(saga.deadlineAt()).isEqualTo(NOW.plusSeconds(30));
     }
 
     /**
@@ -216,7 +237,9 @@ class CreatePaymentHandlerTest {
     void writesInTheOrderThatMakesRacesReplayable() {
         handler.handle(request().build());
 
-        assertThat(journal).containsExactly("idempotency.record", "payment.save", "outbox.append");
+        assertThat(journal)
+                .containsExactly(
+                        "idempotency.record", "payment.save", "saga.add", "outbox.append");
     }
 
     @Test
@@ -285,7 +308,7 @@ class CreatePaymentHandlerTest {
         assertThat(returned).containsExactly(PAYMENT_ID, PAYMENT_ID, PAYMENT_ID);
         assertThat(payments.saved()).hasSize(1);
         assertThat(outbox.appended()).hasSize(1);
-        assertThat(ids.calls()).isEqualTo(1);
+        assertThat(ids.calls()).isEqualTo(2);
     }
 
     /** A replay is answered from a read. Opening a write transaction for it would be work nobody needs. */
@@ -584,6 +607,46 @@ class CreatePaymentHandlerTest {
         }
     }
 
+    private static final class FakePaymentSagaStore implements PaymentSagaStore {
+
+        private final List<String> journal;
+        private final List<PaymentSaga> saved = new ArrayList<>();
+
+        private FakePaymentSagaStore(List<String> journal) {
+            this.journal = journal;
+        }
+
+        @Override
+        public void add(PaymentSaga saga) {
+            journal.add("saga.add");
+            saved.add(saga);
+        }
+
+        @Override
+        public Optional<VersionedPaymentSaga> find(UUID sagaId) {
+            return Optional.empty();
+        }
+
+        @Override
+        public Optional<VersionedPaymentSaga> findByPaymentId(UUID paymentId) {
+            return Optional.empty();
+        }
+
+        @Override
+        public List<UUID> findDueIds(Instant dueAt, int limit) {
+            return List.of();
+        }
+
+        @Override
+        public void update(VersionedPaymentSaga saga) {
+            throw new UnsupportedOperationException();
+        }
+
+        List<PaymentSaga> saved() {
+            return saved;
+        }
+    }
+
     private static final class FakeOutboxAppender implements OutboxAppender {
 
         record Appended(
@@ -605,6 +668,17 @@ class CreatePaymentHandlerTest {
             return UUID.randomUUID();
         }
 
+        @Override
+        public <T> UUID appendCausedBy(
+                EventType type,
+                String topic,
+                String aggregateId,
+                Instant occurredAt,
+                T data,
+                com.payflow.events.EventEnvelope<?> cause) {
+            return append(type, topic, aggregateId, occurredAt, data);
+        }
+
         List<Appended> appended() {
             return appended;
         }
@@ -623,7 +697,7 @@ class CreatePaymentHandlerTest {
         @Override
         public UUID newId() {
             calls++;
-            return id;
+            return calls % 2 == 1 ? id : SAGA_ID;
         }
 
         int calls() {

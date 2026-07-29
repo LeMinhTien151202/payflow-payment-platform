@@ -14,6 +14,6 @@ three-letter `currency`. Payment tạo command này chỉ sau `account.funds-res
 chuyển `RESERVING_FUNDS → PROCESSING` trong local transaction.
 
 Ledger tự resolve ledger-account theo owner references; Payment không gửi Ledger-owned account ID và
-không đọc Ledger database. Contract v1 chưa mang fee snapshot: việc tạo posting có fee vẫn bị chặn
-bởi OD-004. Ledger có thể kiểm tra/ghi gross balanced journal core, nhưng không được tự đọc fee hiện
+không đọc Ledger database. Contract v1 chưa mang fee snapshot: ADR-019 yêu cầu phát hành version mới
+trước khi tạo posting có fee. Ledger có thể kiểm tra/ghi gross balanced journal core, nhưng không được tự đọc fee hiện
 tại rồi áp vào payment lịch sử.

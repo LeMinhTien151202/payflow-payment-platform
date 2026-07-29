@@ -5,8 +5,14 @@
 Runbook này áp dụng khi Payment/Saga ở `MANUAL_REVIEW_REQUIRED` hoặc alert báo Saga compensation quá
 hạn. Contract nguồn là ADR-011, ADR-012 và ADR-018.
 
-> Trạng thái hiện tại: core policy, event contract và migration đã có; scheduler, operations endpoint,
-> Kafka wiring và dashboard chưa được bật. Không thao tác trực tiếp database để giả lập resolution.
+> Trạng thái hiện tại: core policy, event contract, JPA persistence, optimistic scheduler, Payment
+> Kafka consumer và bounded retry/DLT đã có code; operations endpoint và dashboard chưa hoàn tất.
+> PostgreSQL/Kafka runtime vẫn chưa được kiểm chứng. Không thao tác trực tiếp database để giả lập resolution.
+
+Scheduler được điều khiển bằng `PAYFLOW_SAGA_RECOVERY_ENABLED`, poll interval, step timeout, bounded
+max retries và batch size trong `payment-service/application.yml`. Khi migration hoặc recovery đang
+được điều tra, có thể tắt scheduler bằng `PAYFLOW_SAGA_RECOVERY_ENABLED=false`; việc tắt không xóa hay
+đổi trạng thái Saga đang tồn tại.
 
 ## Triage an toàn
 
@@ -41,4 +47,3 @@ hạn. Contract nguồn là ADR-011, ADR-012 và ADR-018.
 - Outbox/inbox chain không còn work item quá hạn cho payment đó.
 - Action, actor, reason và evidence được audit.
 - Nếu cần sửa code, có regression test tái hiện đúng failure window trước khi đóng.
-

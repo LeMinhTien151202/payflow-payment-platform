@@ -55,21 +55,41 @@ class JpaOutboxAppender implements OutboxAppender {
                 EventEnvelope.of(
                         eventId, type, aggregateId, correlationId(), PRODUCER, occurredAt, data);
 
+        persist(topic, envelope);
+
+        return eventId;
+    }
+
+    @Override
+    public <T> UUID appendCausedBy(
+            EventType type,
+            String topic,
+            String aggregateId,
+            Instant occurredAt,
+            T data,
+            EventEnvelope<?> cause) {
+        UUID eventId = UUID.randomUUID();
+        EventEnvelope<T> envelope = EventEnvelope.causedBy(
+                eventId, type, aggregateId, cause, PRODUCER, occurredAt, data);
+        persist(topic, envelope);
+
+        return eventId;
+    }
+
+    private void persist(String topic, EventEnvelope<?> envelope) {
         entityManager.persist(
                 OutboxEventEntity.pending(
-                        eventId,
-                        type.aggregateType(),
-                        aggregateId,
-                        type.name(),
-                        type.version(),
+                        envelope.eventId(),
+                        envelope.aggregateType(),
+                        envelope.aggregateId(),
+                        envelope.eventType(),
+                        envelope.eventVersion(),
                         topic,
                         objectMapper.writeValueAsString(envelope),
                         objectMapper.writeValueAsString(headers(envelope)),
                         // The row's own timestamp. occurredAt is when the business fact happened and stays in
                         // the envelope; if the two ever differ, that difference is worth being able to see.
                         clock.instant()));
-
-        return eventId;
     }
 
     /**

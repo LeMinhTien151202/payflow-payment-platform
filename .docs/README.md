@@ -56,7 +56,7 @@ Trước mọi feature, kiểm tra `OPEN_DECISIONS.md`; không implement phạm 
 
 - Phase 1A payment intake/outbox core đã có code và test không Docker; PostgreSQL/Kafka gate vẫn chưa chạy.
 - Theo yêu cầu của repository owner, Phase 1B đã bắt đầu sớm ở phạm vi core Account/Reservation, Ledger, Risk, Payment Saga và Notification email mock. Các module này chưa phải deployable và không đồng nghĩa Phase 1B đã mở gate.
-- ADR-011/012/016/018 đã khóa risk decision, financial finalization, recovery gate và manual-review contract. Cả happy path lẫn pre-ledger release compensation đã có pure core/test không Docker; Kafka consumer/scheduler/persistence runtime chưa được triển khai.
+- ADR-011/012/016/018 đã khóa risk decision, financial finalization, recovery gate và manual-review contract. Payment đã có Saga persistence/scheduler và Kafka consumer code với inbox + Payment/Saga + outbox transaction; PostgreSQL/Kafka runtime và E2E vẫn chưa được chạy.
 - Build và test không cần Docker đã pass; hạ tầng Docker **chưa từng được start** và test cần Docker **chưa từng chạy**. Chi tiết và giới hạn nằm trong `IMPLEMENTATION_STATUS.md`.
 - Không mô tả feature là hoàn thành cho tới khi có code, test và lệnh tái tạo kết quả.
 - Spec vẫn là backlog tổng; `DELIVERY_ROADMAP.md` quyết định lát cắt được phép triển khai tiếp theo.

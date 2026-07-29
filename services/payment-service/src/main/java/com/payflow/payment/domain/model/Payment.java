@@ -4,6 +4,8 @@ import com.payflow.payment.domain.exception.CurrencyNotAcceptedException;
 import com.payflow.payment.domain.exception.IllegalStatusTransitionException;
 import com.payflow.payment.domain.exception.MerchantNotAcceptingPaymentsException;
 import com.payflow.payment.domain.exception.PaymentLimitExceededException;
+import com.payflow.payment.domain.exception.RefundCapacityExceededException;
+import com.payflow.payment.domain.exception.RefundNotAllowedException;
 import com.payflow.payment.domain.exception.UnexpectedPaymentStatusException;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -39,11 +41,15 @@ public final class Payment {
     private final String merchantReference;
     private final String idempotencyKey;
     private final Money amount;
+    private final PaymentFeeSnapshot feeSnapshot;
     private final String description;
     private final Map<String, String> metadata;
     private final Instant createdAt;
 
     private PaymentStatus status;
+    private Money totalRefundedAmount;
+    private Money reservedRefundAmount;
+    private Money totalFeeReversedAmount;
     private Instant updatedAt;
 
     /**
@@ -59,7 +65,11 @@ public final class Payment {
             UUID id,
             UUID merchantId,
             PaymentIntake intake,
+            PaymentFeeSnapshot feeSnapshot,
             PaymentStatus status,
+            Money totalRefundedAmount,
+            Money reservedRefundAmount,
+            Money totalFeeReversedAmount,
             Instant updatedAt) {
 
         this.id = id;
@@ -69,11 +79,18 @@ public final class Payment {
         this.merchantReference = intake.merchantReference();
         this.idempotencyKey = intake.idempotencyKey();
         this.amount = intake.amount();
+        this.feeSnapshot = Objects.requireNonNull(feeSnapshot, "feeSnapshot");
         this.description = intake.description();
         this.metadata = intake.metadata();
         this.createdAt = intake.createdAt();
         this.status = status;
+        this.totalRefundedAmount = Objects.requireNonNull(totalRefundedAmount, "totalRefundedAmount");
+        this.reservedRefundAmount = Objects.requireNonNull(reservedRefundAmount, "reservedRefundAmount");
+        this.totalFeeReversedAmount =
+                Objects.requireNonNull(totalFeeReversedAmount, "totalFeeReversedAmount");
         this.updatedAt = updatedAt;
+
+        validateRefundFacts();
     }
 
     /**
@@ -113,7 +130,11 @@ public final class Payment {
                         intake.paymentId(),
                         merchant.id(),
                         intake,
+                        PaymentFeeSnapshot.calculate(merchant.feePolicy(), intake.amount()),
                         PaymentStatus.initial(),
+                        Money.zero(intake.amount().currency()),
+                        Money.zero(intake.amount().currency()),
+                        Money.zero(intake.amount().currency()),
                         intake.createdAt());
 
         payment.recordedChanges.add(
@@ -132,7 +153,7 @@ public final class Payment {
      * <p>Returns an aggregate with no recorded changes — the history already in the database is not
      * something this instance should write again.
      */
-    public static Payment rehydrate(
+    public static Payment rehydrateLegacyNoFee(
             UUID id,
             UUID merchantId,
             PaymentIntake intake,
@@ -145,7 +166,138 @@ public final class Payment {
         Objects.requireNonNull(status, "status");
         Objects.requireNonNull(updatedAt, "updatedAt");
 
-        return new Payment(id, merchantId, intake, status, updatedAt);
+        return new Payment(
+                id,
+                merchantId,
+                intake,
+                PaymentFeeSnapshot.calculate(FeePolicySnapshot.legacyNoFee(), intake.amount()),
+                status,
+                Money.zero(intake.amount().currency()),
+                Money.zero(intake.amount().currency()),
+                Money.zero(intake.amount().currency()),
+                updatedAt);
+    }
+
+    public static Payment rehydrate(
+            UUID id,
+            UUID merchantId,
+            PaymentIntake intake,
+            PaymentFeeSnapshot feeSnapshot,
+            PaymentStatus status,
+            Money totalRefundedAmount,
+            Money reservedRefundAmount,
+            Money totalFeeReversedAmount,
+            Instant updatedAt) {
+
+        Objects.requireNonNull(id, "id");
+        Objects.requireNonNull(merchantId, "merchantId");
+        Objects.requireNonNull(intake, "intake");
+        Objects.requireNonNull(status, "status");
+        Objects.requireNonNull(updatedAt, "updatedAt");
+        return new Payment(
+                id,
+                merchantId,
+                intake,
+                feeSnapshot,
+                status,
+                totalRefundedAmount,
+                reservedRefundAmount,
+                totalFeeReversedAmount,
+                updatedAt);
+    }
+
+    /** Holds capacity before any asynchronous refund side effect starts. ADR-020. */
+    public void reserveRefund(Money requested, Instant at) {
+        Objects.requireNonNull(requested, "requested");
+        Objects.requireNonNull(at, "at");
+        requireRefundableStatus();
+        requireRefundCurrency(requested);
+        if (!requested.isPositive()) {
+            throw new IllegalArgumentException("refund amount must be positive");
+        }
+
+        Money available = refundableAmount();
+        if (requested.isGreaterThan(available)) {
+            throw new RefundCapacityExceededException(id, requested, available);
+        }
+        reservedRefundAmount = reservedRefundAmount.plus(requested);
+        updatedAt = at;
+    }
+
+    /** Moves reserved capacity to succeeded total and returns this refund's fee reversal. */
+    public Money completeRefund(Money succeededAmount, Instant at) {
+        Objects.requireNonNull(succeededAmount, "succeededAmount");
+        Objects.requireNonNull(at, "at");
+        requireRefundableStatus();
+        requireRefundCurrency(succeededAmount);
+        if (!succeededAmount.isPositive() || succeededAmount.isGreaterThan(reservedRefundAmount)) {
+            throw new IllegalArgumentException("refund success must consume existing reserved capacity");
+        }
+
+        Money newReserved = reservedRefundAmount.minus(succeededAmount);
+        Money newTotal = totalRefundedAmount.plus(succeededAmount);
+        Money reversal =
+                feeSnapshot.reversalDelta(amount, newTotal, totalFeeReversedAmount);
+        Money newTotalFeeReversed = totalFeeReversedAmount.plus(reversal);
+
+        reservedRefundAmount = newReserved;
+        totalRefundedAmount = newTotal;
+        totalFeeReversedAmount = newTotalFeeReversed;
+
+        if (totalRefundedAmount.equals(amount)) {
+            transitionTo(PaymentStatus.REFUNDED, "REFUND_SUCCEEDED", at);
+        } else if (status == PaymentStatus.SUCCEEDED) {
+            transitionTo(PaymentStatus.PARTIALLY_REFUNDED, "REFUND_PARTIALLY_SUCCEEDED", at);
+        } else {
+            updatedAt = at;
+        }
+        return reversal;
+    }
+
+    /** Releases capacity for a refund that reached a definitive failure. */
+    public void releaseRefund(Money failedAmount, Instant at) {
+        Objects.requireNonNull(failedAmount, "failedAmount");
+        Objects.requireNonNull(at, "at");
+        requireRefundCurrency(failedAmount);
+        if (!failedAmount.isPositive() || failedAmount.isGreaterThan(reservedRefundAmount)) {
+            throw new IllegalArgumentException("refund failure must release existing reserved capacity");
+        }
+        reservedRefundAmount = reservedRefundAmount.minus(failedAmount);
+        updatedAt = at;
+    }
+
+    public Money refundableAmount() {
+        return amount.minus(totalRefundedAmount).minus(reservedRefundAmount);
+    }
+
+    private void requireRefundableStatus() {
+        if (status != PaymentStatus.SUCCEEDED && status != PaymentStatus.PARTIALLY_REFUNDED) {
+            throw new RefundNotAllowedException(id, status);
+        }
+    }
+
+    private void requireRefundCurrency(Money candidate) {
+        if (!amount.currency().equals(candidate.currency())) {
+            throw new IllegalArgumentException("refund currency differs from payment currency");
+        }
+    }
+
+    private void validateRefundFacts() {
+        requireRefundCurrency(totalRefundedAmount);
+        requireRefundCurrency(reservedRefundAmount);
+        if (!feeSnapshot.feeAmount().currency().equals(amount.currency())
+                || !totalFeeReversedAmount.currency().equals(amount.currency())) {
+            throw new IllegalArgumentException("fee/refund currency differs from payment currency");
+        }
+        if (feeSnapshot.feeAmount().isGreaterThan(amount)) {
+            throw new IllegalArgumentException("fee amount exceeds payment amount");
+        }
+        if (totalRefundedAmount.plus(reservedRefundAmount).isGreaterThan(amount)) {
+            throw new IllegalArgumentException("refund capacity exceeds payment amount");
+        }
+        if (totalFeeReversedAmount.isGreaterThan(feeSnapshot.feeAmount())) {
+            throw new IllegalArgumentException("reversed fee exceeds original fee");
+        }
     }
 
     /**
@@ -288,6 +440,22 @@ public final class Payment {
 
     public Money amount() {
         return amount;
+    }
+
+    public PaymentFeeSnapshot feeSnapshot() {
+        return feeSnapshot;
+    }
+
+    public Money totalRefundedAmount() {
+        return totalRefundedAmount;
+    }
+
+    public Money reservedRefundAmount() {
+        return reservedRefundAmount;
+    }
+
+    public Money totalFeeReversedAmount() {
+        return totalFeeReversedAmount;
     }
 
     public String description() {

@@ -26,7 +26,8 @@ class PaymentTest {
     private static final Instant LATER = Instant.parse("2026-07-24T03:00:05Z");
 
     private static MerchantSnapshot merchant(MerchantStatus status, String limit) {
-        return new MerchantSnapshot(MERCHANT_ID, status, "VND", Money.of(limit, "VND"));
+        return MerchantSnapshot.legacyNoFee(
+                MERCHANT_ID, status, "VND", Money.of(limit, "VND"));
     }
 
     private static MerchantSnapshot activeMerchant() {
@@ -259,7 +260,7 @@ class PaymentTest {
     @DisplayName("a rehydrated payment has no recorded changes to write")
     void rehydrationRecordsNothing() {
         Payment payment =
-                Payment.rehydrate(
+                Payment.rehydrateLegacyNoFee(
                         PAYMENT_ID, MERCHANT_ID, intake("500000"), PaymentStatus.SUCCEEDED, LATER);
 
         assertThat(payment.status()).isEqualTo(PaymentStatus.SUCCEEDED);
@@ -275,7 +276,7 @@ class PaymentTest {
     @DisplayName("rehydration accepts a payment its merchant could no longer make")
     void rehydrationDoesNotRevalidate() {
         Payment payment =
-                Payment.rehydrate(
+                Payment.rehydrateLegacyNoFee(
                         PAYMENT_ID,
                         MERCHANT_ID,
                         intake("999999999"),
@@ -290,7 +291,7 @@ class PaymentTest {
     void identityIsTheId() {
         Payment created = Payment.create(activeMerchant(), intake("500000"));
         Payment loaded =
-                Payment.rehydrate(
+                Payment.rehydrateLegacyNoFee(
                         PAYMENT_ID, MERCHANT_ID, intake("500000"), PaymentStatus.SUCCEEDED, LATER);
 
         assertThat(created).isEqualTo(loaded).hasSameHashCodeAs(loaded);

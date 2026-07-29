@@ -171,6 +171,20 @@ public final class PaymentSaga {
         updatedAt = changedAt;
     }
 
+    /** A definitive pre-ledger rejection ends the automated Saga without compensation. */
+    public void failBeforeLedger(String reasonCode, Instant at) {
+        if (status != PaymentSagaStatus.RUNNING
+                || (currentStep != PaymentSagaStep.RISK_ASSESSMENT
+                        && currentStep != PaymentSagaStep.RESERVE_FUNDS)) {
+            throw new SagaInvariantViolationException(
+                    "pre-ledger failure requires RUNNING risk or reserve step");
+        }
+        Instant changedAt = requireChronological(at);
+        status = PaymentSagaStatus.FAILED;
+        lastErrorCode = stableCode(reasonCode);
+        updatedAt = changedAt;
+    }
+
     public void complete(Instant at) {
         requireRunningStep(PaymentSagaStep.CAPTURE_FUNDS, "complete Saga");
         if (reservationId == null || journalId == null) {

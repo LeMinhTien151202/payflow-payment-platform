@@ -11,18 +11,30 @@ import java.util.UUID;
  * mutable merchant object into a payment decision would let the limit change halfway through the
  * check.
  *
- * <p>Carries only the two facts intake actually uses: whether the merchant may transact, and the
- * ceiling per payment. Name, contact details, and fee configuration are deliberately absent; a value
- * object that carries fields nobody reads becomes a reason to pass merchant data around.
+ * <p>Carries only facts intake uses: transaction eligibility, payment ceiling and the immutable fee
+ * policy copied by ADR-019. Name and contact details remain absent; a value object that carries fields
+ * nobody reads becomes a reason to pass merchant data around.
  */
 public record MerchantSnapshot(
-        UUID id, MerchantStatus status, String defaultCurrency, Money maxTransactionAmount) {
+        UUID id,
+        MerchantStatus status,
+        String defaultCurrency,
+        Money maxTransactionAmount,
+        FeePolicySnapshot feePolicy) {
+
+    /** Explicit factory for historical fixtures that predate fee posting. */
+    public static MerchantSnapshot legacyNoFee(
+            UUID id, MerchantStatus status, String defaultCurrency, Money maxTransactionAmount) {
+        return new MerchantSnapshot(
+                id, status, defaultCurrency, maxTransactionAmount, FeePolicySnapshot.legacyNoFee());
+    }
 
     public MerchantSnapshot {
         Objects.requireNonNull(id, "id");
         Objects.requireNonNull(status, "status");
         Objects.requireNonNull(defaultCurrency, "defaultCurrency");
         Objects.requireNonNull(maxTransactionAmount, "maxTransactionAmount");
+        Objects.requireNonNull(feePolicy, "feePolicy");
 
         // Both come from columns that can be updated independently. If they ever disagree, the limit
         // means nothing, and failing here is better than comparing amounts across currencies later.

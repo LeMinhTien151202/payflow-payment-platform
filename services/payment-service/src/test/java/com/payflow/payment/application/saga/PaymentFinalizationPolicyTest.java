@@ -193,6 +193,6 @@ class PaymentFinalizationPolicyTest {
                 null,
                 Map.of(),
                 CREATED_AT);
-        return Payment.rehydrate(PAYMENT_ID, MERCHANT_ID, intake, status, CREATED_AT);
+        return Payment.rehydrateLegacyNoFee(PAYMENT_ID, MERCHANT_ID, intake, status, CREATED_AT);
     }
 }

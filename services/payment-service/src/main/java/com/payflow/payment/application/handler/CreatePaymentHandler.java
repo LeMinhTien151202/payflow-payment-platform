@@ -17,10 +17,13 @@ import com.payflow.payment.application.port.IdempotencyStore;
 import com.payflow.payment.application.port.MerchantCatalog;
 import com.payflow.payment.application.port.OutboxAppender;
 import com.payflow.payment.application.port.PaymentRepository;
+import com.payflow.payment.application.port.PaymentSagaStore;
+import com.payflow.payment.application.saga.SagaRecoverySettings;
 import com.payflow.payment.domain.model.MerchantSnapshot;
 import com.payflow.payment.domain.model.Money;
 import com.payflow.payment.domain.model.Payment;
 import com.payflow.payment.domain.model.PaymentIntake;
+import com.payflow.payment.domain.model.PaymentSaga;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -68,27 +71,33 @@ public class CreatePaymentHandler {
 
     private final MerchantCatalog merchants;
     private final PaymentRepository payments;
+    private final PaymentSagaStore sagas;
     private final IdempotencyStore idempotency;
     private final OutboxAppender outbox;
     private final IdGenerator ids;
     private final Clock clock;
+    private final SagaRecoverySettings sagaSettings;
     private final TransactionTemplate transactions;
 
     public CreatePaymentHandler(
             MerchantCatalog merchants,
             PaymentRepository payments,
+            PaymentSagaStore sagas,
             IdempotencyStore idempotency,
             OutboxAppender outbox,
             IdGenerator ids,
             Clock clock,
+            SagaRecoverySettings sagaSettings,
             TransactionTemplate transactions) {
 
         this.merchants = merchants;
         this.payments = payments;
+        this.sagas = sagas;
         this.idempotency = idempotency;
         this.outbox = outbox;
         this.ids = ids;
         this.clock = clock;
+        this.sagaSettings = sagaSettings;
         this.transactions = transactions;
     }
 
@@ -164,6 +173,11 @@ public class CreatePaymentHandler {
                 now.plus(REPLAY_WINDOW));
 
         payments.save(payment);
+        sagas.add(PaymentSaga.start(
+                ids.newId(),
+                payment.id(),
+                now.plus(sagaSettings.stepTimeout()),
+                now));
 
         outbox.append(
                 PaymentEvents.PAYMENT_CREATED,

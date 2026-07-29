@@ -20,6 +20,8 @@ quy tắc an toàn trong [`.agent/AGENTS.md`](../../.agent/AGENTS.md).
 | [ADR-016](ADR-016-risk-assessment-event-taxonomy.md) | Một `risk.assessment.completed` hợp nhất — resolves OD-003 | ACCEPTED | 2026-07-28 |
 | [ADR-017](ADR-017-postgresql-inbox-insert-if-new.md) | PostgreSQL inbox insert-if-new trong local transaction — resolves OD-007 | ACCEPTED | 2026-07-28 |
 | [ADR-018](ADR-018-payment-manual-review-contract.md) | Payment `MANUAL_REVIEW_REQUIRED` và resolution theo Saga facts — resolves OD-006 | ACCEPTED | 2026-07-28 |
+| [ADR-019](ADR-019-immutable-payment-fee-snapshot.md) | Payment đóng băng fee snapshot và refund reverse theo lũy kế — resolves OD-004 | ACCEPTED | 2026-07-29 |
+| [ADR-020](ADR-020-pessimistic-refund-capacity-reservation.md) | Khóa hàng Payment để giữ refundable capacity — resolves OD-005 | ACCEPTED | 2026-07-29 |
 
 Các ADR còn lại trong khoảng ADR-001…ADR-012 vẫn ở trạng thái `PROPOSED` và chưa có
 file: chúng thuộc phạm vi Phase 1B trở đi và sẽ được viết khi đúng lát cắt được triển

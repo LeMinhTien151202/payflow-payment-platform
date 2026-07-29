@@ -85,7 +85,7 @@ class ApplyRiskAssessmentPolicyTest {
 
     private static Payment paymentCheckingRisk() {
         Payment payment = Payment.create(
-                new MerchantSnapshot(
+                MerchantSnapshot.legacyNoFee(
                         MERCHANT_ID,
                         MerchantStatus.ACTIVE,
                         "VND",

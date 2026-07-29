@@ -111,6 +111,32 @@ class PaymentSagaTest {
     }
 
     @Test
+    void definitiveRiskOrReservationFailureEndsSagaBeforeFinancialSideEffects() {
+        PaymentSaga riskSaga = start();
+        riskSaga.failBeforeLedger("RISK_REJECTED", CREATED.plusSeconds(1));
+        PaymentSaga reserveSaga = start();
+        reserveSaga.recordRiskApproved(CREATED.plusSeconds(20), CREATED.plusSeconds(1));
+        reserveSaga.failBeforeLedger("ACCOUNT_INSUFFICIENT_FUNDS", CREATED.plusSeconds(2));
+
+        assertThat(riskSaga.status()).isEqualTo(PaymentSagaStatus.FAILED);
+        assertThat(riskSaga.lastErrorCode()).isEqualTo("RISK_REJECTED");
+        assertThat(reserveSaga.status()).isEqualTo(PaymentSagaStatus.FAILED);
+        assertThat(reserveSaga.lastErrorCode()).isEqualTo("ACCOUNT_INSUFFICIENT_FUNDS");
+    }
+
+    @Test
+    void preLedgerFailureCannotRegressAPostLedgerOrTerminalSaga() {
+        PaymentSaga saga = sagaAtPostLedger();
+
+        assertThatThrownBy(() -> saga.failBeforeLedger(
+                        "LEDGER_FAILED", CREATED.plusSeconds(3)))
+                .isInstanceOf(SagaInvariantViolationException.class)
+                .hasMessageContaining("pre-ledger failure");
+        assertThat(saga.status()).isEqualTo(PaymentSagaStatus.RUNNING);
+        assertThat(saga.currentStep()).isEqualTo(PaymentSagaStep.POST_LEDGER);
+    }
+
+    @Test
     void rehydrationRejectsReleaseStepWhenJournalAlreadyExists() {
         assertThatThrownBy(() -> PaymentSaga.rehydrate(
                         UUID.randomUUID(),

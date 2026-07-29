@@ -35,4 +35,10 @@ class OutboxMessagingConfig {
     NewTopic paymentEventsTopic() {
         return TopicBuilder.name(PayFlowTopics.PAYMENT_EVENTS).partitions(3).replicas(1).build();
     }
+
+    /** Consumer recovery publishes the original failed record here after bounded attempts. */
+    @Bean
+    NewTopic deadLetterTopic() {
+        return TopicBuilder.name(PayFlowTopics.DEAD_LETTER).partitions(3).replicas(1).build();
+    }
 }

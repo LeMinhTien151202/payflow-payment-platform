@@ -52,7 +52,7 @@ class PaymentServiceFoundationIT extends AbstractPostgresIT {
 
         // containsExactly, not contains: the order is the assertion. A repaired or out-of-order
         // history is how one environment ends up with a schema no migration file describes.
-        assertThat(versions).containsExactly("1", "2");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5");
     }
 
     @Test
@@ -91,15 +91,18 @@ class PaymentServiceFoundationIT extends AbstractPostgresIT {
      * symptom of that gate being bypassed, and {@code containsExactly} is what makes it visible.
      */
     @Test
-    @DisplayName("the schema contains exactly the tables Phase 1A is allowed to create")
-    void schemaContainsOnlyThePhase1ATables() {
+    @DisplayName("the schema contains exactly the tables allowed through the recovery foundation")
+    void schemaContainsOnlyTheAllowedTables() {
         assertThat(tableNamesIn("payment"))
                 .containsExactly(
                         "flyway_schema_history",
                         "idempotency_records",
                         "outbox_events",
+                        "payment_sagas",
                         "payment_status_history",
-                        "payments");
+                        "payments",
+                        "processed_events",
+                        "refunds");
 
         assertThat(tableNamesIn("merchant")).containsExactly("merchants");
     }

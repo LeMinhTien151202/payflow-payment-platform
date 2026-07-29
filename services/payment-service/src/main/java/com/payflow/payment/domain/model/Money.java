@@ -91,6 +91,19 @@ public record Money(BigDecimal amount, String currency) {
         return amount.compareTo(other.amount) > 0;
     }
 
+    public Money plus(Money other) {
+        requireSameCurrency(other);
+        return new Money(amount.add(other.amount), currency);
+    }
+
+    public Money minus(Money other) {
+        requireSameCurrency(other);
+        if (amount.compareTo(other.amount) < 0) {
+            throw new IllegalArgumentException("money subtraction would be negative");
+        }
+        return new Money(amount.subtract(other.amount), currency);
+    }
+
     private void requireSameCurrency(Money other) {
         Objects.requireNonNull(other, "other");
         if (!currency.equals(other.currency)) {

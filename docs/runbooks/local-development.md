@@ -62,7 +62,7 @@ Cách phân chia test:
 | --- | --- | --- | --- |
 | Surefire | `*Test` | Không gì cả | Chạy được, gồm domain/application/web/outbox policy |
 | Failsafe | `*IT` không có tag `docker` | WireMock stub (tự start trong process) | 13/13 pass |
-| Failsafe | `*IT` có `@Tag("docker")` | Docker daemon | **Chưa chạy** — 37 payment foundation/schema/inbox case; Kafka outbox gate còn phải bổ sung |
+| Failsafe | `*IT` có `@Tag("docker")` | Docker daemon | **Chưa chạy** — payment foundation/schema/inbox/Saga/consumer PostgreSQL cases; Kafka broker gate còn phải chạy |
 
 `-Pno-docker` là **opt-in** có chủ đích. `./mvnw verify` không có profile là gate
 thật và sẽ chạy cả test cần Docker; ai bỏ qua chúng phải tự khai trên dòng lệnh.
@@ -198,15 +198,16 @@ Admin console: <http://localhost:8180> — đăng nhập bằng `KEYCLOAK_ADMIN`
 ./mvnw -B clean verify
 ```
 
-**Chưa chạy.** Lệnh này thêm 37 payment Testcontainers test so với
+**Chưa chạy.** Lệnh này thêm các payment Testcontainers test so với
 `-Pno-docker`. Nó không dùng PostgreSQL trong compose: Testcontainers tự start một
 container `postgres:17.10-alpine` riêng, chạy Flyway trên đó rồi xoá đi. Nghĩa là
 `docker compose up` **không** phải điều kiện tiên quyết — chỉ cần Docker daemon
 đang chạy.
 
-Các test này kiểm chứng Flyway V1–V3, schema/constraint/index payment intake, readiness và actuator,
-đồng thời kiểm chứng inbox duplicate/concurrency/rollback trên PostgreSQL thật. Chúng chưa kiểm chứng
-Kafka delivery hoặc offset commit vì consumer listener chưa được nối.
+Các test này kiểm chứng Flyway V1–V4, schema/constraint/index payment intake, readiness và actuator,
+đồng thời kiểm chứng inbox duplicate/concurrency/rollback, Saga persistence và transactional Payment
+workflow consumer trên PostgreSQL thật. Kafka listener/retry/DLT đã có code nhưng offset commit và
+redelivery trên broker thật vẫn cần Kafka integration gate riêng khi Docker được bật.
 
 Nếu Docker chưa bật, các test này fail vì không tìm được daemon — đó là fail đúng,
 không phải flaky. Dùng `-Pno-docker` nếu chủ ý bỏ qua.
@@ -231,9 +232,15 @@ Biến bắt buộc phải có, nếu thiếu thì payment-service fail lúc sta
 trong `.env.example`.
 
 Nếu chỉ muốn kiểm tra REST + PostgreSQL trong lúc Kafka chưa bật, đặt
-`PAYFLOW_OUTBOX_ENABLED=false`. Payment vẫn ghi row `PENDING` cùng transaction;
+`PAYFLOW_OUTBOX_ENABLED=false` và `PAYFLOW_WORKFLOW_CONSUMER_ENABLED=false`. Payment vẫn ghi row `PENDING` cùng transaction;
 khi bật publisher lại, các row đó mới được drain. Không dùng cờ này để tuyên bố
 Phase 1A hoàn tất vì publisher/Kafka vẫn chưa được kiểm chứng.
+
+Khi bật Kafka để chạy workflow, bỏ hai cờ trên hoặc đặt chúng thành `true`. Consumer dùng group
+`payment-saga-orchestrator-v1`, manual acknowledgement, retry theo
+`PAYFLOW_WORKFLOW_CONSUMER_RETRY_BACKOFF`/`PAYFLOW_WORKFLOW_CONSUMER_MAX_RETRIES` và đưa record thất
+bại cuối cùng vào `payflow.dead-letter.v1`. Xem [payment-workflow-dlt.md](payment-workflow-dlt.md)
+trước khi replay.
 
 Build jar (`spring-boot:repackage` đã chạy trong `verify`, nên jar đã executable):
 

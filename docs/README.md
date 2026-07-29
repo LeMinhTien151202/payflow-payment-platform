@@ -7,7 +7,7 @@ giai đoạn xây dựng nằm ở [`.docs/`](../.docs/README.md) và
 | Thư mục | Nội dung | Trạng thái |
 | --- | --- | --- |
 | [adr/](adr/README.md) | ADR chính thức | ADR-004, ADR-007, ADR-011–ADR-018 (các ID có file) `ACCEPTED` |
-| [runbooks/](runbooks/local-development.md) | Vận hành và chạy local | Local development và Saga manual review |
+| [runbooks/](runbooks/local-development.md) | Vận hành và chạy local | Local development, Saga manual review và Payment workflow DLT |
 | [api/](api/payment-service-v1.yaml) | OpenAPI contract | Payment create/get v1 |
 | [events/](events/risk-assessment-completed-v1.md) | Kafka event contract | Payment Saga v1: happy path, failure, compensation và manual review |
 | `architecture/` | Sơ đồ và mô tả kiến trúc bàn giao | Chưa có |
@@ -18,6 +18,7 @@ Bắt đầu từ đâu:
 
 - Muốn chạy dự án: [runbooks/local-development.md](runbooks/local-development.md).
 - Muốn xử lý Saga bị dừng: [runbooks/saga-manual-review.md](runbooks/saga-manual-review.md).
+- Muốn triage/replay poison event: [runbooks/payment-workflow-dlt.md](runbooks/payment-workflow-dlt.md).
 - Muốn hiểu vì sao stack là như vậy:
   [adr/ADR-013](adr/ADR-013-platform-version-baseline.md) và
   [adr/ADR-007](adr/ADR-007-postgresql-money-representation.md).

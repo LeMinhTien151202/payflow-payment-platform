@@ -237,8 +237,9 @@ Mỗi mũi tên bất đồng bộ được tạo qua outbox; mỗi receiver x�
 Trạng thái cuối chỉ được phát khi tất cả precondition tài chính tương ứng đã commit. ADR-011 đã chốt
 thứ tự `ledger.payment-posted` → `account.capture.requested` → `account.funds-captured` →
 `payment.succeeded`. ADR-012/018 đã khóa recovery và manual-review semantics; ADR-017 đã khóa inbox
-insert-if-new. Core policy/migration đã có, nhưng Kafka consumer, scheduler, persistence adapter và
-PostgreSQL/Kafka integration gate vẫn chưa được kiểm chứng.
+insert-if-new. Core policy, Saga JPA persistence, optimistic scheduler, Kafka listener/router và
+transactional consumer use case đã có. Listener manual-ack sau local commit; failure được retry hữu
+hạn rồi chuyển DLT. PostgreSQL/Kafka integration gate vẫn chưa được chạy.
 
 ## 9. Atomicity pattern
 

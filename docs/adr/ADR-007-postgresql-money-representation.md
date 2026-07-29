@@ -109,7 +109,8 @@ Quy tắc bắt buộc kèm theo:
 Điều **không** được suy diễn từ ADR này:
 
 - Nó **không** quyết định rounding policy, fee snapshot lịch sử hay cách refund
-  phân bổ/reverse fee. Đó là **OD-004**, vẫn `OPEN`, và vẫn chặn scope fee/refund
+  phân bổ/reverse fee. Phần đó đã được chốt riêng bằng ADR-019; ADR này chỉ quyết định
+  representation của money.
   economics/settlement. `scale = 4` chỉ cấp chỗ chứa; nó không định nghĩa quy tắc
   làm tròn.
 - Nó **không** quyết định inbox insert-if-new semantics (**OD-007**) dù

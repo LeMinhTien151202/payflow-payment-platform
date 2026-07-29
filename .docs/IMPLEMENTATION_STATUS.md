@@ -31,12 +31,13 @@ File này là bảng bằng chứng sống. Cập nhật sau mỗi milestone; kh
 | Account/Reservation và Ledger domain/application core | `VERIFIED_LOCAL` | 38/38 Account/Ledger test + 52/52 event-contract test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | Reserve deadline, duplicate intent, stable failure outcome và Ledger posted factory đã có; chưa có Spring Boot, database locking, inbox/outbox hoặc Kafka |
 | Risk rule engine + assessment event factory | `VERIFIED_LOCAL` | 26/26 Risk test + 52/52 event-contract test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | ADR-015/016; giữ payment key, correlation và causation; không dùng wall-clock khác service để suy luận thứ tự; chưa có Redis/PostgreSQL/Kafka adapter |
 | Notification record và email mock core | `VERIFIED_LOCAL` | 14/14 unit test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | Core thuần Java trong `notification-service`; chưa có Spring Boot, database, Kafka inbox/outbox, webhook, retry/DLT hoặc Keycloak runtime |
-| Risk→Payment Saga decision core | `VERIFIED_LOCAL` | Payment 138/138 test pass, gồm risk, reserve và finalization policy/factory; full `-Pno-docker verify` exit 0, 2026-07-28 | `APPROVED/REJECTED/REVIEW_REQUIRED` đã khóa; reserve/ledger/capture/success command chain đã có pure core, chưa có Kafka consumer hay inbox/outbox transaction |
+| Risk→Payment Saga decision core | `VERIFIED_LOCAL` | Payment policy/factory và transactional handler unit test pass; full gate ghi bên dưới | `APPROVED/REJECTED/REVIEW_REQUIRED`, reserve/ledger/capture/success và pre-ledger compensation đã nối vào Payment consumer application flow |
 | Financial finalization contract + Payment policy | `VERIFIED_LOCAL` | ADR-011; event-contracts 52/52 + Payment 138/138; full `-Pno-docker verify` exit 0, 2026-07-28 | Ledger posted → explicit capture → captured → success; pure policy chưa phải durable Saga/consumer |
 | Phase 1B Saga command/outcome orchestration core | `VERIFIED_LOCAL` | Event contracts 52/52, Payment 138/138, Account/Ledger 38/38; full `-Pno-docker verify` exit 0, 2026-07-28 | Correlation/causation và aggregate key được bảo toàn; đây là pure core, không phải Kafka/PostgreSQL E2E |
 | Payment consumer inbox foundation | `IMPLEMENTED` | ADR-017; 5/5 unit test pass; `PaymentInboxSchemaIT` compile nhưng chưa chạy | V3 tạo `(event_id, consumer_name)` PK; adapter dùng `ON CONFLICT DO NOTHING` + transaction `MANDATORY`; PostgreSQL/Kafka gate còn thiếu |
+| Payment Saga Kafka consumer runtime | `IMPLEMENTED` | Handler/router/listener/config unit test pass; `PaymentWorkflowConsumerIT` compile | Manual ack sau local commit; inbox + Payment/Saga + causation-aware outbox; bounded retry → DLT. Chưa chạy PostgreSQL/Kafka nên chưa nâng `VERIFIED_LOCAL` |
 | Happy-path Saga E2E | `PLANNED` | — | Phase 1B; OD-001/007 đã resolve nhưng consumer wiring và PostgreSQL/Kafka runtime chưa được kiểm chứng |
-| Failure recovery/compensation core | `VERIFIED_LOCAL` | ADR-012/018; event contracts 56/56, Payment 162/162, Account/Ledger 44/44; full `-Pno-docker verify` exit 0, 2026-07-28 | Durable Saga domain/deadline, bounded retry decision, safe pre-ledger release, manual review và V4 migration đã có; scheduler/persistence adapter/Kafka consumer chưa có, PostgreSQL migration tests chưa chạy |
+| Failure recovery/compensation core | `VERIFIED_LOCAL` | ADR-012/018; Payment domain/application unit tests pass; full gate ghi bên dưới | Durable Saga/deadline, optimistic scheduler, consumer compensation, bounded listener retry/DLT và manual review đã có code; PostgreSQL/Kafka integration tests mới compile/chưa chạy |
 | Refund/webhook/reporting | `PLANNED` | — | Phase 2 |
 | Settlement/reconciliation/Kubernetes/load | `PLANNED` | — | Phase 3 |
 
@@ -58,6 +59,7 @@ review sau không phải đoán đó là lệch hay là bug.
 | D-09 | Roadmap yêu cầu Phase 1A gate trước Phase 1B | Bắt đầu Notification email-mock core trước integration gate | Người dùng tiếp tục yêu cầu code core không Docker. Phạm vi chỉ gồm notification state policy, application port và in-memory email adapter; OD-007 chặn Kafka consumer/inbox, còn webhook/retry/DLT thuộc Phase 2 |
 | D-10 | Spec §9.2 đánh dấu Payment `SUCCEEDED` trước khi Account capture | ADR-011 đổi thành ledger posted → explicit capture → funds captured → payment success | Thứ tự baseline có thể công bố success khi tiền chưa capture. Thứ tự mới giữ Payment `PROCESSING` đến khi cả journal và capture đã commit; sau journal POSTED không tự release reservation |
 | D-11 | Roadmap Phase 1B yêu cầu Kafka/PostgreSQL E2E | Hoàn thiện trước command/outcome contract và orchestration core bằng unit/contract test không Docker | Repository owner yêu cầu viết xong code core rồi mới bật hạ tầng. Phạm vi này không tuyên bố atomic inbox/outbox, locking, duplicate delivery, crash recovery hay Phase 1B E2E đã đạt gate |
+| D-12 | ADR-012 gate yêu cầu PostgreSQL/Kafka/failure E2E trước Phase 2 | Chuẩn bị Payment listener, transactional consumer, retry/DLT và Testcontainers test trước khi bật hạ tầng | Repository owner yêu cầu implementation-first. Code được compile/unit-test nhưng capability vẫn `IMPLEMENTED`; không dùng unit test để tuyên bố offset, DLT hoặc PostgreSQL atomicity đã được chứng minh |
 
 ## Evidence record template
 
@@ -315,6 +317,71 @@ Known limitations:
   - Chưa có Saga persistence adapter, due-row scheduler, Kafka listener hoặc atomic inbox + Saga/Payment + outbox transaction.
   - Chưa có retry/DLT/offset-after-commit và kill/restart E2E evidence, nên pre-Phase-2 gate chưa xanh và chưa được tách service/bắt đầu refund.
   - Keycloak giữ nguyên nhưng không chạy trong gate này.
+```
+
+### 2026-07-29 — Durable Saga persistence and optimistic recovery scheduler
+
+```text
+Date/time (UTC): 2026-07-29T07:48:12Z
+Commit SHA: N/A (change chưa commit)
+Environment: Windows 10; Maven Wrapper 3.9.16; Java 21.0.7; không Docker/PostgreSQL/Kafka/Keycloak runtime
+Capability/scenario: Payment creation persists initial Saga atomically; JPA Saga mapping/store; optimistic Payment/Saga workflow updates; bounded due scheduler; retry command mapping cho Risk/Reserve/Ledger/Capture/Release; recovery metrics/config
+Targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/payment-service -am test
+Targeted result: exit 0, BUILD SUCCESS trong 23.424 s; payment-service 176/176 và upstream libraries/contracts 76/76 pass.
+Final command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Final result: exit 0, BUILD SUCCESS trong 53.092 s, 9/9 module SUCCESS.
+  Surefire 336/336 pass — observability 15, error-contract 5, event-contracts 56, payment-service 176, account-ledger-service 44, risk-service 26, notification-service 14.
+  Failsafe 13/13 pass — api-gateway 13; Docker-tagged payment IT bị loại đúng theo profile.
+Prepared Docker evidence: PaymentSagaPersistenceIT có 3 case cho initial Saga persistence, stale-version rejection và ordered/bounded due scan; PaymentServiceFoundationIT đã cập nhật migration/table expectation qua V4.
+Known limitations:
+  - Ba persistence/concurrency case mới chỉ compile, chưa chạy trên PostgreSQL thật vì Docker daemon chưa bật; JPA mapping và optimistic SQL semantics vẫn là IMPLEMENTED, chưa VERIFIED_LOCAL.
+  - Scheduler chỉ tạo local outbox work; Kafka listeners, inbox + business + outbox consumer transaction và offset-after-commit chưa được nối/chạy.
+  - Chưa có Account/Ledger persistence runtime, Kafka failure injection hoặc kill/restart E2E, nên ADR-012 gate chưa xanh.
+  - OD-004/OD-005 vẫn chặn fee/refund Phase 2; Keycloak giữ nguyên và chưa chạy trong gate này.
+```
+
+### 2026-07-29 — Payment Saga transactional Kafka consumer code
+
+```text
+Date/time (UTC): 2026-07-29T08:33:14Z
+Commit SHA: N/A (working tree change chưa commit; HEAD ed2d6f3)
+Environment: Windows 10; Maven Wrapper 3.9.16; Java 21.0.7; không Docker/PostgreSQL/Kafka/Keycloak runtime
+Capability/scenario: Risk/Account/Ledger router; manual-ack listener; inbox + Payment/Saga optimistic update + causation-aware outbox transaction; bounded retry → DLT; risk reject/review, reserve success/failure, Ledger post/failure, capture success và release compensation
+Targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/payment-service -am test
+Targeted result: exit 0, BUILD SUCCESS trong 30.023 s; shared/event contracts 76/76 và payment-service 193/193 pass trước hai PaymentSaga regression test cuối.
+Final command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Final result: exit 0, BUILD SUCCESS trong 52.469 s, 9/9 module SUCCESS.
+  Surefire 355/355 pass — observability 15, error-contract 5, event-contracts 56, payment-service 195, account-ledger-service 44, risk-service 26, notification-service 14.
+  Failsafe 13/13 pass — api-gateway 13; Docker-tagged payment IT bị loại đúng theo profile.
+Prepared Docker evidence: PaymentWorkflowConsumerIT có 2 case cho atomic commit/duplicate và rollback inbox/workflow/outbox trên PostgreSQL; test compile nhưng chưa chạy.
+Known limitations:
+  - Không có broker thật trong gate này; manual acknowledgement, redelivery, DLT publish/offset commit và partition ordering vẫn là IMPLEMENTED, chưa VERIFIED_LOCAL.
+  - PostgreSQL atomicity/JPA optimistic semantics của consumer chưa được chạy; `PaymentWorkflowConsumerIT` chỉ mới compile.
+  - Account/Ledger/Risk/Notification vẫn là pure core, nên chưa thể chạy happy-path/compensation E2E xuyên deployable.
+  - Không thay đổi refund/fee/settlement; OD-004/OD-005 vẫn chặn Phase 2 và Keycloak vẫn chưa chạy.
+```
+
+### 2026-07-29 — Fee snapshot và refundable-capacity foundation
+
+```text
+Date/time (UTC): 2026-07-29T08:59:33Z
+Commit SHA: N/A (working tree change chưa commit; HEAD ed2d6f3)
+Environment: Windows 10; Maven Wrapper 3.9.16; Java 21.0.7; không Docker/PostgreSQL/Kafka/Keycloak runtime
+Capability/scenario: ADR-019 immutable fee snapshot + cumulative fee reversal; ADR-020 succeeded/in-flight refund capacity; JPA SELECT FOR UPDATE adapter; V5 fee/refund schema
+Targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/payment-service -am test
+Targeted result: exit 0, BUILD SUCCESS trong 24.351 s; payment-service 202/202 và upstream shared/event tests 76/76 pass. RefundCapacityPersistenceIT compile nhưng bị loại khỏi no-docker execution.
+Final command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Final result: exit 0, BUILD SUCCESS trong 52.916 s, 9/9 module SUCCESS.
+  Surefire 362/362 pass; Failsafe 13/13 pass; Docker-tagged payment IT bị loại đúng theo profile.
+Governance: 18 required paths và 16 Markdown files pass; git diff --check exit 0.
+Decisions/schema: ADR-019, ADR-020; OD-004/OD-005 RESOLVED; V5__fee_snapshot_and_refund_capacity.sql.
+Prepared Docker evidence: RefundCapacityPersistenceIT có 3 case cho database capacity constraint, fee/reversal constraint và hai transaction cạnh tranh qua SELECT FOR UPDATE.
+Known limitations:
+  - V5 Flyway migration, Hibernate mapping và PostgreSQL row-lock/constraint semantics chỉ mới compile; chưa chạy vì Docker/PostgreSQL chưa bật, nên không ghi VERIFIED_LOCAL cho persistence.
+  - Đây là fee/refund domain + persistence foundation, chưa phải refund REST vertical slice: chưa có Refund aggregate/repository, idempotent handler, outbox event hay Account/Ledger refund consumer.
+  - Ledger event v1 vẫn gross-only; fee-aware posting phải dùng event version mới theo ADR-019, chưa được suy diễn vào v1.
+  - ADR-012 pre-Phase-2 runtime gate vẫn chưa xanh vì chưa có PostgreSQL/Kafka/kill-restart evidence. Foundation này không được hiểu là Phase 2 đã hoàn thành.
+  - Keycloak giữ nguyên và không chạy trong gate no-docker.
 ```
 
 Quy tắc cập nhật:

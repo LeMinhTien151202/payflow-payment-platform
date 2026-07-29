@@ -15,8 +15,8 @@
     <name>PayFlow Payment Service</name>
     <description>
         Owns payment/refund lifecycle, idempotency, and Saga orchestration. Phase 1A implements
-        merchant-scoped payment intake, status history, the transactional outbox, and its polling
-        publisher; later Saga and refund behavior remains gated by the delivery roadmap.
+        merchant-scoped payment intake, status history, transactional outbox, persisted Saga,
+        idempotent workflow consumers, and bounded recovery; refund remains roadmap-gated.
     </description>
 
     <dependencies>

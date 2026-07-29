@@ -16,8 +16,8 @@ File này ghi các điểm chưa đủ rõ trong spec hoặc đang mâu thuẫn 
 | OD-001 | RESOLVED | Thứ tự ledger post, account capture và payment success | Mở khóa bằng ADR-011 |
 | OD-002 | RESOLVED | Failure-recovery gate được remap từ spec Phase 2 | ADR-012 bắt buộc recovery trước service split/Phase 2 |
 | OD-003 | RESOLVED | Risk decision và payment rejection event taxonomy | Mở khóa bằng ADR-016 |
-| OD-004 | OPEN | Fee policy/rate/rounding snapshot lịch sử | Fee, refund economics, settlement |
-| OD-005 | OPEN | Atomic refundable-capacity reservation | Refund intake/concurrency |
+| OD-004 | RESOLVED | Fee policy/rate/rounding snapshot lịch sử | Mở khóa bằng ADR-019 |
+| OD-005 | RESOLVED | Atomic refundable-capacity reservation | Mở khóa bằng ADR-020 |
 | OD-006 | RESOLVED | Payment state khi Saga cần manual review | ADR-018 thêm status/event và resolution theo Saga facts |
 | OD-007 | RESOLVED | PostgreSQL inbox insert-if-new semantics | Mở khóa bằng ADR-017; runtime vẫn cần PostgreSQL/Kafka test |
 | OD-008 | RESOLVED | Outbox claim lease và stale recovery | Đã mở khoá bằng ADR-004 + ADR-014 |
@@ -88,11 +88,21 @@ Merchant có `fee_rate` mutable, trong khi payment/event chưa lưu policy versi
 
 Contract phải bổ sung snapshot tối thiểu cần thiết, owner tính fee, thời điểm tính, rounding policy và cách refund phân bổ/reverse fee.
 
+**Đã chốt** bằng [`docs/adr/ADR-019`](../docs/adr/ADR-019-immutable-payment-fee-snapshot.md):
+Payment tính và lưu policy version, applied rate, rounding mode và fee amount tại intake. Refund reverse
+fee theo cumulative succeeded amount; full refund phải reverse chính xác fee gốc. Ledger/Settlement không
+đọc fee config hiện tại để tính lại lịch sử.
+
 ## OD-005 — Refundable capacity
 
 `total_refunded_amount` chưa định nghĩa có bao gồm refund `CREATED`/`PROCESSING` hay chỉ `SUCCEEDED`. Hai request đồng thời có thể cùng vượt qua validation trước khi side effect hoàn tất.
 
 Quyết định phải định nghĩa một atomic capacity reservation cho mọi trạng thái tiêu thụ hạn mức, release khi failure, database lock/constraint và concurrent integration test.
+
+**Đã chốt** bằng [`docs/adr/ADR-020`](../docs/adr/ADR-020-pessimistic-refund-capacity-reservation.md):
+Payment giữ riêng succeeded total và in-flight reserved amount. Refund intake dùng `SELECT ... FOR UPDATE`
+trong local transaction ngắn; success chuyển reserved sang refunded, failure release reserved, và database
+không cho tổng hai giá trị vượt amount.
 
 ## OD-006 — Manual review state
 

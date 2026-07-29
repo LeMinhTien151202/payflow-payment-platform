@@ -2,11 +2,17 @@ package com.payflow.payment.infrastructure.persistence;
 
 import com.payflow.payment.application.exception.ConcurrentIdempotentRequestException;
 import com.payflow.payment.application.exception.DuplicateMerchantReferenceException;
+import com.payflow.payment.application.exception.ConcurrentSagaUpdateException;
 import com.payflow.payment.application.idempotency.IdempotencyScope;
 import com.payflow.payment.application.port.PaymentRepository;
+import com.payflow.payment.application.port.RefundPaymentStore;
+import com.payflow.payment.application.port.PaymentWorkflowStore;
+import com.payflow.payment.application.saga.VersionedPayment;
 import com.payflow.payment.domain.model.Payment;
 import com.payflow.payment.domain.model.PaymentStatusChange;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.OptimisticLockException;
+import jakarta.persistence.LockModeType;
 import jakarta.persistence.PersistenceException;
 import java.util.Map;
 import java.util.Optional;
@@ -28,7 +34,7 @@ import tools.jackson.databind.ObjectMapper;
  * separately from its outbox event.
  */
 @Component
-class JpaPaymentRepository implements PaymentRepository {
+class JpaPaymentRepository implements PaymentRepository, PaymentWorkflowStore, RefundPaymentStore {
 
     private static final TypeReference<Map<String, String>> METADATA = new TypeReference<>() {};
 
@@ -76,6 +82,71 @@ class JpaPaymentRepository implements PaymentRepository {
                 .stream()
                 .findFirst()
                 .map(row -> row.toPayment(metadata(row.metadata())));
+    }
+
+    @Override
+    public Optional<VersionedPayment> findForWorkflow(UUID paymentId) {
+        return entityManager
+                .createQuery(
+                        "select p from PaymentEntity p where p.id = :id",
+                        PaymentEntity.class)
+                .setParameter("id", paymentId)
+                .getResultList()
+                .stream()
+                .findFirst()
+                .map(row -> new VersionedPayment(
+                        row.toPayment(metadata(row.metadata())), row.version()));
+    }
+
+    @Override
+    public Optional<Payment> findForRefund(UUID paymentId, UUID merchantId) {
+        return entityManager
+                .createQuery(
+                        "select p from PaymentEntity p where p.id = :id and p.merchantId = :merchantId",
+                        PaymentEntity.class)
+                .setParameter("id", paymentId)
+                .setParameter("merchantId", merchantId)
+                .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+                .getResultList()
+                .stream()
+                .findFirst()
+                .map(row -> row.toPayment(metadata(row.metadata())));
+    }
+
+    @Override
+    public void updateRefundState(Payment payment) {
+        PaymentEntity entity = entityManager.find(PaymentEntity.class, payment.id());
+        if (entity == null) {
+            throw new IllegalStateException("locked payment disappeared before refund update");
+        }
+        entity.applyWorkflowState(payment);
+        for (PaymentStatusChange change : payment.recordedStatusChanges()) {
+            entityManager.persist(
+                    PaymentStatusHistoryEntity.from(UUID.randomUUID(), payment.id(), change));
+        }
+        entityManager.flush();
+    }
+
+    @Override
+    public void updateWorkflow(VersionedPayment stored) {
+        Payment payment = stored.payment();
+        PaymentEntity entity = entityManager.find(PaymentEntity.class, payment.id());
+        if (entity == null || entity.version() != stored.version()) {
+            throw new ConcurrentSagaUpdateException("Payment", payment.id(), stored.version());
+        }
+
+        entity.applyWorkflowState(payment);
+        for (PaymentStatusChange change : payment.recordedStatusChanges()) {
+            entityManager.persist(
+                    PaymentStatusHistoryEntity.from(UUID.randomUUID(), payment.id(), change));
+        }
+
+        try {
+            entityManager.flush();
+        } catch (OptimisticLockException failure) {
+            throw new ConcurrentSagaUpdateException(
+                    "Payment", payment.id(), stored.version(), failure);
+        }
     }
 
     /**

@@ -231,7 +231,7 @@ class PaymentSagaRecoveryPolicyTest {
     }
 
     private static Fixture atPostLedger() {
-        Payment payment = Payment.rehydrate(
+        Payment payment = Payment.rehydrateLegacyNoFee(
                 PAYMENT_ID,
                 UUID.fromString("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"),
                 new PaymentIntake(

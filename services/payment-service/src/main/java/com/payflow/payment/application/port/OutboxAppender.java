@@ -1,6 +1,7 @@
 package com.payflow.payment.application.port;
 
 import com.payflow.events.EventType;
+import com.payflow.events.EventEnvelope;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -31,4 +32,16 @@ public interface OutboxAppender {
      * @return the assigned {@code eventId}, which is the row id and the consumer deduplication key
      */
     <T> UUID append(EventType type, String topic, String aggregateId, Instant occurredAt, T data);
+
+    /**
+     * Appends an event caused by a consumed event, preserving correlation and causation metadata.
+     * The caller must invoke this inside the same local transaction as its inbox and business writes.
+     */
+    <T> UUID appendCausedBy(
+            EventType type,
+            String topic,
+            String aggregateId,
+            Instant occurredAt,
+            T data,
+            EventEnvelope<?> cause);
 }

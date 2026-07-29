@@ -2,6 +2,7 @@ package com.payflow.payment.infrastructure.persistence;
 
 import com.payflow.payment.domain.model.Money;
 import com.payflow.payment.domain.model.Payment;
+import com.payflow.payment.domain.model.PaymentFeeSnapshot;
 import com.payflow.payment.domain.model.PaymentIntake;
 import com.payflow.payment.domain.model.PaymentStatus;
 import jakarta.persistence.Column;
@@ -13,6 +14,7 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.math.RoundingMode;
 import java.util.Map;
 import java.util.UUID;
 import org.hibernate.annotations.JdbcTypeCode;
@@ -60,6 +62,32 @@ class PaymentEntity {
     @Column(name = "currency", nullable = false, length = 3)
     private String currency;
 
+    @Column(name = "fee_policy_version", nullable = false, length = 100)
+    private String feePolicyVersion;
+
+    @Column(name = "applied_fee_rate", nullable = false, precision = 8, scale = 6)
+    private BigDecimal appliedFeeRate;
+
+    @Column(name = "fee_amount", nullable = false, precision = 19, scale = 4)
+    private BigDecimal feeAmount;
+
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "fee_currency", nullable = false, length = 3)
+    private String feeCurrency;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "fee_rounding_mode", nullable = false, length = 20)
+    private RoundingMode feeRoundingMode;
+
+    @Column(name = "total_refunded_amount", nullable = false, precision = 19, scale = 4)
+    private BigDecimal totalRefundedAmount;
+
+    @Column(name = "reserved_refund_amount", nullable = false, precision = 19, scale = 4)
+    private BigDecimal reservedRefundAmount;
+
+    @Column(name = "total_fee_reversed_amount", nullable = false, precision = 19, scale = 4)
+    private BigDecimal totalFeeReversedAmount;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 40)
     private PaymentStatus status;
@@ -104,6 +132,14 @@ class PaymentEntity {
         entity.idempotencyKey = payment.idempotencyKey();
         entity.amount = payment.amount().amount();
         entity.currency = payment.amount().currency();
+        entity.feePolicyVersion = payment.feeSnapshot().policyVersion();
+        entity.appliedFeeRate = payment.feeSnapshot().appliedRate();
+        entity.feeAmount = payment.feeSnapshot().feeAmount().amount();
+        entity.feeCurrency = payment.feeSnapshot().feeAmount().currency();
+        entity.feeRoundingMode = payment.feeSnapshot().roundingMode();
+        entity.totalRefundedAmount = payment.totalRefundedAmount().amount();
+        entity.reservedRefundAmount = payment.reservedRefundAmount().amount();
+        entity.totalFeeReversedAmount = payment.totalFeeReversedAmount().amount();
         entity.status = payment.status();
         entity.description = payment.description();
         entity.metadata = metadataJson;
@@ -135,8 +171,27 @@ class PaymentEntity {
                         description,
                         metadata,
                         createdAt),
+                new PaymentFeeSnapshot(
+                        feePolicyVersion,
+                        appliedFeeRate,
+                        new Money(feeAmount, feeCurrency),
+                        feeRoundingMode),
                 status,
+                new Money(totalRefundedAmount, currency),
+                new Money(reservedRefundAmount, currency),
+                new Money(totalFeeReversedAmount, feeCurrency),
                 updatedAt);
+    }
+
+    void applyWorkflowState(Payment payment) {
+        if (!id.equals(payment.id())) {
+            throw new IllegalArgumentException("cannot apply a different Payment aggregate");
+        }
+        status = payment.status();
+        totalRefundedAmount = payment.totalRefundedAmount().amount();
+        reservedRefundAmount = payment.reservedRefundAmount().amount();
+        totalFeeReversedAmount = payment.totalFeeReversedAmount().amount();
+        updatedAt = payment.updatedAt();
     }
 
     UUID id() {
@@ -146,5 +201,9 @@ class PaymentEntity {
     /** The raw JSON, for the adapter to deserialise with the application's {@code ObjectMapper}. */
     String metadata() {
         return metadata;
+    }
+
+    long version() {
+        return version;
     }
 }
