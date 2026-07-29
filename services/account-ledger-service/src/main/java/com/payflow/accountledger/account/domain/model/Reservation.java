@@ -61,6 +61,28 @@ public final class Reservation {
                 null);
     }
 
+    /** Rebuilds a durable reservation without replaying a balance mutation. */
+    public static Reservation rehydrate(
+            UUID id,
+            UUID paymentId,
+            UUID accountId,
+            Money amount,
+            ReservationStatus status,
+            Instant createdAt,
+            Instant expiresAt,
+            Instant completedAt) {
+        if (status == ReservationStatus.ACTIVE && completedAt != null) {
+            throw new AccountInvariantViolationException(
+                    "active reservation cannot have a completion timestamp");
+        }
+        if (status != ReservationStatus.ACTIVE && completedAt == null) {
+            throw new AccountInvariantViolationException(
+                    "terminal reservation requires a completion timestamp");
+        }
+        return new Reservation(
+                id, paymentId, accountId, amount, status, createdAt, expiresAt, completedAt);
+    }
+
     boolean transitionTo(ReservationStatus target, Instant at) {
         Objects.requireNonNull(target, "target");
         Objects.requireNonNull(at, "at");

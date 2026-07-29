@@ -8,22 +8,23 @@ import org.springframework.kafka.support.KafkaHeaders;
 import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
-/** Acknowledges only after the handler's local transaction has returned successfully. */
+/** Acknowledges Account/Ledger commands only after their local transaction returns successfully. */
 @Component
-class RefundWorkflowKafkaListener {
+class AccountLedgerWorkflowKafkaListener {
 
-    static final String GROUP_ID = "account-ledger-refund-v1";
+    static final String GROUP_ID = "account-ledger-workflow-v1";
 
-    private final RefundWorkflowEventRouter router;
+    private final AccountLedgerWorkflowEventRouter router;
     private final MeterRegistry metrics;
 
-    RefundWorkflowKafkaListener(RefundWorkflowEventRouter router, MeterRegistry metrics) {
+    AccountLedgerWorkflowKafkaListener(
+            AccountLedgerWorkflowEventRouter router, MeterRegistry metrics) {
         this.router = router;
         this.metrics = metrics;
     }
 
     @KafkaListener(
-            id = "ledger-refund-requests",
+            id = "account-ledger-refund-requests",
             groupId = GROUP_ID,
             topics = PayFlowTopics.REFUND_EVENTS,
             autoStartup = "${payflow.refund-consumer.enabled:true}")
@@ -35,10 +36,10 @@ class RefundWorkflowKafkaListener {
     }
 
     @KafkaListener(
-            id = "account-refund-credit-requests",
+            id = "account-ledger-payment-commands",
             groupId = GROUP_ID,
             topics = PayFlowTopics.PAYMENT_EVENTS,
-            autoStartup = "${payflow.refund-consumer.enabled:true}")
+            autoStartup = "${payflow.payment-consumer.enabled:true}")
     void onPaymentEvent(
             String payload,
             @Header(name = KafkaHeaders.RECEIVED_KEY, required = false) String key,
@@ -48,15 +49,16 @@ class RefundWorkflowKafkaListener {
 
     private void consume(String key, String payload, Acknowledgment acknowledgment) {
         try {
-            RefundWorkflowEventRouter.RouteResult result = router.route(key, payload);
+            AccountLedgerWorkflowEventRouter.RouteResult result = router.route(key, payload);
             metrics.counter(
-                            "payflow.account_ledger.refund.consumer",
+                            "payflow.account_ledger.workflow.consumer",
                             "outcome",
                             result.name().toLowerCase())
                     .increment();
             acknowledgment.acknowledge();
         } catch (RuntimeException failure) {
-            metrics.counter("payflow.account_ledger.refund.consumer", "outcome", "failed")
+            metrics.counter(
+                            "payflow.account_ledger.workflow.consumer", "outcome", "failed")
                     .increment();
             throw failure;
         }

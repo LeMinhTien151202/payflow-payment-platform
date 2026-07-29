@@ -31,11 +31,23 @@ class JdbcLedgerAccountDirectory implements LedgerAccountDirectory {
 
     @Override
     @Transactional(propagation = Propagation.MANDATORY, readOnly = true)
+    public Optional<LedgerAccountPair> findPaymentAccounts(
+            UUID customerId, UUID merchantId, String currency) {
+        return findPair(merchantId, customerId, currency);
+    }
+
+    @Override
+    @Transactional(propagation = Propagation.MANDATORY, readOnly = true)
     public Optional<LedgerAccountPair> findRefundAccounts(
             UUID merchantId, UUID sourceAccountId, String currency) {
+        return findPair(merchantId, sourceAccountId, currency);
+    }
+
+    private Optional<LedgerAccountPair> findPair(
+            UUID merchantId, UUID customerOwnerId, String currency) {
         var parameters = new MapSqlParameterSource()
                 .addValue("merchantId", merchantId)
-                .addValue("sourceAccountId", sourceAccountId)
+                .addValue("sourceAccountId", customerOwnerId)
                 .addValue("currency", currency);
         var ids = new HashMap<String, UUID>();
         jdbc.query(FIND, parameters, (RowCallbackHandler) result ->

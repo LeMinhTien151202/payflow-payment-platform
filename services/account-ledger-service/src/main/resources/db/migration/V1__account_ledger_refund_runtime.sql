@@ -18,6 +18,38 @@ CREATE TABLE account.accounts (
     CONSTRAINT accounts_status_known CHECK (status IN ('ACTIVE', 'FROZEN', 'CLOSED'))
 );
 
+CREATE TABLE account.balance_reservations (
+    id            UUID          NOT NULL,
+    payment_id    UUID          NOT NULL,
+    account_id    UUID          NOT NULL,
+    amount        NUMERIC(19,4) NOT NULL,
+    currency      CHAR(3)       NOT NULL,
+    status        VARCHAR(20)   NOT NULL,
+    created_at    TIMESTAMPTZ   NOT NULL,
+    expires_at    TIMESTAMPTZ   NOT NULL,
+    completed_at  TIMESTAMPTZ,
+    version       BIGINT        NOT NULL DEFAULT 0,
+    CONSTRAINT pk_balance_reservations PRIMARY KEY (id),
+    CONSTRAINT uq_balance_reservations_payment UNIQUE (payment_id),
+    CONSTRAINT fk_balance_reservations_account
+        FOREIGN KEY (account_id) REFERENCES account.accounts (id),
+    CONSTRAINT balance_reservations_amount_positive CHECK (amount > 0),
+    CONSTRAINT balance_reservations_currency_supported CHECK (currency = 'VND'),
+    CONSTRAINT balance_reservations_status_known
+        CHECK (status IN ('ACTIVE', 'CAPTURED', 'RELEASED', 'EXPIRED')),
+    CONSTRAINT balance_reservations_expiry_after_creation CHECK (expires_at > created_at),
+    CONSTRAINT balance_reservations_completion_consistent CHECK (
+        (status = 'ACTIVE' AND completed_at IS NULL)
+        OR (status <> 'ACTIVE' AND completed_at IS NOT NULL))
+);
+
+CREATE INDEX idx_balance_reservations_account_status
+    ON account.balance_reservations (account_id, status);
+
+CREATE INDEX idx_balance_reservations_active_expiry
+    ON account.balance_reservations (expires_at)
+    WHERE status = 'ACTIVE';
+
 CREATE TABLE account.refund_credits (
     id           UUID          NOT NULL,
     refund_id    UUID          NOT NULL,
@@ -81,6 +113,21 @@ CREATE TABLE ledger.entries (
     CONSTRAINT ledger_entries_direction_known CHECK (direction IN ('DEBIT', 'CREDIT')),
     CONSTRAINT ledger_entries_amount_positive CHECK (amount > 0),
     CONSTRAINT ledger_entries_currency_supported CHECK (currency = 'VND')
+);
+
+CREATE TABLE ledger.payment_postings (
+    payment_id   UUID          NOT NULL,
+    customer_id  UUID          NOT NULL,
+    merchant_id  UUID          NOT NULL,
+    journal_id   UUID          NOT NULL,
+    amount       NUMERIC(19,4) NOT NULL,
+    currency     CHAR(3)       NOT NULL,
+    CONSTRAINT pk_payment_postings PRIMARY KEY (payment_id),
+    CONSTRAINT uq_payment_postings_journal UNIQUE (journal_id),
+    CONSTRAINT fk_payment_postings_journal
+        FOREIGN KEY (journal_id) REFERENCES ledger.journals (id),
+    CONSTRAINT payment_postings_amount_positive CHECK (amount > 0),
+    CONSTRAINT payment_postings_currency_supported CHECK (currency = 'VND')
 );
 
 CREATE TABLE ledger.refund_postings (

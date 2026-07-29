@@ -10,19 +10,20 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 import org.springframework.kafka.support.Acknowledgment;
 
-class RefundWorkflowKafkaListenerTest {
+class AccountLedgerWorkflowKafkaListenerTest {
 
-    private final RefundWorkflowEventRouter router = mock(RefundWorkflowEventRouter.class);
+    private final AccountLedgerWorkflowEventRouter router =
+            mock(AccountLedgerWorkflowEventRouter.class);
     private final Acknowledgment acknowledgment = mock(Acknowledgment.class);
-    private final RefundWorkflowKafkaListener listener =
-            new RefundWorkflowKafkaListener(router, new SimpleMeterRegistry());
+    private final AccountLedgerWorkflowKafkaListener listener =
+            new AccountLedgerWorkflowKafkaListener(router, new SimpleMeterRegistry());
 
     @Test
     void acknowledgesOnlyAfterSuccessfulTransactionResult() {
         when(router.route("payment-1", "payload"))
-                .thenReturn(RefundWorkflowEventRouter.RouteResult.PROCESSED);
+                .thenReturn(AccountLedgerWorkflowEventRouter.RouteResult.PROCESSED);
 
-        listener.onRefundEvent("payload", "payment-1", acknowledgment);
+        listener.onPaymentEvent("payload", "payment-1", acknowledgment);
 
         verify(acknowledgment).acknowledge();
     }
@@ -33,7 +34,7 @@ class RefundWorkflowKafkaListenerTest {
                 .thenThrow(new IllegalStateException("database unavailable"));
 
         assertThatThrownBy(() ->
-                        listener.onPaymentEvent("payload", "payment-1", acknowledgment))
+                        listener.onRefundEvent("payload", "payment-1", acknowledgment))
                 .isInstanceOf(IllegalStateException.class);
         verify(acknowledgment, never()).acknowledge();
     }

@@ -497,6 +497,29 @@ Known limitations:
   - Keycloak giữ nguyên và không tham gia gate no-docker.
 ```
 
+### 2026-07-29 — Account-Ledger payment finalization transactional runtime
+
+```text
+Date/time (UTC): 2026-07-29T18:47:12Z
+Commit SHA: N/A (working tree change chưa commit; HEAD 2d3988f)
+Environment: Windows 10; Maven Wrapper 3.9.16; Java 21.0.7; không Docker/PostgreSQL/Kafka/Keycloak runtime
+Capability/scenario: account.reserve.requested → funds-reserved/failure; ledger.post-payment.requested → immutable balanced PAYMENT_CAPTURE journal; account.capture.requested → funds-captured; pre-ledger account.release.requested → funds-released; inbox + business + causal outbox local transaction cho mỗi bước
+Targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/account-ledger-service -am test
+Targeted result: exit 0, BUILD SUCCESS trong 13.921 s; event-contracts 63/63 và account-ledger-service 83/83 pass.
+Final command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Final result: exit 0, BUILD SUCCESS trong 57.607 s; 9/9 module SUCCESS; Surefire 442/442 và Failsafe 13/13 pass.
+Governance: validate-governance.ps1 pass 18 required paths/16 Markdown files; git diff --check exit 0. Skill quick validator đã được gọi nhưng bundled Python thiếu dependency yaml (ModuleNotFoundError); PayFlow skill không thay đổi trong lát cắt này.
+Schema/runtime: Account balance_reservations unique payment_id + terminal consistency; Ledger payment_postings unique payment/journal; Account pessimistic row locks; typed Account-Ledger workflow router/listener; Payment topic consumer toggle; transport/business duplicate distinction.
+Prepared Docker evidence: PaymentWorkflowPersistenceIT có reserve → balanced journal → capture với redelivery; pre-ledger release trả balance; injected account.funds-reserved outbox failure chứng minh rollback inbox + balance + reservation. Ba case chỉ compile và bị loại đúng theo profile no-docker.
+Failure boundary: thiếu Ledger account mapping phát ledger.payment-posting-failed trước khi tạo journal; lỗi kỹ thuật rollback để Kafka retry/DLT. Sau journal POSTED, capture lỗi không phát release và được để Payment Saga bounded-retry/manual-review xử lý theo ADR-011/018.
+Known limitations:
+  - V1 Flyway, PESSIMISTIC_WRITE, unique constraints, rollback và concurrent reserve chưa VERIFIED_LOCAL vì Docker/PostgreSQL chưa bật.
+  - Kafka manual ack, broker redelivery, DLT, partition ordering và kill/restart crash window chưa chạy.
+  - V1 migration được bổ sung trước lần apply đầu tiên dựa trên xác nhận repository owner rằng chưa có database nào chạy; không suy diễn quy tắc này cho migration đã apply.
+  - Chưa có local seed profile cho customer Account và Ledger account mapping; production migration cố ý không chứa demo data.
+  - Keycloak giữ nguyên và không tham gia gate no-docker.
+```
+
 Quy tắc cập nhật:
 
 - Không ghi `VERIFIED_*` nếu thiếu command và kết quả.

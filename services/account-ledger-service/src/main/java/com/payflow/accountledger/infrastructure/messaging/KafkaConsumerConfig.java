@@ -12,7 +12,7 @@ import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.kafka.config.TopicBuilder;
 import org.springframework.util.backoff.FixedBackOff;
 
-/** Bounded retry prevents a poison refund command from blocking a partition indefinitely. */
+/** Bounded retry prevents a poison Account/Ledger command from blocking a partition indefinitely. */
 @Configuration(proxyBeanMethods = false)
 @EnableKafka
 class KafkaConsumerConfig {

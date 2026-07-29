@@ -9,6 +9,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Tag("docker")
 @TestPropertySource(
         properties = {
+            "payflow.payment-consumer.enabled=false",
             "payflow.refund-consumer.enabled=false",
             "payflow.outbox.enabled=false"
         })
