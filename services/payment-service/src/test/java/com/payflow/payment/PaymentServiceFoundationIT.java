@@ -52,7 +52,7 @@ class PaymentServiceFoundationIT extends AbstractPostgresIT {
 
         // containsExactly, not contains: the order is the assertion. A repaired or out-of-order
         // history is how one environment ends up with a schema no migration file describes.
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5");
+        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6");
     }
 
     @Test

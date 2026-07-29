@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.math.BigDecimal;
+import com.payflow.payment.application.command.CreateRefundCommand;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -15,6 +17,9 @@ import org.junit.jupiter.api.Test;
  * calling a conflict a retry (the client gets back a payment that is not the one it asked for).
  */
 class RequestFingerprintTest {
+
+    private static final UUID REFUND_PAYMENT_ID =
+            UUID.fromString("c73e17b5-aaca-48da-9ed5-bb0937499f01");
 
     @Test
     @DisplayName("the same request always produces the same 64-character lowercase hex fingerprint")
@@ -148,5 +153,44 @@ class RequestFingerprintTest {
 
         assertThat(RequestFingerprint.of(request().customer(otherCustomer).build())).isNotEqualTo(base);
         assertThat(RequestFingerprint.of(request().sourceAccount(otherAccount).build())).isNotEqualTo(base);
+    }
+
+    @Test
+    @DisplayName("refund fingerprint normalises amount and ignores key and retrying actor")
+    void normalisesRefundRetries() {
+        CreateRefundCommand first = refund("key-1", "actor-1", "200000.00", "returned");
+        CreateRefundCommand retry = refund("key-2", "actor-2", "2E+5", "returned");
+
+        assertThat(RequestFingerprint.of(first)).isEqualTo(RequestFingerprint.of(retry));
+    }
+
+    @Test
+    @DisplayName("refund fingerprint includes payment, amount and reason")
+    void separatesDifferentRefundIntent() {
+        String base = RequestFingerprint.of(refund("key", "actor", "200", "returned"));
+
+        assertThat(RequestFingerprint.of(refund("key", "actor", "201", "returned")))
+                .isNotEqualTo(base);
+        assertThat(RequestFingerprint.of(refund("key", "actor", "200", "duplicate")))
+                .isNotEqualTo(base);
+        assertThat(RequestFingerprint.of(new CreateRefundCommand(
+                        com.payflow.payment.PaymentTokens.MERCHANT_ID,
+                        "actor",
+                        UUID.randomUUID(),
+                        "key",
+                        new BigDecimal("200"),
+                        "returned")))
+                .isNotEqualTo(base);
+    }
+
+    private static CreateRefundCommand refund(
+            String key, String actor, String amount, String reason) {
+        return new CreateRefundCommand(
+                com.payflow.payment.PaymentTokens.MERCHANT_ID,
+                actor,
+                REFUND_PAYMENT_ID,
+                key,
+                new BigDecimal(amount),
+                reason);
     }
 }

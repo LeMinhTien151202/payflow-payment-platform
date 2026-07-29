@@ -1,6 +1,7 @@
 package com.payflow.payment.application.idempotency;
 
 import com.payflow.payment.application.command.CreatePaymentCommand;
+import com.payflow.payment.application.command.CreateRefundCommand;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -11,7 +12,8 @@ import java.util.TreeMap;
 import java.util.UUID;
 
 /**
- * Turns a create-payment request into the fingerprint stored in {@code idempotency_records.request_hash}.
+ * Turns payment/refund write requests into fingerprints stored in
+ * {@code idempotency_records.request_hash}.
  *
  * <p>The fingerprint answers one question: is this the same request as the one that used this key before?
  * Comparing raw request bodies would answer it wrongly, because a client that reorders JSON members or
@@ -62,6 +64,16 @@ public final class RequestFingerprint {
             field(canonical, "metadata." + entry.getKey(), entry.getValue());
         }
 
+        return hex(canonical.toString());
+    }
+
+    /** Canonical refund payload. Actor is excluded so a legitimate retry can be replayed by the merchant. */
+    public static String of(CreateRefundCommand command) {
+        StringBuilder canonical = new StringBuilder();
+        field(canonical, "merchantId", text(command.merchantId()));
+        field(canonical, "paymentId", text(command.paymentId()));
+        field(canonical, "amount", amount(command.amount()));
+        field(canonical, "reason", command.reason());
         return hex(canonical.toString());
     }
 

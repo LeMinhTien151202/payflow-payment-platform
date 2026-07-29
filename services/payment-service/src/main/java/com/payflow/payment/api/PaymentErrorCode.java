@@ -43,6 +43,12 @@ public enum PaymentErrorCode implements ErrorCode {
     /** The platform supports the currency but this merchant does not settle in it. 400. */
     PAYMENT_CURRENCY_NOT_ACCEPTED,
 
+    /** Payment has not succeeded, or has already been fully refunded. 409. */
+    PAYMENT_REFUND_NOT_ALLOWED,
+
+    /** Requested amount exceeds succeeded-minus-reserved refundable capacity. 409. */
+    PAYMENT_REFUND_CAPACITY_EXCEEDED,
+
     /** The {@code Idempotency-Key} header is absent or blank. 400. */
     IDEMPOTENCY_KEY_REQUIRED,
 

@@ -384,6 +384,29 @@ Known limitations:
   - Keycloak giữ nguyên và không chạy trong gate no-docker.
 ```
 
+### 2026-07-29 — Idempotent refund intake vertical slice
+
+```text
+Date/time (UTC): 2026-07-29T11:40:24Z
+Commit SHA: N/A (working tree change chưa commit; HEAD cd0e7b5)
+Environment: Windows 10; Maven Wrapper 3.9.16; Java 21.0.7; không Docker/PostgreSQL/Kafka/Keycloak runtime
+Capability/scenario: POST refund 202; JWT merchant/actor ownership; Refund CREATED aggregate; Payment row-lock capacity reservation; endpoint-scoped idempotency; refund + capacity + response + refund.requested outbox local transaction
+Targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/payment-service -am test
+Targeted result: exit 0, BUILD SUCCESS trong 25.080 s; event-contracts 58/58 và payment-service 215/215 pass.
+Final command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Final result: exit 0, BUILD SUCCESS trong 01:02, 9/9 module SUCCESS.
+  Surefire 377/377 pass; Failsafe 13/13 pass; Docker-tagged payment IT bị loại đúng theo profile.
+Governance: 18 required paths và 16 Markdown files pass; git diff --check exit 0.
+Contract/schema: POST /api/v1/payments/{paymentId}/refunds; refund.requested v1; V6__refund_intake_contract.sql; error codes PAYMENT_REFUND_NOT_ALLOWED và PAYMENT_REFUND_CAPACITY_EXCEEDED.
+Prepared Docker evidence: RefundCapacityPersistenceIT có 6 case, gồm lock concurrency, fee/capacity constraint, accepted+replayed intake, different-payload conflict và injected outbox failure rollback toàn bộ local facts.
+Known limitations:
+  - V5/V6 Flyway, Hibernate Refund mapping, SELECT FOR UPDATE và transaction rollback mới compile; chưa chạy trên PostgreSQL vì Docker chưa bật, nên persistence chưa VERIFIED_LOCAL.
+  - refund.requested chỉ nằm trong outbox; Kafka publisher/broker không chạy trong gate này.
+  - Account credit, Ledger refund/reversal, refund outcome consumer và Payment capacity success/failure completion chưa được nối; refund sẽ ở CREATED cho tới lát cắt workflow kế tiếp.
+  - ADR-012 pre-Phase-2 runtime gate vẫn chưa xanh. Code-first refund intake không đồng nghĩa Phase 2 hoặc E2E refund đã hoàn thành.
+  - Keycloak contract được giữ và web tests dùng JWT fixture; Keycloak runtime chưa chạy.
+```
+
 Quy tắc cập nhật:
 
 - Không ghi `VERIFIED_*` nếu thiếu command và kết quả.

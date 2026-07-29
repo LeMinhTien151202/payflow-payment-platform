@@ -12,9 +12,9 @@ import java.util.UUID;
  * replay built from the current payment row would contradict the response the client originally received
  * — and a client retrying a request must not be told the state changed because they retried.
  *
- * <p>{@code body} is typed as {@link PaymentAcceptance} because {@code POST /api/v1/payments} is the only
- * idempotent endpoint in Phase 1A. When the second one arrives, this becomes generic; guessing at the
- * generic form now would add a type parameter that every caller has to satisfy for no present benefit.
+ * <p>{@code body} is typed as {@link PaymentAcceptance} because this is the create-payment endpoint's
+ * stored response. Refund intake uses a separate endpoint-specific view over the same table, preventing
+ * an accidental JSON cast across two independently versioned response contracts.
  *
  * @param requestHash fingerprint of the request that produced this response, used to tell a replay from a
  *     reused key

@@ -3,14 +3,19 @@ package com.payflow.payment.api;
 import com.payflow.observability.CorrelationId;
 import com.payflow.payment.api.exception.IdempotencyKeyRequiredException;
 import com.payflow.payment.api.request.CreatePaymentRequest;
+import com.payflow.payment.api.request.CreateRefundRequest;
 import com.payflow.payment.api.response.ApiResponse;
 import com.payflow.payment.api.response.ResponseMeta;
 import com.payflow.payment.application.CreatePaymentResult;
+import com.payflow.payment.application.CreateRefundResult;
 import com.payflow.payment.application.PaymentAcceptance;
 import com.payflow.payment.application.PaymentDetail;
+import com.payflow.payment.application.RefundAcceptance;
 import com.payflow.payment.application.handler.CreatePaymentHandler;
+import com.payflow.payment.application.handler.CreateRefundHandler;
 import com.payflow.payment.application.handler.GetPaymentHandler;
 import com.payflow.payment.domain.model.PaymentIntake;
+import com.payflow.payment.domain.model.Refund;
 import com.payflow.payment.infrastructure.web.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -37,14 +42,34 @@ public class PaymentController {
     private static final String MERCHANT_ID_CLAIM = "merchant_id";
 
     private final CreatePaymentHandler createPayment;
+    private final CreateRefundHandler createRefund;
     private final GetPaymentHandler getPayment;
     private final Clock clock;
 
     public PaymentController(
-            CreatePaymentHandler createPayment, GetPaymentHandler getPayment, Clock clock) {
+            CreatePaymentHandler createPayment,
+            CreateRefundHandler createRefund,
+            GetPaymentHandler getPayment,
+            Clock clock) {
         this.createPayment = createPayment;
+        this.createRefund = createRefund;
         this.getPayment = getPayment;
         this.clock = clock;
+    }
+
+    @PostMapping("/{paymentId}/refunds")
+    ResponseEntity<ApiResponse<RefundAcceptance>> refund(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID paymentId,
+            @RequestHeader(value = IDEMPOTENCY_KEY_HEADER, required = false) String idempotencyKey,
+            @Valid @RequestBody CreateRefundRequest request,
+            HttpServletRequest servletRequest) {
+
+        String key = requireIdempotencyKey(idempotencyKey);
+        CreateRefundResult result = createRefund.handle(
+                request.toCommand(merchantId(jwt), actorId(jwt), paymentId, key));
+        return ResponseEntity.status(result.responseStatus())
+                .body(envelope(result.refund(), servletRequest));
     }
 
     @PostMapping
@@ -89,6 +114,16 @@ public class PaymentController {
             // Do not echo the claim. It is token content and may have been supplied by an invalid issuer.
             throw new AccessDeniedException("authenticated principal has no merchant identity", invalid);
         }
+    }
+
+    private static String actorId(Jwt jwt) {
+        if (jwt == null
+                || jwt.getSubject() == null
+                || jwt.getSubject().isBlank()
+                || jwt.getSubject().length() > Refund.MAX_ACTOR_ID_LENGTH) {
+            throw new AccessDeniedException("authenticated principal has no subject identity");
+        }
+        return jwt.getSubject();
     }
 
     private static String requireIdempotencyKey(String value) {

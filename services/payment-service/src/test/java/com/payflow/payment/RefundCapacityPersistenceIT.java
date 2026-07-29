@@ -4,6 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.payflow.payment.application.port.RefundPaymentStore;
+import com.payflow.payment.application.CreateRefundResult;
+import com.payflow.payment.application.command.CreateRefundCommand;
+import com.payflow.payment.application.exception.IdempotencyConflictException;
+import com.payflow.payment.application.handler.CreateRefundHandler;
+import com.payflow.payment.application.idempotency.IdempotencyScope;
 import com.payflow.payment.domain.exception.RefundCapacityExceededException;
 import com.payflow.payment.domain.model.Money;
 import com.payflow.payment.domain.model.Payment;
@@ -29,6 +34,138 @@ class RefundCapacityPersistenceIT extends AbstractPostgresIT {
     @Autowired private JdbcTemplate jdbc;
     @Autowired private RefundPaymentStore payments;
     @Autowired private TransactionTemplate transactions;
+    @Autowired private CreateRefundHandler createRefund;
+
+    @Test
+    @DisplayName("refund, capacity, idempotency and outbox commit atomically and replay once")
+    void intakeCommitsOneLogicalRefundAndReplays() {
+        UUID paymentId = insertSucceededPayment("100.0000");
+        UUID merchantId = merchantId(paymentId);
+        String key = "refund-" + UUID.randomUUID();
+        CreateRefundCommand command = new CreateRefundCommand(
+                merchantId,
+                "test-merchant-actor",
+                paymentId,
+                key,
+                new java.math.BigDecimal("60.0000"),
+                "test return");
+
+        CreateRefundResult first = createRefund.handle(command);
+        CreateRefundResult replay = createRefund.handle(command);
+
+        assertThat(first).isInstanceOf(CreateRefundResult.Accepted.class);
+        assertThat(replay).isInstanceOf(CreateRefundResult.Replayed.class);
+        assertThat(replay.refund()).isEqualTo(first.refund());
+        assertThat(jdbc.queryForObject(
+                        "SELECT reserved_refund_amount FROM payment.payments WHERE id = ?",
+                        java.math.BigDecimal.class,
+                        paymentId))
+                .isEqualByComparingTo("60.0000");
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM payment.refunds WHERE payment_id = ?",
+                        Integer.class,
+                        paymentId))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM payment.idempotency_records"
+                                + " WHERE scope = ? AND idempotency_key = ?",
+                        Integer.class,
+                        IdempotencyScope.createRefund(merchantId),
+                        key))
+                .isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM payment.outbox_events"
+                                + " WHERE aggregate_id = ? AND event_type = 'refund.requested'",
+                        Integer.class,
+                        paymentId.toString()))
+                .isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("same refund key with a different payload conflicts without another write")
+    void intakeRejectsDifferentPayloadForSameKey() {
+        UUID paymentId = insertSucceededPayment("100.0000");
+        UUID merchantId = merchantId(paymentId);
+        String key = "refund-" + UUID.randomUUID();
+        CreateRefundCommand first = new CreateRefundCommand(
+                merchantId,
+                "test-merchant-actor",
+                paymentId,
+                key,
+                new java.math.BigDecimal("60.0000"),
+                null);
+        createRefund.handle(first);
+
+        assertThatThrownBy(() -> createRefund.handle(new CreateRefundCommand(
+                        merchantId,
+                        "test-merchant-actor",
+                        paymentId,
+                        key,
+                        new java.math.BigDecimal("61.0000"),
+                        null)))
+                .isInstanceOf(IdempotencyConflictException.class);
+        assertThat(jdbc.queryForObject(
+                        "SELECT reserved_refund_amount FROM payment.payments WHERE id = ?",
+                        java.math.BigDecimal.class,
+                        paymentId))
+                .isEqualByComparingTo("60.0000");
+    }
+
+    @Test
+    @DisplayName("outbox failure rolls back refund, capacity and idempotency together")
+    void intakeRollsBackEveryLocalFactWhenOutboxCannotCommit() {
+        UUID paymentId = insertSucceededPayment("100.0000");
+        UUID merchantId = merchantId(paymentId);
+        String key = "refund-" + UUID.randomUUID();
+        jdbc.execute("""
+                CREATE FUNCTION payment.test_reject_refund_outbox() RETURNS TRIGGER
+                LANGUAGE plpgsql AS $$
+                BEGIN
+                    IF NEW.event_type = 'refund.requested' THEN
+                        RAISE EXCEPTION 'injected refund outbox failure';
+                    END IF;
+                    RETURN NEW;
+                END;
+                $$
+                """);
+        jdbc.execute("""
+                CREATE TRIGGER trg_test_reject_refund_outbox
+                BEFORE INSERT ON payment.outbox_events
+                FOR EACH ROW EXECUTE FUNCTION payment.test_reject_refund_outbox()
+                """);
+
+        try {
+            assertThatThrownBy(() -> createRefund.handle(new CreateRefundCommand(
+                            merchantId,
+                            "test-merchant-actor",
+                            paymentId,
+                            key,
+                            new java.math.BigDecimal("60.0000"),
+                            null)))
+                    .isInstanceOf(RuntimeException.class);
+        } finally {
+            jdbc.execute("DROP TRIGGER trg_test_reject_refund_outbox ON payment.outbox_events");
+            jdbc.execute("DROP FUNCTION payment.test_reject_refund_outbox()");
+        }
+
+        assertThat(jdbc.queryForObject(
+                        "SELECT reserved_refund_amount FROM payment.payments WHERE id = ?",
+                        java.math.BigDecimal.class,
+                        paymentId))
+                .isEqualByComparingTo("0.0000");
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM payment.refunds WHERE payment_id = ?",
+                        Integer.class,
+                        paymentId))
+                .isZero();
+        assertThat(jdbc.queryForObject(
+                        "SELECT count(*) FROM payment.idempotency_records"
+                                + " WHERE scope = ? AND idempotency_key = ?",
+                        Integer.class,
+                        IdempotencyScope.createRefund(merchantId),
+                        key))
+                .isZero();
+    }
 
     @Test
     @DisplayName("database refuses succeeded plus reserved refund above original amount")

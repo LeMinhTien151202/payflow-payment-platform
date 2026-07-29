@@ -17,11 +17,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.payflow.payment.application.CreatePaymentResult;
 import com.payflow.payment.application.PaymentAcceptance;
 import com.payflow.payment.application.PaymentDetail;
+import com.payflow.payment.application.CreateRefundResult;
+import com.payflow.payment.application.RefundAcceptance;
 import com.payflow.payment.application.command.CreatePaymentCommand;
+import com.payflow.payment.application.command.CreateRefundCommand;
 import com.payflow.payment.application.exception.IdempotencyConflictException;
 import com.payflow.payment.application.handler.CreatePaymentHandler;
+import com.payflow.payment.application.handler.CreateRefundHandler;
 import com.payflow.payment.application.handler.GetPaymentHandler;
 import com.payflow.payment.domain.model.PaymentStatus;
+import com.payflow.payment.domain.model.RefundStatus;
+import com.payflow.payment.domain.exception.RefundCapacityExceededException;
+import com.payflow.payment.domain.model.Money;
 import com.payflow.payment.infrastructure.security.SecurityConfig;
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -80,6 +87,9 @@ class PaymentControllerTest {
 
     @MockitoBean
     private CreatePaymentHandler createPayment;
+
+    @MockitoBean
+    private CreateRefundHandler createRefund;
 
     @MockitoBean
     private GetPaymentHandler getPayment;
@@ -219,6 +229,77 @@ class PaymentControllerTest {
                 .andExpect(jsonPath("$.meta.correlationId").value("api-get-1"));
 
         verify(getPayment).handle(PAYMENT_ID, MERCHANT_ID);
+    }
+
+    @Test
+    @DisplayName("refund returns 202 and derives merchant plus actor from JWT")
+    void createsRefundForAuthenticatedMerchant() throws Exception {
+        UUID refundId = UUID.fromString("73817fe8-219a-4136-921c-2473c1ea9e9b");
+        RefundAcceptance acceptance = new RefundAcceptance(
+                refundId,
+                PAYMENT_ID,
+                RefundStatus.CREATED,
+                new BigDecimal("200000.0000"),
+                "VND",
+                NOW);
+        given(createRefund.handle(any())).willReturn(new CreateRefundResult.Accepted(acceptance));
+
+        mockMvc.perform(
+                        post("/api/v1/payments/" + PAYMENT_ID + "/refunds")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + FULL_SCOPE)
+                                .header(PaymentController.IDEMPOTENCY_KEY_HEADER, KEY)
+                                .header("X-Correlation-Id", "api-refund-1")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                        {"amount":200000,"reason":"Khách trả hàng"}
+                                        """))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.data.refundId").value(refundId.toString()))
+                .andExpect(jsonPath("$.data.paymentId").value(PAYMENT_ID.toString()))
+                .andExpect(jsonPath("$.data.status").value("CREATED"))
+                .andExpect(jsonPath("$.data.amount").value(200000.0))
+                .andExpect(jsonPath("$.meta.correlationId").value("api-refund-1"));
+
+        ArgumentCaptor<CreateRefundCommand> command =
+                ArgumentCaptor.forClass(CreateRefundCommand.class);
+        verify(createRefund).handle(command.capture());
+        assertThat(command.getValue().merchantId()).isEqualTo(MERCHANT_ID);
+        assertThat(command.getValue().actorId()).isEqualTo("service-account-payflow-service");
+        assertThat(command.getValue().paymentId()).isEqualTo(PAYMENT_ID);
+        assertThat(command.getValue().idempotencyKey()).isEqualTo(KEY);
+    }
+
+    @Test
+    @DisplayName("refund capacity conflict has a stable 409 code")
+    void mapsRefundCapacityConflict() throws Exception {
+        given(createRefund.handle(any()))
+                .willThrow(new RefundCapacityExceededException(
+                        PAYMENT_ID, Money.of("200000", "VND"), Money.of("100000", "VND")));
+
+        mockMvc.perform(
+                        post("/api/v1/payments/" + PAYMENT_ID + "/refunds")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + FULL_SCOPE)
+                                .header(PaymentController.IDEMPOTENCY_KEY_HEADER, KEY)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"amount\":200000}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PAYMENT_REFUND_CAPACITY_EXCEEDED"));
+    }
+
+    @Test
+    @DisplayName("refund amount and reason are bounded at the HTTP boundary")
+    void validatesRefundRequest() throws Exception {
+        String tooLongReason = "x".repeat(501);
+
+        mockMvc.perform(
+                        post("/api/v1/payments/" + PAYMENT_ID + "/refunds")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + FULL_SCOPE)
+                                .header(PaymentController.IDEMPOTENCY_KEY_HEADER, KEY)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"amount\":0,\"reason\":\"" + tooLongReason + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("REQUEST_VALIDATION_FAILED"))
+                .andExpect(jsonPath("$.fieldErrors.length()").value(2));
     }
 
     private static PaymentAcceptance acceptance() {

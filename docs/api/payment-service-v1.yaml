@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: PayFlow Payment Service API
   version: 1.0.0
-  description: Sandbox payment intake contract implemented in Phase 1A.
+  description: Sandbox payment and refund intake contract.
 servers:
   - url: http://localhost:8080
     description: Local API Gateway
@@ -66,6 +66,37 @@ paths:
             application/problem+json:
               schema:
                 $ref: '#/components/schemas/ProblemDetails'
+  /api/v1/payments/{paymentId}/refunds:
+    post:
+      operationId: createRefund
+      summary: Reserve refundable capacity and accept asynchronous refund processing
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateRefundRequest'}
+      responses:
+        '202':
+          description: Capacity reserved; new refund accepted or identical request replayed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RefundAcceptanceResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404':
+          description: Payment absent or owned by another merchant
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetails'}
+        '409': {$ref: '#/components/responses/Conflict'}
 components:
   securitySchemes:
     bearerAuth:
@@ -128,6 +159,27 @@ components:
         amount: {type: number}
         currency: {type: string}
         createdAt: {type: string, format: date-time}
+    CreateRefundRequest:
+      type: object
+      required: [amount]
+      properties:
+        amount:
+          type: number
+          exclusiveMinimum: 0
+          multipleOf: 0.0001
+        reason:
+          type: [string, 'null']
+          maxLength: 500
+    RefundAcceptance:
+      type: object
+      required: [refundId, paymentId, status, amount, currency, createdAt]
+      properties:
+        refundId: {type: string, format: uuid}
+        paymentId: {type: string, format: uuid}
+        status: {type: string, enum: [CREATED]}
+        amount: {type: number}
+        currency: {type: string, enum: [VND]}
+        createdAt: {type: string, format: date-time}
     PaymentDetail:
       type: object
       required:
@@ -169,6 +221,12 @@ components:
       properties:
         data: {$ref: '#/components/schemas/PaymentDetail'}
         meta: {$ref: '#/components/schemas/ResponseMeta'}
+    RefundAcceptanceResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: {$ref: '#/components/schemas/RefundAcceptance'}
+        meta: {$ref: '#/components/schemas/ResponseMeta'}
     FieldViolation:
       type: object
       required: [field, message]
@@ -207,7 +265,7 @@ components:
         application/problem+json:
           schema: {$ref: '#/components/schemas/ProblemDetails'}
     Conflict:
-      description: Duplicate merchant reference, state conflict, or idempotency conflict
+      description: Duplicate reference, refund capacity/state conflict, or idempotency conflict
       content:
         application/problem+json:
           schema: {$ref: '#/components/schemas/ProblemDetails'}

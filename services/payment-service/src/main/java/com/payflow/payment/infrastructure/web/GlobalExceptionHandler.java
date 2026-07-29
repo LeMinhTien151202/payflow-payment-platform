@@ -15,6 +15,9 @@ import com.payflow.payment.domain.exception.CurrencyNotAcceptedException;
 import com.payflow.payment.domain.exception.MerchantNotAcceptingPaymentsException;
 import com.payflow.payment.domain.exception.PaymentDomainException;
 import com.payflow.payment.domain.exception.PaymentLimitExceededException;
+import com.payflow.payment.domain.exception.RefundCapacityExceededException;
+import com.payflow.payment.domain.exception.RefundNotAllowedException;
+import com.payflow.payment.domain.exception.UnexpectedRefundStatusException;
 import com.payflow.payment.domain.exception.UnsupportedCurrencyException;
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.Comparator;
@@ -163,6 +166,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                     HttpStatus.BAD_REQUEST,
                     PaymentErrorCode.PAYMENT_CURRENCY_NOT_ACCEPTED,
                     "The merchant does not accept the requested currency.",
+                    request);
+        }
+        if (ex instanceof RefundNotAllowedException || ex instanceof UnexpectedRefundStatusException) {
+            return problem(
+                    HttpStatus.CONFLICT,
+                    PaymentErrorCode.PAYMENT_REFUND_NOT_ALLOWED,
+                    "The payment or refund state does not allow this operation.",
+                    request);
+        }
+        if (ex instanceof RefundCapacityExceededException) {
+            return problem(
+                    HttpStatus.CONFLICT,
+                    PaymentErrorCode.PAYMENT_REFUND_CAPACITY_EXCEEDED,
+                    "The refund amount exceeds the remaining refundable amount.",
                     request);
         }
         return unexpected(ex, request);
