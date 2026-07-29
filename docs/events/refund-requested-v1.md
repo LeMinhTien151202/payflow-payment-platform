@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Owner/producer | `payment-service` |
-| Consumer chính | Account refund workflow (chưa nối runtime) |
+| Consumer chính | Ledger refund workflow (chưa nối runtime) |
 | Topic | `payflow.refund.events.v1` |
 | Kafka key | `paymentId` |
 | Event type/version | `refund.requested` / `1` |
@@ -11,7 +11,8 @@
 
 Event được append sau khi Payment Service đã khóa payment và commit cùng lúc bốn fact: refundable
 capacity được giữ, Refund `CREATED`, idempotent response và outbox row. Đây không phải bằng chứng rằng
-tiền đã được credit hoặc ledger reversal đã posted.
+tiền đã được credit hoặc ledger reversal đã posted. ADR-021 quy định Ledger xử lý principal trước,
+sau đó Payment mới phát lệnh credit cho Account.
 
 Payload chính xác gồm:
 

@@ -23,6 +23,7 @@ File này ghi các điểm chưa đủ rõ trong spec hoặc đang mâu thuẫn 
 | OD-008 | RESOLVED | Outbox claim lease và stale recovery | Đã mở khoá bằng ADR-004 + ADR-014 |
 | OD-009 | RESOLVED | Risk score normalization/range | Đã mở khoá bằng ADR-015 |
 | OD-010 | OPEN | Audit snapshot allowlist, retention và access | Privileged audit logging |
+| OD-011 | RESOLVED | Thứ tự Ledger reversal, Account credit và refund success | Mở khóa bằng ADR-021 |
 
 ## OD-001 — Financial finalization boundary
 

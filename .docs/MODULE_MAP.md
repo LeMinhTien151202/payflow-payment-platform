@@ -48,7 +48,11 @@ account-ledger-service/
 | `account.funds-captured` | Account | Payment | `paymentId` | Xác nhận capture đã commit |
 | `account.release.requested` | Payment | Account | `paymentId` | Compensation idempotent |
 | `payment.succeeded/failed` | Payment | notification, reporting, settlement | `paymentId` | Outcome fact để notify/project; success không còn ra lệnh capture |
-| Refund commands/events | Payment | Account, Ledger, reporting, settlement | `paymentId` | Credit/reversal/projection |
+| `refund.requested` | Payment | Ledger | `paymentId` | Post immutable principal reversal journal |
+| `ledger.refund-posted` | Ledger | Payment | `paymentId` | Move Refund to processing and request Account credit |
+| `account.refund-credit.requested` | Payment | Account | `paymentId` | Credit original source account idempotently by refundId |
+| `account.refund-credited` | Account | Payment | `paymentId` | Complete capacity/fee allocation and Refund success |
+| `refund.succeeded/failed` | Payment | reporting, settlement, notification | `paymentId` | Terminal refund outcome projection |
 
 Tên/schema cuối cùng phải được định nghĩa trong event-contract module và contract docs; bảng trên xác định ownership, không thay cho schema versioned.
 

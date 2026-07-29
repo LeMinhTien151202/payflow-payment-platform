@@ -6,10 +6,10 @@ giai đoạn xây dựng nằm ở [`.docs/`](../.docs/README.md) và
 
 | Thư mục | Nội dung | Trạng thái |
 | --- | --- | --- |
-| [adr/](adr/README.md) | ADR chính thức | ADR-004, ADR-007, ADR-011–ADR-020 (các ID có file) `ACCEPTED` |
+| [adr/](adr/README.md) | ADR chính thức | ADR-004, ADR-007, ADR-011–ADR-021 (các ID có file) `ACCEPTED` |
 | [runbooks/](runbooks/local-development.md) | Vận hành và chạy local | Local development, Saga manual review và Payment workflow DLT |
 | [api/](api/payment-service-v1.yaml) | OpenAPI contract | Payment create/get và refund intake v1 |
-| [events/](events/refund-requested-v1.md) | Kafka event contract | Payment Saga và refund intake events v1 |
+| [events/](events/refund-workflow-v1.md) | Kafka event contract | Payment Saga, refund intake và refund financial workflow v1 |
 | `architecture/` | Sơ đồ và mô tả kiến trúc bàn giao | Chưa có |
 | `diagrams/` | Sequence/state diagram | Chưa có |
 | `postman/` | Collection để thử API | Chưa có — Phase 1A |

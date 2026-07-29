@@ -102,6 +102,17 @@ public final class Account {
         return returnReservation(reservation, ReservationStatus.EXPIRED, occurredAt);
     }
 
+    /** Refund credits are allowed while frozen so customer funds are not trapped. */
+    public void creditRefund(Money amount) {
+        Objects.requireNonNull(amount, "amount").requirePositive();
+        requireAccountCurrency(amount);
+        if (status == AccountStatus.CLOSED) {
+            throw new AccountInvariantViolationException(
+                    "closed account cannot receive an automatic refund credit");
+        }
+        availableBalance = availableBalance.add(amount);
+    }
+
     public void freeze() {
         if (status == AccountStatus.CLOSED) {
             throw new AccountInvariantViolationException("closed account cannot be frozen");

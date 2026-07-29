@@ -407,6 +407,28 @@ Known limitations:
   - Keycloak contract được giữ và web tests dùng JWT fixture; Keycloak runtime chưa chạy.
 ```
 
+### 2026-07-29 — Refund financial workflow pure core
+
+```text
+Date/time (UTC): 2026-07-29T12:04:42Z
+Commit SHA: N/A (working tree change chưa commit; HEAD c7c923c)
+Environment: Windows 10; Maven Wrapper 3.9.16; Java 21.0.7; không Docker/PostgreSQL/Kafka/Keycloak runtime
+Capability/scenario: ADR-021 ordering; immutable principal REFUND_REVERSAL journal; idempotent Account refund credit; Payment matching/finalization; pre-journal failure capacity release; versioned terminal refund contracts
+Targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl libs/event-contracts,services/account-ledger-service,services/payment-service -am test
+Targeted result: exit 0, BUILD SUCCESS trong 35.445 s; event-contracts 63/63, payment-service 223/223 và account-ledger-service 54/54 pass.
+Final command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Final result: exit 0, BUILD SUCCESS trong 55.205 s; 9/9 module SUCCESS; Surefire 400/400 và Failsafe 13/13 pass.
+Governance: validate-governance.ps1 pass 18 required paths/16 Markdown files; git diff --check exit 0.
+Skill validator: đã chạy nhưng môi trường Python thiếu dependency yaml (ModuleNotFoundError); không ghi pass cho check này. PayFlow skill không bị sửa.
+Contract/schema: thêm ledger.refund-posted, ledger.refund-posting-failed, account.refund-credit.requested, account.refund-credited, refund.succeeded và refund.failed v1; không đổi REST hoặc Flyway schema trong lát cắt pure-core này.
+Known limitations:
+  - account-ledger-service vẫn là Maven core module, chưa có Spring Boot bootstrap, database adapter, inbox/outbox hoặc Kafka listener cho refund.
+  - Payment RefundFinalizationPolicy mới là pure policy; chưa được nối vào Payment workflow consumer/persistence transaction.
+  - PostgreSQL uniqueness/locking/rollback và Kafka redelivery/order/crash windows chưa chạy, nên refund E2E chưa VERIFIED_LOCAL.
+  - Sau ledger.refund-posted, bounded retry/manual-review runtime cho Account credit chưa được dựng; ADR-021 cấm tự fail hoặc release capacity trong cửa sổ này.
+  - Ledger v1 chỉ reverse principal, đồng nhất với payment capture v1. Fee-aware ledger cần contract version mới; refund.succeeded hiện mang fee-reversal fact cho Settlement tương lai.
+```
+
 Quy tắc cập nhật:
 
 - Không ghi `VERIFIED_*` nếu thiếu command và kết quả.

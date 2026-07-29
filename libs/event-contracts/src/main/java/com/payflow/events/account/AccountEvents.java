@@ -29,6 +29,12 @@ public final class AccountEvents {
     public static final EventType FUNDS_RELEASED =
             new EventType("account.funds-released", 1, AGGREGATE_TYPE);
 
+    public static final EventType REFUND_CREDIT_REQUESTED =
+            new EventType("account.refund-credit.requested", 1, AGGREGATE_TYPE);
+
+    public static final EventType REFUND_CREDITED =
+            new EventType("account.refund-credited", 1, AGGREGATE_TYPE);
+
     private AccountEvents() {
     }
 }

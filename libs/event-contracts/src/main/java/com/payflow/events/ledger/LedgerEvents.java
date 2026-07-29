@@ -16,6 +16,12 @@ public final class LedgerEvents {
     public static final EventType PAYMENT_POSTING_FAILED =
             new EventType("ledger.payment-posting-failed", 1, AGGREGATE_TYPE);
 
+    public static final EventType REFUND_POSTED =
+            new EventType("ledger.refund-posted", 1, AGGREGATE_TYPE);
+
+    public static final EventType REFUND_POSTING_FAILED =
+            new EventType("ledger.refund-posting-failed", 1, AGGREGATE_TYPE);
+
     private LedgerEvents() {
     }
 }

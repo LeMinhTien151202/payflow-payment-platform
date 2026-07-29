@@ -48,7 +48,7 @@ Trước mọi feature, kiểm tra `OPEN_DECISIONS.md`; không implement phạm 
 | Tài liệu | Nội dung |
 | --- | --- |
 | [../docs/README.md](../docs/README.md) | Index tài liệu bàn giao |
-| [../docs/adr/README.md](../docs/adr/README.md) | ADR đã viết (ADR-004, ADR-007, ADR-011–ADR-018 theo index) |
+| [../docs/adr/README.md](../docs/adr/README.md) | ADR đã viết (ADR-004, ADR-007, ADR-011–ADR-021 theo index) |
 | [../docs/runbooks/local-development.md](../docs/runbooks/local-development.md) | Build, test và bật hạ tầng Docker |
 | [../docs/runbooks/saga-manual-review.md](../docs/runbooks/saga-manual-review.md) | Triage và resolution an toàn cho Saga manual review |
 
@@ -57,9 +57,9 @@ Trước mọi feature, kiểm tra `OPEN_DECISIONS.md`; không implement phạm 
 - Phase 1A payment intake/outbox core đã có code và test không Docker; PostgreSQL/Kafka gate vẫn chưa chạy.
 - Theo yêu cầu của repository owner, Phase 1B đã bắt đầu sớm ở phạm vi core Account/Reservation, Ledger, Risk, Payment Saga và Notification email mock. Các module này chưa phải deployable và không đồng nghĩa Phase 1B đã mở gate.
 - ADR-011/012/016/018 đã khóa risk decision, financial finalization, recovery gate và manual-review contract. Payment đã có Saga persistence/scheduler và Kafka consumer code với inbox + Payment/Saga + outbox transaction; PostgreSQL/Kafka runtime và E2E vẫn chưa được chạy.
-- ADR-019/020 đã khóa fee snapshot và refundable capacity. Payment có refund intake idempotent, Refund
-  aggregate/JPA, Payment row-lock adapter và `refund.requested` outbox code; Account/Ledger refund
-  workflow và PostgreSQL/Kafka runtime chưa chạy.
+- ADR-019/020/021 đã khóa fee snapshot, refundable capacity và thứ tự Ledger reversal → Account
+  credit → refund success. Pure core/contract cho cả ba boundary đã có; persistence/listener
+  Account-Ledger và PostgreSQL/Kafka runtime chưa được nối/chạy.
 - Build và test không cần Docker đã pass; hạ tầng Docker **chưa từng được start** và test cần Docker **chưa từng chạy**. Chi tiết và giới hạn nằm trong `IMPLEMENTATION_STATUS.md`.
 - Không mô tả feature là hoàn thành cho tới khi có code, test và lệnh tái tạo kết quả.
 - Spec vẫn là backlog tổng; `DELIVERY_ROADMAP.md` quyết định lát cắt được phép triển khai tiếp theo.

@@ -8,9 +8,9 @@ ledger/   -> immutable double-entry journals
 ```
 
 The current slice is **domain/application core only**. It is a normal Maven module but not yet a
-runnable Spring Boot application. Reserve command/result contracts, deadline enforcement and
-duplicate-intent policy now exist; persistence/listeners remain gated by OD-007 and by the missing
-PostgreSQL/Kafka evidence.
+runnable Spring Boot application. Reserve/release and refund-credit policies, principal reversal
+journal construction, causal event factories and duplicate-intent guards exist; persistence and
+listeners remain unverified without PostgreSQL/Kafka evidence.
 
 ## Run the Docker-free tests
 
@@ -39,6 +39,11 @@ After the Phase 1A gate and relevant ADRs are resolved, the next vertical slice 
 7. Outbox rows committed with each balance/journal mutation.
 8. PostgreSQL concurrency and transaction tests through Testcontainers; Kafka integration tests for
    duplicate delivery and acknowledgement timing.
+
+The refund core follows ADR-021: Ledger posts a new balanced `REFUND_REVERSAL` journal first,
+Account then credits the original account idempotently by `refundId`, and Payment publishes success
+only after both acknowledgements. A frozen account may receive a refund; a closed account is routed
+to recovery rather than silently credited or marked failed after the journal exists.
 
 Do not treat this module as deployable or Phase 1B-complete until those items have executable
 evidence.

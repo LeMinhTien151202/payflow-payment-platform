@@ -12,6 +12,12 @@ public final class RefundEvents {
     public static final EventType REFUND_REQUESTED =
             new EventType("refund.requested", 1, AGGREGATE_TYPE);
 
+    public static final EventType REFUND_SUCCEEDED =
+            new EventType("refund.succeeded", 1, AGGREGATE_TYPE);
+
+    public static final EventType REFUND_FAILED =
+            new EventType("refund.failed", 1, AGGREGATE_TYPE);
+
     private RefundEvents() {
     }
 }
