@@ -13,11 +13,13 @@ quy tắc an toàn trong [`.agent/AGENTS.md`](../../.agent/AGENTS.md).
 | [ADR-004](ADR-004-transactional-outbox-polling-publisher.md) | Transactional Outbox với polling publisher, Debezium để sau | ACCEPTED | 2026-07-26 |
 | [ADR-007](ADR-007-postgresql-money-representation.md) | PostgreSQL với `NUMERIC(19,4)` và `BigDecimal` cho mọi giá trị tiền | ACCEPTED | 2026-07-26 |
 | [ADR-011](ADR-011-ledger-capture-payment-success-ordering.md) | Ledger posted → explicit capture → payment success — resolves OD-001 | ACCEPTED | 2026-07-28 |
+| [ADR-012](ADR-012-failure-recovery-before-service-split.md) | Failure recovery là gate bắt buộc trước Phase 2 — resolves OD-002 | ACCEPTED | 2026-07-28 |
 | [ADR-013](ADR-013-platform-version-baseline.md) | Platform version baseline là Spring Boot 4.0.7 + Spring Cloud 2025.1.2 | ACCEPTED | 2026-07-26 |
 | [ADR-014](ADR-014-outbox-claim-lease-and-recovery.md) | Outbox claim lease, stale recovery và crash semantics — resolves OD-008 | ACCEPTED | 2026-07-26 |
 | [ADR-015](ADR-015-risk-score-saturation-and-level-bands.md) | Risk score v1 dùng saturation và level band cố định — resolves OD-009 | ACCEPTED | 2026-07-27 |
 | [ADR-016](ADR-016-risk-assessment-event-taxonomy.md) | Một `risk.assessment.completed` hợp nhất — resolves OD-003 | ACCEPTED | 2026-07-28 |
 | [ADR-017](ADR-017-postgresql-inbox-insert-if-new.md) | PostgreSQL inbox insert-if-new trong local transaction — resolves OD-007 | ACCEPTED | 2026-07-28 |
+| [ADR-018](ADR-018-payment-manual-review-contract.md) | Payment `MANUAL_REVIEW_REQUIRED` và resolution theo Saga facts — resolves OD-006 | ACCEPTED | 2026-07-28 |
 
 Các ADR còn lại trong khoảng ADR-001…ADR-012 vẫn ở trạng thái `PROPOSED` và chưa có
 file: chúng thuộc phạm vi Phase 1B trở đi và sẽ được viết khi đúng lát cắt được triển

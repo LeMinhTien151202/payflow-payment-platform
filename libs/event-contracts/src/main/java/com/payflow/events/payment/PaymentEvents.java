@@ -28,6 +28,10 @@ public final class PaymentEvents {
     public static final EventType PAYMENT_SUCCEEDED =
             new EventType("payment.succeeded", 1, AGGREGATE_TYPE);
 
+    /** Automated processing stopped and an auditable operations decision is required. ADR-018. */
+    public static final EventType MANUAL_REVIEW_REQUIRED =
+            new EventType("payment.manual-review-required", 1, AGGREGATE_TYPE);
+
     private PaymentEvents() {
     }
 }

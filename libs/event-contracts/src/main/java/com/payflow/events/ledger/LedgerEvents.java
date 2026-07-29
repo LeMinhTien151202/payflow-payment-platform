@@ -13,6 +13,9 @@ public final class LedgerEvents {
     public static final EventType POST_PAYMENT_REQUESTED =
             new EventType("ledger.post-payment.requested", 1, AGGREGATE_TYPE);
 
+    public static final EventType PAYMENT_POSTING_FAILED =
+            new EventType("ledger.payment-posting-failed", 1, AGGREGATE_TYPE);
+
     private LedgerEvents() {
     }
 }

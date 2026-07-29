@@ -65,6 +65,27 @@ class PaymentIntakeSchemaIT extends AbstractPostgresIT {
                                     newPaymentId(), randomMerchant(), "100", "VND", "IN_PROGRESS"));
         }
 
+        @Test
+        @DisplayName("MANUAL_REVIEW_REQUIRED is a persisted non-terminal payment status")
+        void manualReviewStatusIsAccepted() {
+            UUID payment = newPaymentId();
+
+            insertPayment(
+                    payment,
+                    randomMerchant(),
+                    "100",
+                    "VND",
+                    "MANUAL_REVIEW_REQUIRED");
+            insertHistory(payment, "PROCESSING", "MANUAL_REVIEW_REQUIRED");
+            insertHistory(payment, "MANUAL_REVIEW_REQUIRED", "FAILED");
+
+            assertThat(jdbcTemplate.queryForObject(
+                            "SELECT status FROM payment.payments WHERE id = ?",
+                            String.class,
+                            payment))
+                    .isEqualTo("MANUAL_REVIEW_REQUIRED");
+        }
+
         /**
          * The reason {@code PaymentCreatedData} and the domain {@code Money} both reject a scale
          * greater than four instead of leaving it to the column.
@@ -175,6 +196,16 @@ class PaymentIntakeSchemaIT extends AbstractPostgresIT {
             insertHistory(payment, null, "CREATED");
         }
 
+        @Test
+        @DisplayName("history rejects an unrecognised previous status")
+        void previousStatusMustBeKnown() {
+            UUID payment = insertPayment("100");
+
+            assertViolates(
+                    "payment_status_history_from_status_known",
+                    () -> insertHistory(payment, "UNKNOWN_PREVIOUS_STATE", "FAILED"));
+        }
+
         /**
          * The audit trail's whole value is that it cannot be quietly corrected. A test that only
          * checked the insert path would leave the interesting half unverified.
@@ -208,6 +239,86 @@ class PaymentIntakeSchemaIT extends AbstractPostgresIT {
                                     String.class,
                                     historyId))
                     .isEqualTo("CREATED");
+        }
+    }
+
+    @Nested
+    @DisplayName("payment_sagas")
+    class PaymentSagas {
+
+        @Test
+        @DisplayName("POST_LEDGER cannot be persisted without the committed reservation fact")
+        void postLedgerRequiresReservationFact() {
+            UUID payment = insertPayment("100");
+
+            assertViolates(
+                    "payment_sagas_reservation_fact_required",
+                    () -> insertSaga(
+                            payment, "POST_LEDGER", "RUNNING", null, null));
+        }
+
+        @Test
+        @DisplayName("automatic release is forbidden after a posted journal fact")
+        void releaseCannotCoexistWithJournalFact() {
+            UUID payment = insertPayment("100");
+
+            assertViolates(
+                    "payment_sagas_no_release_after_journal",
+                    () -> insertSaga(
+                            payment,
+                            "RELEASE_FUNDS",
+                            "COMPENSATING",
+                            UUID.randomUUID(),
+                            UUID.randomUUID()));
+        }
+
+        @Test
+        @DisplayName("one payment owns exactly one durable Saga")
+        void paymentOwnsOneSaga() {
+            UUID payment = insertPayment("100");
+            insertSaga(payment, "RISK_ASSESSMENT", "RUNNING", null, null);
+
+            assertViolates(
+                    "uq_payment_sagas_payment",
+                    () -> insertSaga(payment, "RISK_ASSESSMENT", "RUNNING", null, null));
+        }
+
+        @Test
+        @DisplayName("due and manual-review scheduler indexes remain partial")
+        void schedulerIndexesArePartial() {
+            assertThat(indexDefinition("idx_payment_sagas_due"))
+                    .contains("deadline_at")
+                    .contains("WHERE")
+                    .contains("RUNNING")
+                    .contains("COMPENSATING");
+            assertThat(indexDefinition("idx_payment_sagas_manual_review"))
+                    .contains("updated_at")
+                    .contains("WHERE")
+                    .contains("MANUAL_REVIEW_REQUIRED");
+        }
+
+        @Test
+        @DisplayName("optimistic version starts at zero")
+        void optimisticVersionDefaultsToZero() {
+            UUID payment = insertPayment("100");
+            UUID saga = insertSaga(payment, "RISK_ASSESSMENT", "RUNNING", null, null);
+
+            assertThat(jdbcTemplate.queryForObject(
+                            "SELECT version FROM payment.payment_sagas WHERE id = ?",
+                            Long.class,
+                            saga))
+                    .isZero();
+        }
+
+        private String indexDefinition(String indexName) {
+            List<String> definitions = jdbcTemplate.queryForList(
+                    "SELECT indexdef FROM pg_indexes WHERE schemaname = 'payment'"
+                            + " AND indexname = ?",
+                    String.class,
+                    indexName);
+
+            assertThat(definitions).as("index %s must exist", indexName).hasSize(1);
+            return definitions.getFirst();
         }
     }
 
@@ -438,6 +549,26 @@ class PaymentIntakeSchemaIT extends AbstractPostgresIT {
                 key,
                 "hash-" + key,
                 UUID.randomUUID());
+    }
+
+    private UUID insertSaga(
+            UUID paymentId,
+            String step,
+            String status,
+            UUID reservationId,
+            UUID journalId) {
+        UUID id = UUID.randomUUID();
+        jdbcTemplate.update(
+                "INSERT INTO payment.payment_sagas (id, payment_id, current_step, status,"
+                        + " deadline_at, reservation_id, journal_id, created_at, updated_at)"
+                        + " VALUES (?, ?, ?, ?, now() + interval '30 seconds', ?, ?, now(), now())",
+                id,
+                paymentId,
+                step,
+                status,
+                reservationId,
+                journalId);
+        return id;
     }
 
     /**

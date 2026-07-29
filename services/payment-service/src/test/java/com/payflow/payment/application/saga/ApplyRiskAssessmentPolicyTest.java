@@ -52,13 +52,13 @@ class ApplyRiskAssessmentPolicyTest {
     }
 
     @Test
-    void reviewRequiredWaitsWithoutStartingFinancialWork() {
+    void reviewRequiredEntersExplicitManualReviewWithoutStartingFinancialWork() {
         Payment payment = paymentCheckingRisk();
 
         assertThat(policy.apply(
                         payment, assessment(RiskDecisionValue.REVIEW_REQUIRED), ASSESSED_AT))
                 .isEqualTo(PaymentRiskAction.AWAIT_MANUAL_REVIEW);
-        assertThat(payment.status()).isEqualTo(PaymentStatus.RISK_CHECKING);
+        assertThat(payment.status()).isEqualTo(PaymentStatus.MANUAL_REVIEW_REQUIRED);
     }
 
     @Test

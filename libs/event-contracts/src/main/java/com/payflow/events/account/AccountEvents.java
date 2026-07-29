@@ -23,6 +23,12 @@ public final class AccountEvents {
     public static final EventType FUNDS_CAPTURED =
             new EventType("account.funds-captured", 1, AGGREGATE_TYPE);
 
+    public static final EventType RELEASE_REQUESTED =
+            new EventType("account.release.requested", 1, AGGREGATE_TYPE);
+
+    public static final EventType FUNDS_RELEASED =
+            new EventType("account.funds-released", 1, AGGREGATE_TYPE);
+
     private AccountEvents() {
     }
 }

@@ -14,11 +14,11 @@ File này ghi các điểm chưa đủ rõ trong spec hoặc đang mâu thuẫn 
 | ID | Trạng thái | Blocker | Phạm vi bị chặn |
 | --- | --- | --- | --- |
 | OD-001 | RESOLVED | Thứ tự ledger post, account capture và payment success | Mở khóa bằng ADR-011 |
-| OD-002 | OPEN | Failure-recovery gate được remap từ spec Phase 2 | Transition sau Phase 1B |
+| OD-002 | RESOLVED | Failure-recovery gate được remap từ spec Phase 2 | ADR-012 bắt buộc recovery trước service split/Phase 2 |
 | OD-003 | RESOLVED | Risk decision và payment rejection event taxonomy | Mở khóa bằng ADR-016 |
 | OD-004 | OPEN | Fee policy/rate/rounding snapshot lịch sử | Fee, refund economics, settlement |
 | OD-005 | OPEN | Atomic refundable-capacity reservation | Refund intake/concurrency |
-| OD-006 | OPEN | Payment state khi Saga cần manual review | Timeout/recovery API và event |
+| OD-006 | RESOLVED | Payment state khi Saga cần manual review | ADR-018 thêm status/event và resolution theo Saga facts |
 | OD-007 | RESOLVED | PostgreSQL inbox insert-if-new semantics | Mở khóa bằng ADR-017; runtime vẫn cần PostgreSQL/Kafka test |
 | OD-008 | RESOLVED | Outbox claim lease và stale recovery | Đã mở khoá bằng ADR-004 + ADR-014 |
 | OD-009 | RESOLVED | Risk score normalization/range | Đã mở khoá bằng ADR-015 |
@@ -55,6 +55,10 @@ Chọn một trong hai:
 
 - giữ đúng spec và đưa reliability hardening vào đầu Phase 2 trước service split; hoặc
 - accept ADR-012 để nâng reliability hardening thành pre-Phase-2 gate bắt buộc.
+
+**Đã chốt** bằng [`docs/adr/ADR-012`](../docs/adr/ADR-012-failure-recovery-before-service-split.md):
+failure recovery là gate bắt buộc trước service split và trước feature Phase 2. Pure core/migration
+không Docker không đủ mở gate; PostgreSQL/Kafka/E2E failure evidence vẫn bắt buộc.
 
 ## OD-003 — Risk and rejection events
 
@@ -95,6 +99,10 @@ Quyết định phải định nghĩa một atomic capacity reservation cho mọ
 Saga có `MANUAL_REVIEW_REQUIRED` nhưng Payment state machine không có trạng thái tương ứng. Không tự thêm Payment status hoặc để `PROCESSING` vô hạn.
 
 Quyết định phải nêu Payment status/API response/event, allowed operations, SLA/alert, operations action và transition sau review/compensation.
+
+**Đã chốt** bằng [`docs/adr/ADR-018`](../docs/adr/ADR-018-payment-manual-review-contract.md):
+Payment thêm non-terminal `MANUAL_REVIEW_REQUIRED`, API GET công bố state này và Payment phát event
+v1 cùng tên. Resolution phải đọc Saga step/facts và audit; sau journal POSTED không tự release.
 
 ## OD-007 — Inbox conflict semantics
 

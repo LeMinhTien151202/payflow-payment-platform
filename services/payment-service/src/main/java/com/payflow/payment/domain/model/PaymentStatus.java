@@ -34,6 +34,9 @@ public enum PaymentStatus {
     /** Funds reserved; capture and ledger posting in progress. */
     PROCESSING,
 
+    /** Automated processing stopped; operations must resolve the durable Saga facts. ADR-018. */
+    MANUAL_REVIEW_REQUIRED,
+
     /** Money moved. Not terminal: a refund can still follow. */
     SUCCEEDED,
 
@@ -52,9 +55,14 @@ public enum PaymentStatus {
     private static final Map<PaymentStatus, Set<PaymentStatus>> ALLOWED_TRANSITIONS =
             Map.ofEntries(
                     entry(CREATED, Set.of(RISK_CHECKING, CANCELLED)),
-                    entry(RISK_CHECKING, Set.of(RISK_REJECTED, RESERVING_FUNDS, CANCELLED)),
-                    entry(RESERVING_FUNDS, Set.of(PROCESSING, FAILED)),
-                    entry(PROCESSING, Set.of(SUCCEEDED, FAILED)),
+                    entry(
+                            RISK_CHECKING,
+                            Set.of(RISK_REJECTED, RESERVING_FUNDS, CANCELLED, MANUAL_REVIEW_REQUIRED)),
+                    entry(RESERVING_FUNDS, Set.of(PROCESSING, FAILED, MANUAL_REVIEW_REQUIRED)),
+                    entry(PROCESSING, Set.of(SUCCEEDED, FAILED, MANUAL_REVIEW_REQUIRED)),
+                    entry(
+                            MANUAL_REVIEW_REQUIRED,
+                            Set.of(RISK_REJECTED, RESERVING_FUNDS, PROCESSING, FAILED)),
                     entry(SUCCEEDED, Set.of(PARTIALLY_REFUNDED, REFUNDED)),
                     entry(PARTIALLY_REFUNDED, Set.of(REFUNDED)),
                     entry(RISK_REJECTED, Set.of()),

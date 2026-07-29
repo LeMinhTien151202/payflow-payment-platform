@@ -28,12 +28,13 @@ ADR chính thức (đã viết) nằm ở [`docs/adr/`](../../docs/adr/README.md
 | ADR-009 | Monorepo + shared-contract giới hạn | PROPOSED |
 | ADR-010 | OpenTelemetry cho distributed tracing | PROPOSED |
 | ADR-011 | Điểm commit thành công giữa ledger post, payment success và account capture | ACCEPTED — [docs/adr/ADR-011](../../docs/adr/ADR-011-ledger-capture-payment-success-ordering.md) |
-| ADR-012 | Đưa failure-recovery hardening thành gate trước service split | PROPOSED |
+| ADR-012 | Đưa failure-recovery hardening thành gate trước service split | ACCEPTED — [docs/adr/ADR-012](../../docs/adr/ADR-012-failure-recovery-before-service-split.md) |
 | ADR-013 | Platform version baseline: Spring Boot 4.0.7 + Spring Cloud 2025.1.2 | ACCEPTED — [docs/adr/ADR-013](../../docs/adr/ADR-013-platform-version-baseline.md) |
 | ADR-014 | Outbox claim lease, stale recovery và crash semantics | ACCEPTED — [docs/adr/ADR-014](../../docs/adr/ADR-014-outbox-claim-lease-and-recovery.md) |
 | ADR-015 | Risk score v1 dùng saturation và level band cố định | ACCEPTED — [docs/adr/ADR-015](../../docs/adr/ADR-015-risk-score-saturation-and-level-bands.md) |
 | ADR-016 | Một `risk.assessment.completed` hợp nhất | ACCEPTED — [docs/adr/ADR-016](../../docs/adr/ADR-016-risk-assessment-event-taxonomy.md) |
 | ADR-017 | PostgreSQL inbox insert-if-new trong local transaction | ACCEPTED — [docs/adr/ADR-017](../../docs/adr/ADR-017-postgresql-inbox-insert-if-new.md) |
+| ADR-018 | Payment manual-review status/event và resolution theo Saga facts | ACCEPTED — [docs/adr/ADR-018](../../docs/adr/ADR-018-payment-manual-review-contract.md) |
 
 ADR-013 không có trong backlog gốc: nó phát sinh khi Phase 0 phát hiện spec §3.1 khai báo một cặp version không tồn tại (Spring Boot 4.1.x + Spring Cloud 2025.1.x). Quyết định được ghi lại thay vì âm thầm chọn một phía.
 
@@ -48,6 +49,9 @@ ADR-016 giải quyết hai taxonomy Risk cạnh tranh trong spec bằng một ev
 
 ADR-017 giải quyết OD-007 bằng `INSERT ... ON CONFLICT DO NOTHING`, affected-row gate và
 transaction propagation bắt buộc; duplicate không làm PostgreSQL transaction bị aborted.
+
+ADR-012 remap failure recovery thành gate bắt buộc trước Phase 2. ADR-018 giải quyết phần contract
+manual review bằng Payment status/event additive và cấm release sau journal fact.
 
 ## Quy tắc tạo ADR
 

@@ -110,7 +110,9 @@ class PaymentInboxSchemaIT extends AbstractPostgresIT {
                 .hasMessageContaining("injected business failure");
         assertThat(count(event.eventId())).isZero();
 
-        assertThat(transactions.execute(status -> processedEventStore.recordIfNew(event))).isTrue();
+        Boolean redeliveryAccepted =
+                transactions.execute(status -> processedEventStore.recordIfNew(event));
+        assertThat(redeliveryAccepted).isTrue();
         assertThat(count(event.eventId())).isEqualTo(1);
     }
 

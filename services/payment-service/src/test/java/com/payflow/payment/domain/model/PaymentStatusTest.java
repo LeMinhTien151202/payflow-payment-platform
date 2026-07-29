@@ -3,6 +3,7 @@ package com.payflow.payment.domain.model;
 import static com.payflow.payment.domain.model.PaymentStatus.CANCELLED;
 import static com.payflow.payment.domain.model.PaymentStatus.CREATED;
 import static com.payflow.payment.domain.model.PaymentStatus.FAILED;
+import static com.payflow.payment.domain.model.PaymentStatus.MANUAL_REVIEW_REQUIRED;
 import static com.payflow.payment.domain.model.PaymentStatus.PARTIALLY_REFUNDED;
 import static com.payflow.payment.domain.model.PaymentStatus.PROCESSING;
 import static com.payflow.payment.domain.model.PaymentStatus.REFUNDED;
@@ -10,6 +11,7 @@ import static com.payflow.payment.domain.model.PaymentStatus.RESERVING_FUNDS;
 import static com.payflow.payment.domain.model.PaymentStatus.RISK_CHECKING;
 import static com.payflow.payment.domain.model.PaymentStatus.RISK_REJECTED;
 import static com.payflow.payment.domain.model.PaymentStatus.SUCCEEDED;
+import static java.util.Map.entry;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
@@ -35,10 +37,17 @@ class PaymentStatusTest {
                     List.of(RISK_CHECKING, RISK_REJECTED),
                     List.of(RISK_CHECKING, RESERVING_FUNDS),
                     List.of(RISK_CHECKING, CANCELLED),
+                    List.of(RISK_CHECKING, MANUAL_REVIEW_REQUIRED),
                     List.of(RESERVING_FUNDS, PROCESSING),
                     List.of(RESERVING_FUNDS, FAILED),
+                    List.of(RESERVING_FUNDS, MANUAL_REVIEW_REQUIRED),
                     List.of(PROCESSING, SUCCEEDED),
                     List.of(PROCESSING, FAILED),
+                    List.of(PROCESSING, MANUAL_REVIEW_REQUIRED),
+                    List.of(MANUAL_REVIEW_REQUIRED, RISK_REJECTED),
+                    List.of(MANUAL_REVIEW_REQUIRED, RESERVING_FUNDS),
+                    List.of(MANUAL_REVIEW_REQUIRED, PROCESSING),
+                    List.of(MANUAL_REVIEW_REQUIRED, FAILED),
                     List.of(SUCCEEDED, PARTIALLY_REFUNDED),
                     List.of(SUCCEEDED, REFUNDED),
                     List.of(PARTIALLY_REFUNDED, REFUNDED));
@@ -73,18 +82,18 @@ class PaymentStatusTest {
     @Test
     @DisplayName("the terminal states are the four with no outgoing edge")
     void terminalStatesAreDerivedFromTheTable() {
-        Map<PaymentStatus, Boolean> terminal =
-                Map.of(
-                        CREATED, false,
-                        RISK_CHECKING, false,
-                        RESERVING_FUNDS, false,
-                        PROCESSING, false,
-                        SUCCEEDED, false,
-                        PARTIALLY_REFUNDED, false,
-                        RISK_REJECTED, true,
-                        FAILED, true,
-                        CANCELLED, true,
-                        REFUNDED, true);
+        Map<PaymentStatus, Boolean> terminal = Map.ofEntries(
+                entry(CREATED, false),
+                entry(RISK_CHECKING, false),
+                entry(RESERVING_FUNDS, false),
+                entry(PROCESSING, false),
+                entry(MANUAL_REVIEW_REQUIRED, false),
+                entry(SUCCEEDED, false),
+                entry(PARTIALLY_REFUNDED, false),
+                entry(RISK_REJECTED, true),
+                entry(FAILED, true),
+                entry(CANCELLED, true),
+                entry(REFUNDED, true));
 
         terminal.forEach(
                 (status, expected) ->

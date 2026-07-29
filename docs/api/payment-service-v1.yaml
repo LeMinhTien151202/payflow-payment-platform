@@ -129,18 +129,28 @@ components:
         currency: {type: string}
         createdAt: {type: string, format: date-time}
     PaymentDetail:
-      allOf:
-        - $ref: '#/components/schemas/PaymentAcceptance'
-        - type: object
-          required: [merchantId, merchantReference, customerId, sourceAccountId, updatedAt]
-          properties:
-            merchantId: {type: string, format: uuid}
-            merchantReference: {type: string}
-            customerId: {type: string, format: uuid}
-            sourceAccountId: {type: string, format: uuid}
-            description: {type: [string, 'null']}
-            metadata: {type: object, additionalProperties: {type: string}}
-            updatedAt: {type: string, format: date-time}
+      type: object
+      required:
+        [paymentId, merchantId, merchantReference, customerId, sourceAccountId,
+         amount, currency, status, createdAt, updatedAt]
+      properties:
+        paymentId: {type: string, format: uuid}
+        merchantId: {type: string, format: uuid}
+        merchantReference: {type: string}
+        customerId: {type: string, format: uuid}
+        sourceAccountId: {type: string, format: uuid}
+        amount: {type: number}
+        currency: {type: string}
+        status:
+          type: string
+          enum:
+            [CREATED, RISK_CHECKING, RISK_REJECTED, RESERVING_FUNDS, PROCESSING,
+             MANUAL_REVIEW_REQUIRED, SUCCEEDED, FAILED, CANCELLED,
+             PARTIALLY_REFUNDED, REFUNDED]
+        description: {type: [string, 'null']}
+        metadata: {type: object, additionalProperties: {type: string}}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
     ResponseMeta:
       type: object
       required: [correlationId, timestamp]

@@ -5,14 +5,18 @@ import com.payflow.events.EventType;
 import com.payflow.events.account.AccountCaptureRequestedData;
 import com.payflow.events.account.AccountEvents;
 import com.payflow.events.account.AccountFundsCapturedData;
+import com.payflow.events.account.AccountFundsReleasedData;
 import com.payflow.events.account.AccountFundsReservationFailedData;
 import com.payflow.events.account.AccountFundsReservedData;
+import com.payflow.events.account.AccountReleaseRequestedData;
 import com.payflow.events.account.AccountReserveRequestedData;
 import com.payflow.events.ledger.LedgerEvents;
 import com.payflow.events.ledger.LedgerPaymentPostedData;
+import com.payflow.events.ledger.LedgerPaymentPostingFailedData;
 import com.payflow.events.ledger.LedgerPostPaymentRequestedData;
 import com.payflow.events.payment.PaymentEvents;
 import com.payflow.events.payment.PaymentFailedData;
+import com.payflow.events.payment.PaymentManualReviewRequiredData;
 import com.payflow.events.payment.PaymentSucceededData;
 import com.payflow.events.risk.RiskAssessmentCompletedData;
 import com.payflow.events.risk.RiskDecisionValue;
@@ -81,6 +85,44 @@ public final class PaymentSagaEventFactory {
         requireCause(cause, AccountEvents.FUNDS_CAPTURED, data.paymentId());
         requireMoney(cause.data().amount(), cause.data().currency(), data.amount(), data.currency());
         return causedBy(eventId, PaymentEvents.PAYMENT_SUCCEEDED, cause, data.paymentId(), occurredAt, data);
+    }
+
+    public EventEnvelope<AccountReleaseRequestedData> releaseRequested(
+            UUID eventId,
+            EventEnvelope<LedgerPaymentPostingFailedData> cause,
+            AccountReleaseRequestedData data,
+            Instant occurredAt) {
+        requireCause(cause, LedgerEvents.PAYMENT_POSTING_FAILED, data.paymentId());
+        requireEqual("failure paymentId", cause.data().paymentId(), data.paymentId());
+        requireEqual("failure code", cause.data().failureCode(), data.reasonCode());
+        return causedBy(
+                eventId, AccountEvents.RELEASE_REQUESTED, cause, data.paymentId(), occurredAt, data);
+    }
+
+    public EventEnvelope<PaymentFailedData> compensationCompleted(
+            UUID eventId,
+            EventEnvelope<AccountFundsReleasedData> cause,
+            PaymentFailedData data,
+            Instant occurredAt) {
+        requireCause(cause, AccountEvents.FUNDS_RELEASED, data.paymentId());
+        return causedBy(
+                eventId, PaymentEvents.PAYMENT_FAILED, cause, data.paymentId(), occurredAt, data);
+    }
+
+    public EventEnvelope<PaymentManualReviewRequiredData> manualReviewRequired(
+            UUID eventId,
+            EventEnvelope<?> cause,
+            PaymentManualReviewRequiredData data,
+            Instant occurredAt) {
+        Objects.requireNonNull(cause, "cause");
+        requireEqual("cause aggregateId", data.paymentId().toString(), cause.aggregateId());
+        return causedBy(
+                eventId,
+                PaymentEvents.MANUAL_REVIEW_REQUIRED,
+                cause,
+                data.paymentId(),
+                occurredAt,
+                data);
     }
 
     private static void requireCause(

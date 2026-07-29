@@ -208,8 +208,8 @@ class PaymentTest {
     }
 
     @Test
-    @DisplayName("review-required leaves payment waiting and creates no false status history")
-    void reviewRequiredWaitsWithoutTouchingPaymentState() {
+    @DisplayName("review-required enters explicit manual review and records why")
+    void reviewRequiredEntersManualReview() {
         Payment payment = paymentCheckingRisk();
         int historySize = payment.recordedStatusChanges().size();
 
@@ -217,8 +217,10 @@ class PaymentTest {
                 PaymentRiskDecision.REVIEW_REQUIRED, LATER.plusSeconds(1));
 
         assertThat(action).isEqualTo(PaymentRiskAction.AWAIT_MANUAL_REVIEW);
-        assertThat(payment.status()).isEqualTo(PaymentStatus.RISK_CHECKING);
-        assertThat(payment.recordedStatusChanges()).hasSize(historySize);
+        assertThat(payment.status()).isEqualTo(PaymentStatus.MANUAL_REVIEW_REQUIRED);
+        assertThat(payment.recordedStatusChanges()).hasSize(historySize + 1);
+        assertThat(payment.recordedStatusChanges().getLast().reasonCode())
+                .isEqualTo("RISK_REVIEW_REQUIRED");
     }
 
     @Test

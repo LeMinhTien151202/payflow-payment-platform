@@ -8,13 +8,17 @@ import com.payflow.events.EventType;
 import com.payflow.events.account.AccountCaptureRequestedData;
 import com.payflow.events.account.AccountEvents;
 import com.payflow.events.account.AccountFundsCapturedData;
+import com.payflow.events.account.AccountFundsReleasedData;
 import com.payflow.events.account.AccountFundsReservationFailedData;
 import com.payflow.events.account.AccountFundsReservedData;
 import com.payflow.events.account.AccountReserveRequestedData;
+import com.payflow.events.account.AccountReleaseRequestedData;
 import com.payflow.events.ledger.LedgerEvents;
 import com.payflow.events.ledger.LedgerPaymentPostedData;
+import com.payflow.events.ledger.LedgerPaymentPostingFailedData;
 import com.payflow.events.ledger.LedgerPostPaymentRequestedData;
 import com.payflow.events.payment.PaymentFailedData;
+import com.payflow.events.payment.PaymentManualReviewRequiredData;
 import com.payflow.events.payment.PaymentSucceededData;
 import com.payflow.events.risk.RiskAssessmentCompletedData;
 import com.payflow.events.risk.RiskDecisionValue;
@@ -153,6 +157,43 @@ class PaymentSagaEventFactoryTest {
         assertThat(event.causationId()).isEqualTo(reserved().eventId().toString());
     }
 
+    @Test
+    void buildsReleaseAndCompensatedFailureChain() {
+        EventEnvelope<LedgerPaymentPostingFailedData> failed = ledgerFailed();
+        var release = factory.releaseRequested(
+                UUID.randomUUID(),
+                failed,
+                new AccountReleaseRequestedData(
+                        PAYMENT_ID,
+                        ACCOUNT_ID,
+                        RESERVATION_ID,
+                        AMOUNT,
+                        "VND",
+                        "LEDGER_JOURNAL_REJECTED"),
+                NOW.plusSeconds(6));
+        var paymentFailed = factory.compensationCompleted(
+                UUID.randomUUID(),
+                fundsReleased(),
+                new PaymentFailedData(
+                        PAYMENT_ID, "LEDGER_POSTING_FAILED", NOW.plusSeconds(8)),
+                NOW.plusSeconds(8));
+
+        assertEnvelope(release, "account.release.requested", failed.eventId());
+        assertEnvelope(paymentFailed, "payment.failed", fundsReleased().eventId());
+    }
+
+    @Test
+    void buildsManualReviewForSamePaymentCause() {
+        var event = factory.manualReviewRequired(
+                UUID.randomUUID(),
+                ledgerPosted(),
+                new PaymentManualReviewRequiredData(
+                        PAYMENT_ID, "CAPTURE_FUNDS", "CAPTURE_RETRY_EXHAUSTED"),
+                NOW.plusSeconds(8));
+
+        assertEnvelope(event, "payment.manual-review-required", ledgerPosted().eventId());
+    }
+
     private static void assertEnvelope(
             EventEnvelope<?> envelope, String eventType, UUID causationId) {
         assertThat(envelope.eventType()).isEqualTo(eventType);
@@ -227,5 +268,35 @@ class PaymentSagaEventFactoryTest {
                         AMOUNT,
                         "VND",
                         NOW.plusSeconds(6)));
+    }
+
+    private static EventEnvelope<LedgerPaymentPostingFailedData> ledgerFailed() {
+        return EventEnvelope.of(
+                UUID.fromString("61734b31-8e75-4570-bdc6-979fa02ab446"),
+                LedgerEvents.PAYMENT_POSTING_FAILED,
+                PAYMENT_ID.toString(),
+                CORRELATION_ID,
+                "account-ledger-service",
+                NOW.plusSeconds(5),
+                new LedgerPaymentPostingFailedData(
+                        PAYMENT_ID, "LEDGER_JOURNAL_REJECTED", NOW.plusSeconds(5)));
+    }
+
+    private static EventEnvelope<AccountFundsReleasedData> fundsReleased() {
+        return EventEnvelope.of(
+                UUID.fromString("71734b31-8e75-4570-bdc6-979fa02ab447"),
+                AccountEvents.FUNDS_RELEASED,
+                PAYMENT_ID.toString(),
+                CORRELATION_ID,
+                "account-ledger-service",
+                NOW.plusSeconds(7),
+                new AccountFundsReleasedData(
+                        PAYMENT_ID,
+                        ACCOUNT_ID,
+                        RESERVATION_ID,
+                        AMOUNT,
+                        "VND",
+                        "LEDGER_JOURNAL_REJECTED",
+                        NOW.plusSeconds(7)));
     }
 }

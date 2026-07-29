@@ -201,7 +201,7 @@ class PaymentControllerTest {
                         ACCOUNT_ID,
                         new BigDecimal("500000.0000"),
                         "VND",
-                        PaymentStatus.CREATED,
+                        PaymentStatus.MANUAL_REVIEW_REQUIRED,
                         "Thanh toán đơn hàng",
                         Map.of("orderId", "ORDER-2026-00001"),
                         NOW,
@@ -215,6 +215,7 @@ class PaymentControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.paymentId").value(PAYMENT_ID.toString()))
                 .andExpect(jsonPath("$.data.merchantId").value(MERCHANT_ID.toString()))
+                .andExpect(jsonPath("$.data.status").value("MANUAL_REVIEW_REQUIRED"))
                 .andExpect(jsonPath("$.meta.correlationId").value("api-get-1"));
 
         verify(getPayment).handle(PAYMENT_ID, MERCHANT_ID);

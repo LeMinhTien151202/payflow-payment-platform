@@ -180,9 +180,8 @@ public final class Payment {
      * Applies the decision semantics fixed by ADR-016 without performing any I/O.
      *
      * <p>The application consumer will persist the transition and its outgoing outbox event in one
-     * local transaction after OD-007 is implemented. REVIEW_REQUIRED deliberately records no status
-     * transition: the published state machine has no review status, so the payment remains
-     * RISK_CHECKING and no money is touched.
+     * local transaction. REVIEW_REQUIRED enters the explicit client-visible state fixed by ADR-018;
+     * no money is touched and only an audited Saga resolution may resume it.
      */
     public PaymentRiskAction applyRiskDecision(PaymentRiskDecision decision, Instant at) {
         Objects.requireNonNull(decision, "decision");
@@ -198,7 +197,13 @@ public final class Payment {
                 transitionTo(PaymentStatus.RISK_REJECTED, "RISK_REJECTED", at);
                 yield PaymentRiskAction.PUBLISH_PAYMENT_FAILED;
             }
-            case REVIEW_REQUIRED -> PaymentRiskAction.AWAIT_MANUAL_REVIEW;
+            case REVIEW_REQUIRED -> {
+                transitionTo(
+                        PaymentStatus.MANUAL_REVIEW_REQUIRED,
+                        "RISK_REVIEW_REQUIRED",
+                        at);
+                yield PaymentRiskAction.AWAIT_MANUAL_REVIEW;
+            }
         };
     }
 
@@ -212,6 +217,32 @@ public final class Payment {
     public void failFundsReservation(String reasonCode, Instant at) {
         Objects.requireNonNull(reasonCode, "reasonCode");
         requireStatus(PaymentStatus.RESERVING_FUNDS, "fail funds reservation");
+        transitionTo(PaymentStatus.FAILED, reasonCode, at);
+    }
+
+    /** Stops automated processing without guessing a financial outcome. ADR-018. */
+    public void requireManualReview(String reasonCode, Instant at) {
+        Objects.requireNonNull(reasonCode, "reasonCode");
+        if (status != PaymentStatus.RISK_CHECKING
+                && status != PaymentStatus.RESERVING_FUNDS
+                && status != PaymentStatus.PROCESSING) {
+            throw new UnexpectedPaymentStatusException(
+                    id,
+                    PaymentStatus.MANUAL_REVIEW_REQUIRED,
+                    status,
+                    "enter manual review");
+        }
+        transitionTo(PaymentStatus.MANUAL_REVIEW_REQUIRED, reasonCode, at);
+    }
+
+    /** A committed pre-ledger release makes failure safe and final. */
+    public void failAfterCompensation(String reasonCode, Instant at) {
+        Objects.requireNonNull(reasonCode, "reasonCode");
+        if (status != PaymentStatus.PROCESSING
+                && status != PaymentStatus.MANUAL_REVIEW_REQUIRED) {
+            throw new UnexpectedPaymentStatusException(
+                    id, PaymentStatus.PROCESSING, status, "complete compensation");
+        }
         transitionTo(PaymentStatus.FAILED, reasonCode, at);
     }
 
