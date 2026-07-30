@@ -1,0 +1,15 @@
+.git
+.github
+.idea
+.vscode
+.claude
+.codex
+.agent
+.agents
+.docs
+**/target
+**/*.log
+.env
+.env.*
+docs
+PAYFLOW_MICROSERVICE_PROJECT_SPEC.md

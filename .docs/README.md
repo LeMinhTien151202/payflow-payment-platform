@@ -52,17 +52,24 @@ Trước mọi feature, kiểm tra `OPEN_DECISIONS.md`; không implement phạm 
 | [../docs/runbooks/local-development.md](../docs/runbooks/local-development.md) | Build, test và bật hạ tầng Docker |
 | [../docs/runbooks/saga-manual-review.md](../docs/runbooks/saga-manual-review.md) | Triage và resolution an toàn cho Saga manual review |
 | [../docs/runbooks/outbox-recovery.md](../docs/runbooks/outbox-recovery.md) | Triage và requeue có kiểm soát cho outbox publisher |
+| [../docs/runbooks/notification-delivery-failure.md](../docs/runbooks/notification-delivery-failure.md) | Triage read-only cho Notification delivery failure |
 
 ## Trạng thái hiện tại
 
 - Phase 1A payment intake/outbox core đã có code và test không Docker; PostgreSQL/Kafka gate vẫn chưa chạy.
-- Theo yêu cầu của repository owner, Phase 1B đã bắt đầu sớm ở phạm vi core Account/Reservation, Ledger, Risk, Payment Saga và Notification email mock. Các module này chưa phải deployable và không đồng nghĩa Phase 1B đã mở gate.
+- Theo yêu cầu của repository owner, Phase 1B được triển khai code-first. Payment, Account-Ledger, Risk và Notification đã có deployable/runtime adapters. Điều này không đồng nghĩa Phase 1B đã mở gate vì PostgreSQL/Redis/Kafka/Keycloak thật chưa chạy.
 - ADR-011/012/016/018 đã khóa risk decision, financial finalization, recovery gate và manual-review contract. Payment đã có Saga persistence/scheduler và Kafka consumer code với inbox + Payment/Saga + outbox transaction; PostgreSQL/Kafka runtime và E2E vẫn chưa được chạy.
 - ADR-019/020/021 đã khóa fee snapshot, refundable capacity và thứ tự Ledger reversal → Account
   credit → refund success. Pure core/contract cho cả ba boundary đã có; Payment refund outcome
   consumer đã nối inbox + row lock + state + outbox transaction và lưu durable journal/credit ID.
   Account-Ledger đã có Spring Boot, Flyway/JPA/JDBC, refund consumers và ADR-014 outbox publisher
   code-first; toàn bộ PostgreSQL/Kafka runtime vẫn chưa được chạy.
+- Risk đã có Spring Boot, Redis velocity, Flyway/JDBC inbox + assessment + outbox transaction,
+  payment.created consumer và ADR-014 publisher. Contract v1 mới tự động hóa amount/velocity;
+  PostgreSQL/Redis/Kafka runtime và bốn enrichment signal còn lại chưa được kiểm chứng.
+- Notification đã có Spring Boot, Flyway/JDBC inbox + notification transaction, Payment/Refund
+  outcome consumers và lease-based email mock worker. PostgreSQL/Kafka/DLT/crash-window mới có
+  Testcontainers code, chưa được chạy; webhook và audited manual retry vẫn thuộc Phase 2.
 - Build và test không cần Docker đã pass; hạ tầng Docker **chưa từng được start** và test cần Docker **chưa từng chạy**. Chi tiết và giới hạn nằm trong `IMPLEMENTATION_STATUS.md`.
 - Không mô tả feature là hoàn thành cho tới khi có code, test và lệnh tái tạo kết quả.
 - Spec vẫn là backlog tổng; `DELIVERY_ROADMAP.md` quyết định lát cắt được phép triển khai tiếp theo.

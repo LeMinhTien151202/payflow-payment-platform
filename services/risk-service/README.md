@@ -1,40 +1,57 @@
 # risk-service
 
-Phase 1B deterministic risk-policy core. The current module evaluates the seven rules from spec
-§7.7 and classifies a normalized score according to
-[ADR-015](../../docs/adr/ADR-015-risk-score-saturation-and-level-bands.md).
-It also maps the immutable assessment to `risk.assessment.completed` v1 according to
-[ADR-016](../../docs/adr/ADR-016-risk-assessment-event-taxonomy.md), preserving the
-`payment.created` correlation and causation chain.
+Runnable Phase 1B Risk boundary for `payment.created -> risk.assessment.completed`.
 
-It is intentionally a pure Java Maven module, not yet a runnable Spring Boot service. The event
-schema and factory are verified, but no Redis, PostgreSQL, Kafka broker, consumer, outbox or REST
-endpoint is claimed by this slice.
+The domain remains deterministic and framework-free. Runtime adapters add:
+
+- Redis customer velocity windows with payment-id deduplication;
+- one immutable PostgreSQL assessment per payment;
+- inbox + assessment + Risk-owned outbox in one local transaction;
+- manual-ack Kafka consumption with bounded retry and DLT recovery;
+- ADR-014 lease-based outbox publishing with stable event IDs;
+- deny-by-default HTTP security; only health probes are public.
 
 ## Run without Docker
 
 ```powershell
-.\mvnw.cmd -B -ntp -Pno-docker -pl services/risk-service -am test
+.\mvnw.cmd -B -ntp -Pno-docker -pl services/risk-service -am verify
 ```
 
-## Input semantics
+This runs domain/application/messaging tests and compiles the Docker-tagged PostgreSQL + Redis
+integration suite without starting containers.
 
-- `paymentCountLastMinute` includes the candidate payment; the sixth payment matches `VELOCITY_1M`.
-- `totalAmountLastHour` includes the candidate payment; an amount strictly greater than 30,000,000
-  VND matches `VELOCITY_1H`.
-- `failedPaymentsLastTenMinutes` counts prior failed payments; three or more matches `FAILED_BURST`.
-- MVP currency is VND.
+## Runtime configuration for later
 
-## Infrastructure work deferred
+Required when the infrastructure is started:
 
-After the earlier gates are available:
+- `PAYFLOW_RISK_DB_USERNAME`
+- `PAYFLOW_RISK_DB_PASSWORD`
 
-1. Add Spring Boot bootstrap and deny-by-default actuator/security configuration.
-2. Collect velocity inputs atomically in Redis with expiry and a documented failure policy.
-3. Persist one assessment per payment with normalized score, matched rules and database constraints.
-4. Add inbox + business mutation + outbox in one local transaction after OD-007 is resolved.
-5. Publish the already-defined event through a Risk-owned outbox; never publish directly from the
-   consumer transaction.
-6. Prove Redis/PostgreSQL/Kafka behavior through Testcontainers and duplicate-event tests.
+Optional overrides include `PAYFLOW_RISK_DB_URL`, `PAYFLOW_REDIS_HOST`, `PAYFLOW_REDIS_PORT`,
+`PAYFLOW_KAFKA_BOOTSTRAP_SERVERS`, and `PAYFLOW_OIDC_ISSUER_URI`. The service exposes no business
+REST controller because its current input and output are Kafka contracts.
 
-Do not describe this module as a deployable service or a completed Phase 1B workflow yet.
+## Transaction and failure boundary
+
+Redis collection finishes before the PostgreSQL transaction starts. A Redis error fails the Kafka
+attempt and therefore follows bounded retry/DLT; Risk never silently approves with an unknown
+velocity value. Once signals are available, `processed_events`, `risk_assessments`, and
+`outbox_events` commit or roll back together. Kafka is contacted later by the polling publisher.
+
+`paymentCountLastMinute` and `totalAmountLastHour` include the candidate payment. Redis uses the
+event occurrence time, not consumer wall-clock time, and money totals are added as decimal minor-unit
+strings rather than Lua floating point.
+
+## Contract v1 limitation
+
+`payment.created` v1 carries no trusted device, IP-country, failed-payment-burst, or merchant
+blacklist signal. The runtime therefore supplies neutral values for those four rules and persists
+that complete input snapshot. Amount and Redis velocity rules are active. Activating the remaining
+rules requires a versioned enrichment contract; the service does not infer or invent those facts.
+
+## Verification still pending
+
+`RiskWorkflowPersistenceIT` is prepared for real PostgreSQL + Redis. It proves sixth-payment
+velocity, duplicate delivery, one assessment/outbox per payment, and rollback after an injected
+outbox failure. It remains unverified until Docker is enabled. Real Kafka acknowledgement,
+redelivery, partition ordering, DLT publication, and crash-window behavior also remain pending.

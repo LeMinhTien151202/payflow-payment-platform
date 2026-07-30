@@ -5,7 +5,8 @@
 # network exposure beyond localhost.
 #
 #   cp .env.example .env      # then fill in local values
-#   docker compose up -d
+#   docker compose --profile infra up -d
+#   docker compose --profile mvp up -d --build
 #   docker compose ps         # all services must report (healthy)
 #
 # Image tags are pinned to exact patch versions. A floating tag would make "works on my machine"
@@ -15,6 +16,7 @@ name: payflow
 
 services:
   postgres:
+    profiles: ["infra", "mvp", "full"]
     image: postgres:17.10-alpine
     container_name: payflow-postgres
     restart: unless-stopped
@@ -27,10 +29,16 @@ services:
       # Consumed by 01-create-databases.sh to provision one owner role per service database.
       PAYFLOW_PAYMENT_DB_USERNAME: ${PAYFLOW_PAYMENT_DB_USERNAME}
       PAYFLOW_PAYMENT_DB_PASSWORD: ${PAYFLOW_PAYMENT_DB_PASSWORD}
+      PAYFLOW_ACCOUNT_LEDGER_DB_USERNAME: ${PAYFLOW_ACCOUNT_LEDGER_DB_USERNAME}
+      PAYFLOW_ACCOUNT_LEDGER_DB_PASSWORD: ${PAYFLOW_ACCOUNT_LEDGER_DB_PASSWORD}
+      PAYFLOW_RISK_DB_USERNAME: ${PAYFLOW_RISK_DB_USERNAME}
+      PAYFLOW_RISK_DB_PASSWORD: ${PAYFLOW_RISK_DB_PASSWORD}
+      PAYFLOW_NOTIFICATION_DB_USERNAME: ${PAYFLOW_NOTIFICATION_DB_USERNAME}
+      PAYFLOW_NOTIFICATION_DB_PASSWORD: ${PAYFLOW_NOTIFICATION_DB_PASSWORD}
       KEYCLOAK_DB_USERNAME: ${KEYCLOAK_DB_USERNAME}
       KEYCLOAK_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
     ports:
-      - "${POSTGRES_PORT}:5432"
+      - "127.0.0.1:${POSTGRES_PORT}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
       # Runs once, only when the data volume is empty. Delete the volume to re-run it.
@@ -45,6 +53,7 @@ services:
       start_period: 10s
 
   redis:
+    profiles: ["infra", "mvp", "full"]
     image: redis:8.2.8-alpine
     container_name: payflow-redis
     restart: unless-stopped
@@ -53,7 +62,7 @@ services:
     # off: nothing stored here may ever be the source of truth for money.
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     ports:
-      - "${REDIS_PORT}:6379"
+      - "127.0.0.1:${REDIS_PORT}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -61,6 +70,7 @@ services:
       retries: 20
 
   kafka:
+    profiles: ["infra", "mvp", "full"]
     image: apache/kafka:4.3.1
     container_name: payflow-kafka
     restart: unless-stopped
@@ -86,7 +96,7 @@ services:
       # empty topic that never receives the events anyone is waiting for.
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
     ports:
-      - "${KAFKA_PORT}:9092"
+      - "127.0.0.1:${KAFKA_PORT}:9092"
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
@@ -96,10 +106,43 @@ services:
       retries: 20
       start_period: 20s
 
+  # Kafka topic auto-creation is disabled. This one-shot local provisioner creates the exact
+  # versioned contracts before any listener starts; application NewTopic beans remain the owner-side
+  # declarations and verify the same shape.
+  kafka-init:
+    profiles: ["infra", "mvp", "full"]
+    image: apache/kafka:4.3.1
+    container_name: payflow-kafka-init
+    restart: "no"
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - /bin/bash
+      - -ec
+      - |
+        for topic in \
+          payflow.payment.events.v1 \
+          payflow.account.events.v1 \
+          payflow.ledger.events.v1 \
+          payflow.risk.events.v1 \
+          payflow.refund.events.v1 \
+          payflow.dead-letter.v1
+        do
+          /opt/kafka/bin/kafka-topics.sh \
+            --bootstrap-server kafka:19092 \
+            --create --if-not-exists \
+            --topic "$${topic}" \
+            --partitions 3 \
+            --replication-factor 1
+        done
+
   keycloak:
+    profiles: ["infra", "mvp", "full"]
     image: quay.io/keycloak/keycloak:26.7.0
     container_name: payflow-keycloak
     restart: unless-stopped
+    mem_limit: 1g
     # start-dev, not start: HTTP is allowed and no hostname is required. Never use this flag outside
     # a local sandbox.
     command:
@@ -116,13 +159,16 @@ services:
       KC_DB_USERNAME: ${KEYCLOAK_DB_USERNAME}
       KC_DB_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
       KC_HTTP_PORT: 8080
+      # Tokens use the host-visible issuer. Application containers fetch JWKS through an explicit
+      # internal URL while still validating this public `iss` value.
+      KC_HOSTNAME: http://localhost:${KEYCLOAK_PORT}
       # Read by the realm import to fill in the client secrets, so no secret is committed to
       # realm-payflow.json. Both clients are needed: payflow-readonly exists to prove 403, and a
       # client whose secret never got substituted cannot obtain a token to prove it with.
       PAYFLOW_SERVICE_CLIENT_SECRET: ${PAYFLOW_SERVICE_CLIENT_SECRET}
       PAYFLOW_READONLY_CLIENT_SECRET: ${PAYFLOW_READONLY_CLIENT_SECRET}
     ports:
-      - "${KEYCLOAK_PORT}:8080"
+      - "127.0.0.1:${KEYCLOAK_PORT}:8080"
     volumes:
       - ./infrastructure/keycloak:/opt/keycloak/data/import:ro
     depends_on:
@@ -144,6 +190,208 @@ services:
       timeout: 10s
       retries: 30
       start_period: 30s
+
+  payment-service:
+    profiles: ["mvp", "full"]
+    image: payflow/payment-service:dev
+    build:
+      context: .
+      dockerfile: infrastructure/docker/java-service.Dockerfile
+      args:
+        SERVICE_MODULE: payment-service
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      PAYFLOW_PAYMENT_DB_URL: jdbc:postgresql://postgres:5432/payflow_payment
+      PAYFLOW_PAYMENT_DB_USERNAME: ${PAYFLOW_PAYMENT_DB_USERNAME}
+      PAYFLOW_PAYMENT_DB_PASSWORD: ${PAYFLOW_PAYMENT_DB_PASSWORD}
+      PAYFLOW_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS: ${PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS}
+      PAYFLOW_OIDC_ISSUER_URI: ${PAYFLOW_OIDC_ISSUER_URI}
+      PAYFLOW_OIDC_JWK_SET_URI: http://keycloak:8080/realms/payflow/protocol/openid-connect/certs
+      PAYFLOW_OUTBOX_ENABLED: ${PAYFLOW_OUTBOX_ENABLED}
+      PAYFLOW_OUTBOX_POLL_INTERVAL: ${PAYFLOW_OUTBOX_POLL_INTERVAL}
+      PAYFLOW_OUTBOX_BATCH_SIZE: ${PAYFLOW_OUTBOX_BATCH_SIZE}
+      PAYFLOW_OUTBOX_LEASE: ${PAYFLOW_OUTBOX_LEASE}
+      PAYFLOW_OUTBOX_MAX_ATTEMPTS: ${PAYFLOW_OUTBOX_MAX_ATTEMPTS}
+      PAYFLOW_OUTBOX_MAX_BACKOFF: ${PAYFLOW_OUTBOX_MAX_BACKOFF}
+      PAYFLOW_WORKFLOW_CONSUMER_ENABLED: ${PAYFLOW_WORKFLOW_CONSUMER_ENABLED}
+      PAYFLOW_WORKFLOW_CONSUMER_RETRY_BACKOFF: ${PAYFLOW_WORKFLOW_CONSUMER_RETRY_BACKOFF}
+      PAYFLOW_WORKFLOW_CONSUMER_MAX_RETRIES: ${PAYFLOW_WORKFLOW_CONSUMER_MAX_RETRIES}
+      PAYFLOW_SAGA_RECOVERY_ENABLED: ${PAYFLOW_SAGA_RECOVERY_ENABLED}
+      PAYFLOW_SAGA_RECOVERY_POLL_INTERVAL: ${PAYFLOW_SAGA_RECOVERY_POLL_INTERVAL}
+      PAYFLOW_SAGA_STEP_TIMEOUT: ${PAYFLOW_SAGA_STEP_TIMEOUT}
+      PAYFLOW_SAGA_MAX_RETRIES: ${PAYFLOW_SAGA_MAX_RETRIES}
+      PAYFLOW_SAGA_RECOVERY_BATCH_SIZE: ${PAYFLOW_SAGA_RECOVERY_BATCH_SIZE}
+    ports:
+      - "127.0.0.1:${PAYFLOW_PAYMENT_PORT}:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "java", "/opt/payflow/HealthCheck.java", "http://localhost:8081/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  account-ledger-service:
+    profiles: ["mvp", "full"]
+    image: payflow/account-ledger-service:dev
+    build:
+      context: .
+      dockerfile: infrastructure/docker/java-service.Dockerfile
+      args:
+        SERVICE_MODULE: account-ledger-service
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      PAYFLOW_ACCOUNT_LEDGER_DB_URL: jdbc:postgresql://postgres:5432/payflow_account_ledger
+      PAYFLOW_ACCOUNT_LEDGER_DB_USERNAME: ${PAYFLOW_ACCOUNT_LEDGER_DB_USERNAME}
+      PAYFLOW_ACCOUNT_LEDGER_DB_PASSWORD: ${PAYFLOW_ACCOUNT_LEDGER_DB_PASSWORD}
+      PAYFLOW_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS: ${PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS}
+      PAYFLOW_OIDC_ISSUER_URI: ${PAYFLOW_OIDC_ISSUER_URI}
+      PAYFLOW_OIDC_JWK_SET_URI: http://keycloak:8080/realms/payflow/protocol/openid-connect/certs
+      PAYFLOW_PAYMENT_CONSUMER_ENABLED: ${PAYFLOW_PAYMENT_CONSUMER_ENABLED}
+      PAYFLOW_REFUND_CONSUMER_ENABLED: ${PAYFLOW_REFUND_CONSUMER_ENABLED}
+      PAYFLOW_OUTBOX_ENABLED: ${PAYFLOW_OUTBOX_ENABLED}
+      PAYFLOW_OUTBOX_POLL_INTERVAL: ${PAYFLOW_OUTBOX_POLL_INTERVAL}
+      PAYFLOW_OUTBOX_BATCH_SIZE: ${PAYFLOW_OUTBOX_BATCH_SIZE}
+      PAYFLOW_OUTBOX_LEASE: ${PAYFLOW_OUTBOX_LEASE}
+      PAYFLOW_OUTBOX_MAX_ATTEMPTS: ${PAYFLOW_OUTBOX_MAX_ATTEMPTS}
+      PAYFLOW_OUTBOX_MAX_BACKOFF: ${PAYFLOW_OUTBOX_MAX_BACKOFF}
+    ports:
+      - "127.0.0.1:${PAYFLOW_ACCOUNT_LEDGER_PORT}:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "java", "/opt/payflow/HealthCheck.java", "http://localhost:8082/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  risk-service:
+    profiles: ["mvp", "full"]
+    image: payflow/risk-service:dev
+    build:
+      context: .
+      dockerfile: infrastructure/docker/java-service.Dockerfile
+      args:
+        SERVICE_MODULE: risk-service
+    restart: unless-stopped
+    environment:
+      PAYFLOW_RISK_DB_URL: jdbc:postgresql://postgres:5432/payflow_risk
+      PAYFLOW_RISK_DB_USERNAME: ${PAYFLOW_RISK_DB_USERNAME}
+      PAYFLOW_RISK_DB_PASSWORD: ${PAYFLOW_RISK_DB_PASSWORD}
+      PAYFLOW_REDIS_HOST: redis
+      PAYFLOW_REDIS_PORT: 6379
+      PAYFLOW_REDIS_TIMEOUT: ${PAYFLOW_REDIS_TIMEOUT}
+      PAYFLOW_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS: ${PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS}
+      PAYFLOW_OIDC_ISSUER_URI: ${PAYFLOW_OIDC_ISSUER_URI}
+      PAYFLOW_OIDC_JWK_SET_URI: http://keycloak:8080/realms/payflow/protocol/openid-connect/certs
+      PAYFLOW_RISK_CONSUMER_ENABLED: ${PAYFLOW_RISK_CONSUMER_ENABLED}
+      PAYFLOW_RISK_VELOCITY_RETENTION: ${PAYFLOW_RISK_VELOCITY_RETENTION}
+      PAYFLOW_OUTBOX_ENABLED: ${PAYFLOW_OUTBOX_ENABLED}
+      PAYFLOW_OUTBOX_POLL_INTERVAL: ${PAYFLOW_OUTBOX_POLL_INTERVAL}
+      PAYFLOW_OUTBOX_BATCH_SIZE: ${PAYFLOW_OUTBOX_BATCH_SIZE}
+      PAYFLOW_OUTBOX_LEASE: ${PAYFLOW_OUTBOX_LEASE}
+      PAYFLOW_OUTBOX_MAX_ATTEMPTS: ${PAYFLOW_OUTBOX_MAX_ATTEMPTS}
+      PAYFLOW_OUTBOX_MAX_BACKOFF: ${PAYFLOW_OUTBOX_MAX_BACKOFF}
+    ports:
+      - "127.0.0.1:${PAYFLOW_RISK_PORT}:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "java", "/opt/payflow/HealthCheck.java", "http://localhost:8083/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  notification-service:
+    profiles: ["mvp", "full"]
+    image: payflow/notification-service:dev
+    build:
+      context: .
+      dockerfile: infrastructure/docker/java-service.Dockerfile
+      args:
+        SERVICE_MODULE: notification-service
+    restart: unless-stopped
+    environment:
+      PAYFLOW_NOTIFICATION_DB_URL: jdbc:postgresql://postgres:5432/payflow_notification
+      PAYFLOW_NOTIFICATION_DB_USERNAME: ${PAYFLOW_NOTIFICATION_DB_USERNAME}
+      PAYFLOW_NOTIFICATION_DB_PASSWORD: ${PAYFLOW_NOTIFICATION_DB_PASSWORD}
+      PAYFLOW_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      PAYFLOW_OIDC_ISSUER_URI: ${PAYFLOW_OIDC_ISSUER_URI}
+      PAYFLOW_OIDC_JWK_SET_URI: http://keycloak:8080/realms/payflow/protocol/openid-connect/certs
+      PAYFLOW_NOTIFICATION_CONSUMER_ENABLED: ${PAYFLOW_NOTIFICATION_CONSUMER_ENABLED}
+      PAYFLOW_NOTIFICATION_DELIVERY_ENABLED: ${PAYFLOW_NOTIFICATION_DELIVERY_ENABLED}
+      PAYFLOW_NOTIFICATION_POLL_INTERVAL: ${PAYFLOW_NOTIFICATION_POLL_INTERVAL}
+      PAYFLOW_NOTIFICATION_BATCH_SIZE: ${PAYFLOW_NOTIFICATION_BATCH_SIZE}
+      PAYFLOW_NOTIFICATION_LEASE: ${PAYFLOW_NOTIFICATION_LEASE}
+      PAYFLOW_NOTIFICATION_PROVIDER_TIMEOUT: ${PAYFLOW_NOTIFICATION_PROVIDER_TIMEOUT}
+      PAYFLOW_NOTIFICATION_MAX_ATTEMPTS: ${PAYFLOW_NOTIFICATION_MAX_ATTEMPTS}
+    ports:
+      - "127.0.0.1:${PAYFLOW_NOTIFICATION_PORT}:8085"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "java", "/opt/payflow/HealthCheck.java", "http://localhost:8085/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  api-gateway:
+    profiles: ["mvp", "full"]
+    image: payflow/api-gateway:dev
+    build:
+      context: .
+      dockerfile: infrastructure/docker/java-service.Dockerfile
+      args:
+        SERVICE_MODULE: api-gateway
+    restart: unless-stopped
+    environment:
+      PAYFLOW_PAYMENT_SERVICE_URI: http://payment-service:8081
+      PAYFLOW_OIDC_ISSUER_URI: ${PAYFLOW_OIDC_ISSUER_URI}
+      PAYFLOW_OIDC_JWK_SET_URI: http://keycloak:8080/realms/payflow/protocol/openid-connect/certs
+    ports:
+      - "127.0.0.1:${PAYFLOW_GATEWAY_PORT}:8080"
+    depends_on:
+      payment-service:
+        condition: service_healthy
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "java", "/opt/payflow/HealthCheck.java", "http://localhost:8080/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
 
 volumes:
   postgres-data:

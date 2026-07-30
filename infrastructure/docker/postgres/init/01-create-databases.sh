@@ -40,6 +40,25 @@ create_service_database \
     "${PAYFLOW_PAYMENT_DB_USERNAME}" \
     "${PAYFLOW_PAYMENT_DB_PASSWORD}"
 
+# account-ledger-service. The MVP keeps Account and Ledger as separate schemas inside this one
+# deployable, but no other service receives this role.
+create_service_database \
+    "payflow_account_ledger" \
+    "${PAYFLOW_ACCOUNT_LEDGER_DB_USERNAME}" \
+    "${PAYFLOW_ACCOUNT_LEDGER_DB_PASSWORD}"
+
+# risk-service. Redis remains an ephemeral signal cache; PostgreSQL owns durable assessments/inbox.
+create_service_database \
+    "payflow_risk" \
+    "${PAYFLOW_RISK_DB_USERNAME}" \
+    "${PAYFLOW_RISK_DB_PASSWORD}"
+
+# notification-service owns delivery state and its durable consumer inbox.
+create_service_database \
+    "payflow_notification" \
+    "${PAYFLOW_NOTIFICATION_DB_USERNAME}" \
+    "${PAYFLOW_NOTIFICATION_DB_PASSWORD}"
+
 # Keycloak. Not a PayFlow service, but it needs durable storage so local realm changes survive a
 # restart.
 create_service_database \
@@ -47,7 +66,7 @@ create_service_database \
     "${KEYCLOAK_DB_USERNAME}" \
     "${KEYCLOAK_DB_PASSWORD}"
 
-# Services added in later phases (account-ledger, risk, notification) each get their own entry
-# here. Do not let a new service share an existing database.
+# Services added in later phases each get their own entry here. Do not let a new service share an
+# existing database.
 
 echo "database provisioning complete"

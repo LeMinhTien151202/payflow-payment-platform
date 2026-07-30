@@ -1,5 +1,10 @@
 # Runbook: chạy PayFlow trên máy local
 
+> File này giữ quy trình build không Docker và chạy application từ host/IDE. Để dựng toàn bộ
+> PostgreSQL, Redis, Kafka, Keycloak và năm application container theo lát cắt Phase 1B, dùng
+> [mvp-docker.md](mvp-docker.md). Phần Docker Phase 0 cũ bên dưới chỉ là lịch sử foundation;
+> `mvp-docker.md` là nguồn canonical cho Compose hiện tại.
+
 Trạng thái: viết cho Phase 0. Mọi lệnh trong file này đều ghi rõ **đã chạy thật**
 hay **chưa chạy**. Kết quả đã kiểm chứng nằm ở
 [`.docs/IMPLEMENTATION_STATUS.md`](../../.docs/IMPLEMENTATION_STATUS.md).

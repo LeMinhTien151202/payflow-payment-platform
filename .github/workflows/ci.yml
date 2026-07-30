@@ -117,4 +117,7 @@ jobs:
       - name: Validate compose file interpolation
         # --env-file .env.example, never a real .env: this proves the committed template is complete
         # enough to render the file. It does not start anything.
-        run: docker compose --env-file .env.example config --quiet
+        run: |
+          docker compose --env-file .env.example --profile infra config --quiet
+          docker compose --env-file .env.example --profile mvp config --quiet
+          test "$(docker compose --env-file .env.example --profile mvp config --services | wc -l)" -eq 10

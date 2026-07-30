@@ -8,6 +8,9 @@ spring:
         jwt:
           # Keycloak realm issuer. Overridden per environment; never hardcode a secret here.
           issuer-uri: ${PAYFLOW_OIDC_ISSUER_URI:http://localhost:8180/realms/payflow}
+          # Keeping the issuer and key endpoint separate lets a container validate the public
+          # localhost issuer while fetching signing keys over the private Compose network.
+          jwk-set-uri: ${PAYFLOW_OIDC_JWK_SET_URI:http://localhost:8180/realms/payflow/protocol/openid-connect/certs}
 
 server:
   port: ${PAYFLOW_GATEWAY_PORT:8080}

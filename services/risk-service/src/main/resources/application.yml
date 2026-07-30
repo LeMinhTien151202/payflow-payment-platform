@@ -1,0 +1,75 @@
+spring:
+  application:
+    name: risk-service
+  datasource:
+    url: ${PAYFLOW_RISK_DB_URL:jdbc:postgresql://localhost:5432/payflow_risk}
+    username: ${PAYFLOW_RISK_DB_USERNAME}
+    password: ${PAYFLOW_RISK_DB_PASSWORD}
+  flyway:
+    enabled: true
+    schemas: risk
+    default-schema: risk
+    create-schemas: true
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: ${PAYFLOW_REDIS_HOST:localhost}
+      port: ${PAYFLOW_REDIS_PORT:6379}
+      timeout: ${PAYFLOW_REDIS_TIMEOUT:2s}
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: ${PAYFLOW_OIDC_ISSUER_URI:http://localhost:8180/realms/payflow}
+          jwk-set-uri: ${PAYFLOW_OIDC_JWK_SET_URI:http://localhost:8180/realms/payflow/protocol/openid-connect/certs}
+  kafka:
+    bootstrap-servers: ${PAYFLOW_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        delivery.timeout.ms: ${PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS:30000}
+    consumer:
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      ack-mode: manual_immediate
+
+server:
+  port: ${PAYFLOW_RISK_PORT:8083}
+
+payflow:
+  risk-consumer:
+    enabled: ${PAYFLOW_RISK_CONSUMER_ENABLED:true}
+  risk-velocity:
+    retention: ${PAYFLOW_RISK_VELOCITY_RETENTION:2h}
+  outbox:
+    enabled: ${PAYFLOW_OUTBOX_ENABLED:true}
+    poll-interval: ${PAYFLOW_OUTBOX_POLL_INTERVAL:500ms}
+    batch-size: ${PAYFLOW_OUTBOX_BATCH_SIZE:100}
+    lease: ${PAYFLOW_OUTBOX_LEASE:120s}
+    max-attempts: ${PAYFLOW_OUTBOX_MAX_ATTEMPTS:10}
+    max-backoff: ${PAYFLOW_OUTBOX_MAX_BACKOFF:300s}
+    delivery-timeout: ${PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS:30000}ms
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+
+logging:
+  structured:
+    format:
+      console: ecs
+  level:
+    root: INFO

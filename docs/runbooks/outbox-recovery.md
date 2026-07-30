@@ -1,8 +1,9 @@
 # Outbox publisher recovery
 
-Use this runbook when `payflow.outbox.failed.terminal` increases, the oldest pending age exceeds
-60 seconds, or an operator finds a durable business event that is not reaching Kafka. The protocol
-applies to both `payment.outbox_events` and `account_ledger.outbox_events`.
+Use this runbook when `payflow.outbox.failed.terminal` or
+`payflow.risk.outbox.failed.terminal` increases, the oldest pending age exceeds 60 seconds, or an
+operator finds a durable business event that is not reaching Kafka. The protocol applies to
+`payment.outbox_events`, `account_ledger.outbox_events`, and `risk.outbox_events`.
 
 ## Safety boundary
 
@@ -29,8 +30,9 @@ SELECT id, aggregate_type, aggregate_id, event_type, topic, status,
  WHERE id = :event_id;
 ```
 
-For Payment, replace `account_ledger.outbox_events` with `payment.outbox_events`. Do not copy payload
-or headers into tickets or chat; they may contain business data.
+For Payment or Risk, replace `account_ledger.outbox_events` with `payment.outbox_events` or
+`risk.outbox_events`. Do not copy payload or headers into tickets or chat; they may contain business
+data.
 
 Interpretation:
 

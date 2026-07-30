@@ -31,7 +31,8 @@ File này là bảng bằng chứng sống. Cập nhật sau mỗi milestone; kh
 | Account-Ledger outbox polling publisher | `IMPLEMENTED` | `PublishOutboxHandlerTest` 7 + `OutboxPropertiesTest` 1 pass, 2026-07-29 | ADR-014 lease/backoff/terminal/order policy pass; PostgreSQL lease IT đã prepared nhưng chưa chạy; Kafka ack/crash window chưa kiểm chứng |
 | Account/Reservation và Ledger domain/application core | `VERIFIED_LOCAL` | 38/38 Account/Ledger test + 52/52 event-contract test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | Reserve deadline, duplicate intent, stable failure outcome và Ledger posted factory đã có; chưa có Spring Boot, database locking, inbox/outbox hoặc Kafka |
 | Risk rule engine + assessment event factory | `VERIFIED_LOCAL` | 26/26 Risk test + 52/52 event-contract test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | ADR-015/016; giữ payment key, correlation và causation; không dùng wall-clock khác service để suy luận thứ tự; chưa có Redis/PostgreSQL/Kafka adapter |
-| Notification record và email mock core | `VERIFIED_LOCAL` | 14/14 unit test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | Core thuần Java trong `notification-service`; chưa có Spring Boot, database, Kafka inbox/outbox, webhook, retry/DLT hoặc Keycloak runtime |
+| Risk assessment runtime | `IMPLEMENTED` | 41/41 Risk unit test pass; targeted `-Pno-docker verify` exit 0, 2026-07-30 | Spring Boot + Redis velocity + PostgreSQL inbox/assessment/outbox + Kafka manual ack/DLT + ADR-014 publisher đã có code; `RiskWorkflowPersistenceIT` compile nhưng PostgreSQL/Redis/Kafka thật chưa chạy |
+| Notification outcome runtime | `IMPLEMENTED` | 33/33 Notification unit test pass; targeted `-Pno-docker verify` exit 0, 2026-07-30 | Spring Boot + PostgreSQL inbox/notification transaction + Payment/Refund manual-ack consumers + bounded retry/DLT + lease-based email mock; `NotificationWorkflowPersistenceIT` compile nhưng hạ tầng thật chưa chạy |
 | Risk→Payment Saga decision core | `VERIFIED_LOCAL` | Payment policy/factory và transactional handler unit test pass; full gate ghi bên dưới | `APPROVED/REJECTED/REVIEW_REQUIRED`, reserve/ledger/capture/success và pre-ledger compensation đã nối vào Payment consumer application flow |
 | Financial finalization contract + Payment policy | `VERIFIED_LOCAL` | ADR-011; event-contracts 52/52 + Payment 138/138; full `-Pno-docker verify` exit 0, 2026-07-28 | Ledger posted → explicit capture → captured → success; pure policy chưa phải durable Saga/consumer |
 | Phase 1B Saga command/outcome orchestration core | `VERIFIED_LOCAL` | Event contracts 52/52, Payment 138/138, Account/Ledger 38/38; full `-Pno-docker verify` exit 0, 2026-07-28 | Correlation/causation và aggregate key được bảo toàn; đây là pure core, không phải Kafka/PostgreSQL E2E |
@@ -518,6 +519,71 @@ Known limitations:
   - V1 migration được bổ sung trước lần apply đầu tiên dựa trên xác nhận repository owner rằng chưa có database nào chạy; không suy diễn quy tắc này cho migration đã apply.
   - Chưa có local seed profile cho customer Account và Ledger account mapping; production migration cố ý không chứa demo data.
   - Keycloak giữ nguyên và không tham gia gate no-docker.
+```
+
+### 2026-07-30 — Risk assessment transactional runtime
+
+```text
+Date/time (UTC): 2026-07-29T19:12:07Z
+Commit SHA: N/A (working tree change chưa commit; HEAD abe72cd)
+Environment: Windows 10; Maven Wrapper 3.9.16; Java 21; không Docker/PostgreSQL/Redis/Kafka/Keycloak runtime
+Capability/scenario: payment.created v1 -> Redis amount/velocity signals -> deterministic policy -> one immutable assessment; processed event + assessment + risk.assessment.completed outbox local transaction; manual ack; bounded retry/DLT; ADR-014 polling publisher
+Targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/risk-service -am verify
+Targeted result: exit 0, BUILD SUCCESS trong 15.837 s; observability 15/15, event-contracts 63/63, risk-service 41/41 unit test; Docker-tagged Failsafe tests compile và bị loại đúng theo profile
+Final command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Final result: exit 0, BUILD SUCCESS trong 01:03; 9/9 module SUCCESS; Surefire 457/457 và Failsafe 13/13 pass
+Governance: validate-governance.ps1 pass 18 required paths/16 Markdown files; git diff --check exit 0
+Schema/runtime: V1__risk_assessment_runtime.sql; Redis Lua dùng paymentId dedup, event-time bounded windows và decimal minor-unit string addition; JDBC inbox/assessment/outbox; typed router/listener; producer-owned Risk/DLT declarations
+Prepared Docker evidence: RiskWorkflowPersistenceIT khởi động PostgreSQL 17 + Redis 8; kiểm tra sixth-payment velocity, transport duplicate, unique assessment/outbox và injected outbox failure rollback inbox + assessment
+Known limitations:
+  - Flyway/constraint/rollback và Redis Lua behavior mới compile, chưa VERIFIED_LOCAL vì Docker chưa bật.
+  - Kafka manual ack, broker redelivery, DLT publication, partition ordering và crash window chưa chạy.
+  - payment.created v1 không chứa trusted device/IP/failed-burst/merchant-risk enrichment; runtime dùng neutral values, không suy đoán. Amount và customer velocity đã active.
+  - Keycloak contract giữ nguyên; Risk hiện không có business REST endpoint.
+```
+
+### 2026-07-30 — Notification outcome transactional runtime
+
+```text
+Date/time (UTC): 2026-07-29T19:56:34Z
+Commit SHA: N/A (working tree change chưa commit; HEAD abe72cd)
+Environment: Windows 10; Maven Wrapper 3.9.16; Java 21; không Docker/PostgreSQL/Kafka/Keycloak runtime
+Capability/scenario: payment.succeeded/payment.failed/refund.succeeded/refund.failed -> typed notification intent -> processed event + notification local transaction -> manual ack; short lease claim -> email mock ngoài transaction -> conditional SENT/FAILED; bounded Kafka retry/DLT
+Targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/notification-service -am clean verify
+Targeted result: exit 0, BUILD SUCCESS trong 22.519 s; observability 15/15, event-contracts 63/63, notification-service 33/33 unit test; Docker-tagged Failsafe tests compile và bị loại đúng theo profile
+Final command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Final result: exit 0, BUILD SUCCESS trong 01:11; 9/9 module SUCCESS; Surefire 476/476 và Failsafe 13/13 pass
+Governance: validate-governance.ps1 pass 18 required paths/16 Markdown files; git diff --check exit 0
+Schema/runtime: V1__notification_runtime.sql; JDBC inbox + notification atomic transaction; unique business outcome/channel; typed Payment/Refund router; manual ack; shared DLT; lease ownership và finite crash reclaim; deny-by-default HTTP security
+Prepared Docker evidence: NotificationWorkflowPersistenceIT khởi động PostgreSQL 17; kiểm tra transport/business duplicate, conflicting outcome rollback inbox, injected notification insert failure rollback inbox và chỉ lease owner được hoàn tất delivery
+Known limitations:
+  - Flyway/constraint/rollback/claim SQL mới compile, chưa VERIFIED_LOCAL vì Docker/PostgreSQL chưa bật.
+  - Kafka broker redelivery, DLT publication, partition ordering và crash window chưa chạy.
+  - Email adapter vẫn là in-memory mock; provider timeout là contract cấu hình cho adapter thật, chưa có network provider.
+  - payment.failed v1 không có customerId; runtime lưu routing identity PAYMENT/paymentId thay vì suy đoán người nhận.
+  - Webhook HMAC, scheduled provider retry và audited manual retry thuộc Phase 2; OD-010 vẫn chặn operation mutation.
+```
+
+### 2026-07-30 — Local MVP Compose wiring và smoke harness
+
+```text
+Date/time (UTC): 2026-07-29T20:24:06Z
+Commit SHA: N/A (working tree change chưa commit)
+Environment: Windows; Maven Wrapper 3.9.16; Java 21.0.7; Docker CLI/Compose có sẵn nhưng Docker daemon chưa bật
+Capability/scenario: code-first local runtime cho Phase 1B; database/credential per service; local-only Account/Ledger fixtures; non-root multi-stage Java image; Compose profiles infra/mvp/full; deterministic Kafka topic init; public issuer + internal JWKS; bounded PowerShell smoke cho payment happy path và idempotent replay
+Static validation: docker compose --env-file .env.example --profile infra config --quiet -> exit 0; profile mvp -> exit 0; mvp config render đúng 10 service; smoke-mvp.ps1 PowerShell parser -> 0 errors; git diff --check -> exit 0
+Final command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Final result: exit 0, BUILD SUCCESS trong 01:10; 9/9 module SUCCESS; Surefire 471/471 và Failsafe 13/13 pass
+Targeted seed-test compile: .\mvnw.cmd -B -ntp -Pno-docker -pl services/account-ledger-service -am test -> exit 0, BUILD SUCCESS trong 18.921 s; LocalSeedPersistenceIT compile và được Docker tag loại đúng khỏi no-Docker gate
+Governance: validate-governance.ps1 pass 18 required paths/16 Markdown files
+Security/data: image chạy UID/GID 10001; không commit secret; seed chỉ ở profile local, dữ liệu giả cố định và ON CONFLICT DO NOTHING; application không truy cập chéo database
+Runbook: docs/runbooks/mvp-docker.md; smoke: infrastructure/scripts/smoke-mvp.ps1
+Known limitations:
+  - Chưa build/pull image và chưa start container vì Docker daemon vẫn tắt theo chủ đích của repository owner.
+  - Chưa chạy Flyway seed trên PostgreSQL thật, Keycloak token exchange, Kafka broker delivery hoặc Compose smoke; do đó chưa VERIFIED_LOCAL/E2E.
+  - LocalSeedPersistenceIT đã chuẩn bị để kiểm tra fixture/mapping và non-replenishing callback trên PostgreSQL 17 khi Docker được bật.
+  - Email vẫn là in-memory mock; full profile hiện là alias của MVP; observability/Kubernetes/Reporting/Settlement chưa nằm trong lát cắt này.
+  - Lần clean verify đầu bị execution wrapper timeout ở 120 giây sau khi đã sinh report tới module cuối; rerun verify với timeout 300 giây hoàn tất exit 0. Không bỏ hoặc hạ test.
 ```
 
 Quy tắc cập nhật:
