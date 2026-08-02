@@ -48,12 +48,14 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 /** Docker-free proof of the public payment contract and JWT-derived merchant ownership. */
 @WebMvcTest(PaymentController.class)
 @Import(SecurityConfig.class)
+@ActiveProfiles("test")
 class PaymentControllerTest {
 
     private static final Instant NOW = Instant.parse("2026-07-26T09:15:00Z");

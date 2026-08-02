@@ -2,6 +2,9 @@ package com.payflow.payment;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -11,6 +14,8 @@ import org.springframework.boot.health.contributor.Status;
 import org.springframework.boot.resttestclient.TestRestTemplate;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -43,7 +48,7 @@ class PaymentServiceFoundationIT extends AbstractPostgresIT {
      */
     @Test
     @DisplayName("Flyway applies every migration, in order, with no gap")
-    void everyMigrationIsApplied() {
+    void everyMigrationIsApplied() throws IOException {
         List<String> versions =
                 jdbcTemplate.queryForList(
                         "SELECT version FROM payment.flyway_schema_history WHERE success = true"
@@ -52,7 +57,23 @@ class PaymentServiceFoundationIT extends AbstractPostgresIT {
 
         // containsExactly, not contains: the order is the assertion. A repaired or out-of-order
         // history is how one environment ends up with a schema no migration file describes.
-        assertThat(versions).containsExactly("1", "2", "3", "4", "5", "6");
+        //
+        // The expectation is read from the migration files rather than hard-coded. A literal list
+        // has to be edited by whoever adds V(n+1), and when they forget, the failure accuses Flyway
+        // of applying a migration too many instead of accusing the test of being out of date.
+        assertThat(versions).containsExactlyElementsOf(migrationVersionsOnClasspath());
+    }
+
+    private static List<String> migrationVersionsOnClasspath() throws IOException {
+        Resource[] scripts =
+                new PathMatchingResourcePatternResolver()
+                        .getResources("classpath:db/migration/V*__*.sql");
+
+        return Arrays.stream(scripts)
+                .map(Resource::getFilename)
+                .map(name -> name.substring(1, name.indexOf("__")))
+                .sorted(Comparator.comparingInt(Integer::parseInt))
+                .toList();
     }
 
     @Test

@@ -11,6 +11,7 @@ import com.payflow.payment.application.handler.CreatePaymentHandler;
 import com.payflow.payment.application.port.PaymentSagaStore;
 import com.payflow.payment.application.saga.VersionedPaymentSaga;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -126,7 +127,8 @@ class PaymentSagaPersistenceIT extends AbstractPostgresIT {
                 paymentId,
                 step,
                 status,
-                deadline,
+                // The driver cannot infer a SQL type for Instant, exactly as production code hit.
+                deadline.atOffset(ZoneOffset.UTC),
                 reservationId);
         return id;
     }

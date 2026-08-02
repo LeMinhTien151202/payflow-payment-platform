@@ -3,6 +3,7 @@ package com.payflow.payment;
 import org.junit.jupiter.api.Tag;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
 /**
@@ -25,8 +26,14 @@ import org.springframework.test.context.TestPropertySource;
  *
  * <p>The image tag is here and only here. It must match {@code docker-compose.yml}; if the two drift,
  * the tests validate a different PostgreSQL version than the one developers run.
+ *
+ * <p>The {@code test} profile supplies only the delta from the deployed configuration — credentials
+ * and the seed location. Everything else, including the {@code payment,merchant} schemas Flyway
+ * creates and {@code ddl-auto=validate}, comes from the real {@code application.yml}, so these tests
+ * exercise the configuration that actually ships.
  */
 @Tag("docker")
+@ActiveProfiles("test")
 @TestPropertySource(properties = "payflow.workflow-consumer.enabled=false")
 public abstract class AbstractPostgresIT {
 

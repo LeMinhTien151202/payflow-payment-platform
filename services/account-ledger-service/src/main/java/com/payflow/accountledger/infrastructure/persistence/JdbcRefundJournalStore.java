@@ -6,6 +6,7 @@ import com.payflow.accountledger.ledger.domain.model.Journal;
 import com.payflow.events.refund.RefundRequestedData;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -72,8 +73,8 @@ class JdbcRefundJournalStore implements RefundJournalStore {
                 .addValue("description", journal.description())
                 .addValue("currency", journal.currency())
                 .addValue("status", journal.status().name())
-                .addValue("occurredAt", journal.occurredAt())
-                .addValue("createdAt", journal.createdAt()));
+                .addValue("occurredAt", journal.occurredAt().atOffset(ZoneOffset.UTC))
+                .addValue("createdAt", journal.createdAt().atOffset(ZoneOffset.UTC)));
         for (var entry : journal.entries()) {
             jdbc.update(INSERT_ENTRY, new MapSqlParameterSource()
                     .addValue("id", entry.id())

@@ -110,12 +110,15 @@ class NotificationWorkflowPersistenceIT extends AbstractNotificationRuntimeIT {
         var event = paymentSucceeded(UUID.randomUUID(), UUID.randomUUID());
         handler.handle(factory.paymentSucceeded(event));
 
-        NotificationClaimBatch batch = deliveryStore.claim(
-                "worker-a", NOW.plusSeconds(1), Duration.ofSeconds(30), 5, 10);
+        // No instant is passed in. The row was made due by the database clock on insert and the
+        // claim reads it against that same clock, so NOW being a frozen 2026-07-30 — the event's
+        // occurredAt, an upstream fact — cannot decide whether this notification is deliverable.
+        NotificationClaimBatch batch =
+                deliveryStore.claim("worker-a", Duration.ofSeconds(30), 5, 10);
         assertThat(batch.notifications()).hasSize(1);
         UUID notificationId = batch.notifications().getFirst().id();
-        assertThat(deliveryStore.markSent(notificationId, "worker-b", NOW.plusSeconds(2))).isFalse();
-        assertThat(deliveryStore.markSent(notificationId, "worker-a", NOW.plusSeconds(2))).isTrue();
+        assertThat(deliveryStore.markSent(notificationId, "worker-b", NOW)).isFalse();
+        assertThat(deliveryStore.markSent(notificationId, "worker-a", NOW)).isTrue();
         assertThat(jdbc.queryForObject(
                 "select status from notification.notifications where id = ?",
                 String.class, notificationId)).isEqualTo("SENT");

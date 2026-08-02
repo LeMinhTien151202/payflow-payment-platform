@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -21,18 +22,25 @@ import tools.jackson.databind.ObjectMapper;
 class JdbcNotificationDeliveryStore implements NotificationDeliveryStore {
 
     private static final TypeReference<Map<String, String>> STRING_MAP = new TypeReference<>() {};
+    // clock_timestamp() rather than a bound instant, in every predicate below. next_attempt_at is
+    // written by clock_timestamp() on insert, so reading it against a worker's own clock compares
+    // two different clocks: under drift the row is either not yet due when it is, or a live lease
+    // looks expired and a second worker sends the same email. The lease is a protocol between
+    // hosts, and the database is the only clock all of them observe. This is the same idiom the
+    // outbox lease stores in payment, account-ledger and risk already use.
     private static final String FAIL_EXHAUSTED = """
             update notification.notifications
                set status = 'FAILED', failure_code = 'DELIVERY_LEASE_EXHAUSTED',
                    lock_owner = null, lock_until = null
-             where status = 'PROCESSING' and lock_until <= :now and attempt_count >= :maxAttempts
+             where status = 'PROCESSING' and lock_until <= clock_timestamp()
+               and attempt_count >= :maxAttempts
             """;
     private static final String CLAIM = """
             with candidates as (
                 select id, (status = 'PROCESSING') as reclaimed
                   from notification.notifications
-                 where ((status = 'PENDING' and next_attempt_at <= :now)
-                        or (status = 'PROCESSING' and lock_until <= :now))
+                 where ((status = 'PENDING' and next_attempt_at <= clock_timestamp())
+                        or (status = 'PROCESSING' and lock_until <= clock_timestamp()))
                    and attempt_count < :maxAttempts
                  order by case when status = 'PROCESSING' then 0 else 1 end,
                           next_attempt_at, created_at
@@ -41,7 +49,8 @@ class JdbcNotificationDeliveryStore implements NotificationDeliveryStore {
             )
             update notification.notifications n
                set status = 'PROCESSING', attempt_count = n.attempt_count + 1,
-                   last_attempt_at = :now, lock_owner = :owner, lock_until = :lockUntil
+                   last_attempt_at = clock_timestamp(), lock_owner = :owner,
+                   lock_until = clock_timestamp() + make_interval(secs => :leaseSeconds)
               from candidates c
              where n.id = c.id
             returning n.id, n.recipient_id, n.template_code, n.payload::text as payload,
@@ -59,8 +68,11 @@ class JdbcNotificationDeliveryStore implements NotificationDeliveryStore {
                    lock_owner = null, lock_until = null
              where id = :id and status = 'PROCESSING' and lock_owner = :owner
             """;
+    // created_at is the source event's occurredAt, so this measures age from the business fact
+    // rather than from the row, which is the lag a merchant would actually notice. The subtraction
+    // still crosses services, hence the Math.max floor below.
     private static final String OLDEST_PENDING_AGE = """
-            select coalesce(extract(epoch from (:now - min(created_at))), 0)
+            select coalesce(extract(epoch from (clock_timestamp() - min(created_at))), 0)
               from notification.notifications where status in ('PENDING', 'PROCESSING')
             """;
 
@@ -75,11 +87,10 @@ class JdbcNotificationDeliveryStore implements NotificationDeliveryStore {
     @Override
     @Transactional
     public NotificationClaimBatch claim(
-            String owner, Instant now, Duration lease, int maxAttempts, int batchSize) {
+            String owner, Duration lease, int maxAttempts, int batchSize) {
         var parameters = new MapSqlParameterSource()
                 .addValue("owner", owner)
-                .addValue("now", now)
-                .addValue("lockUntil", now.plus(lease))
+                .addValue("leaseSeconds", lease.toSeconds())
                 .addValue("maxAttempts", maxAttempts)
                 .addValue("batchSize", batchSize);
         int exhausted = jdbc.update(FAIL_EXHAUSTED, parameters);
@@ -90,7 +101,7 @@ class JdbcNotificationDeliveryStore implements NotificationDeliveryStore {
     @Transactional
     public boolean markSent(UUID notificationId, String owner, Instant sentAt) {
         return jdbc.update(MARK_SENT, terminalParameters(notificationId, owner)
-                .addValue("sentAt", sentAt)) == 1;
+                .addValue("sentAt", sentAt.atOffset(ZoneOffset.UTC))) == 1;
     }
 
     @Override
@@ -102,9 +113,8 @@ class JdbcNotificationDeliveryStore implements NotificationDeliveryStore {
 
     @Override
     @Transactional(readOnly = true)
-    public double oldestPendingAgeSeconds(Instant now) {
-        Double age = jdbc.queryForObject(
-                OLDEST_PENDING_AGE, new MapSqlParameterSource("now", now), Double.class);
+    public double oldestPendingAgeSeconds() {
+        Double age = jdbc.getJdbcTemplate().queryForObject(OLDEST_PENDING_AGE, Double.class);
         return age == null ? 0 : Math.max(age, 0);
     }
 

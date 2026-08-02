@@ -6,6 +6,7 @@ import com.payflow.payment.infrastructure.web.CorrelationIdFilter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -31,9 +32,15 @@ import tools.jackson.databind.ObjectMapper;
  * <p>Deny-by-default. Phase 0 declares no business route, so {@code /api/v1/**} resolves to a 404
  * for an authorized caller — the security chain runs before dispatch, which is what makes the
  * 401/403/404 distinction testable without inventing a fake payment endpoint.
+ *
+ * <p>Servlet stacks only. A filter chain has nothing to apply to without one, and the
+ * {@code JwtDecoder} it needs comes from an auto-configuration that is itself servlet-conditional,
+ * so in a non-web context ({@code WebEnvironment.NONE}) this class would ask for a bean that was
+ * never created and fail the whole context.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableWebSecurity
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 public class SecurityConfig {
 
     private static final String SCOPE_PAYMENT_READ = "SCOPE_payment:read";

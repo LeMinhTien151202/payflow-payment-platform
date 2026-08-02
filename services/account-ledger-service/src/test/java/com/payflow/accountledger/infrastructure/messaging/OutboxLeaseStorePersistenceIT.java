@@ -7,6 +7,7 @@ import com.payflow.accountledger.application.outbox.ClaimedOutboxEvent;
 import com.payflow.accountledger.application.port.OutboxLeaseStore;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
@@ -79,7 +80,8 @@ class OutboxLeaseStorePersistenceIT extends AbstractPostgresIT {
                 status,
                 attempts,
                 "PROCESSING".equals(status) ? "previous-owner" : null,
-                lockUntil);
+                // The driver cannot infer a SQL type for Instant, exactly as production code hit.
+                lockUntil == null ? null : lockUntil.atOffset(ZoneOffset.UTC));
         return eventId;
     }
 

@@ -1,4 +1,11 @@
-# Test-only overrides.
+# Test-only overrides, layered on top of the real application.yml.
+#
+# The name matters. As `application.yml` this file did not override the production configuration, it
+# replaced it: `classpath:/application.yml` resolves to the first match on the classpath, and
+# target/test-classes precedes target/classes. Every setting the main file declares and this one does
+# not — Flyway's `payment,merchant` schemas above all — was therefore absent from every test, so the
+# tests validated a configuration nobody deploys. As a profile document it is a delta instead, and
+# tests activate it with @ActiveProfiles("test").
 #
 # The production configuration deliberately has no default for the database username and password:
 # an unset credential must fail startup rather than silently fall back to something. That strictness

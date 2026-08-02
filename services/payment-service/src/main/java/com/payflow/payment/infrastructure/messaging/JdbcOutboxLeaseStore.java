@@ -6,6 +6,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -121,7 +123,7 @@ class JdbcOutboxLeaseStore implements OutboxLeaseStore {
     @Override
     @Transactional
     public boolean markRetry(
-            UUID eventId, String owner, java.time.Instant nextAttemptAt, String safeError) {
+            UUID eventId, String owner, Instant nextAttemptAt, String safeError) {
         return update(
                         """
                         update payment.outbox_events
@@ -131,7 +133,7 @@ class JdbcOutboxLeaseStore implements OutboxLeaseStore {
                         """,
                         eventId,
                         owner,
-                        Map.of("nextAttemptAt", nextAttemptAt, "error", safeError))
+                        Map.of("nextAttemptAt", nextAttemptAt.atOffset(ZoneOffset.UTC), "error", safeError))
                 == 1;
     }
 

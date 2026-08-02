@@ -3,7 +3,6 @@ package com.payflow.notification.application.delivery;
 import com.payflow.notification.application.port.EmailDeliveryPort;
 import com.payflow.notification.application.port.NotificationDeliveryStore;
 import io.micrometer.core.instrument.MeterRegistry;
-import java.time.Clock;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -23,30 +22,31 @@ public class DeliverPendingNotificationsHandler {
     private final EmailDeliveryPort email;
     private final NotificationDeliveryPolicy policy;
     private final MeterRegistry metrics;
-    private final Clock clock;
     private final String owner = "notification-worker-" + UUID.randomUUID();
 
     public DeliverPendingNotificationsHandler(
             NotificationDeliveryStore store,
             EmailDeliveryPort email,
             NotificationDeliveryPolicy policy,
-            MeterRegistry metrics,
-            Clock clock) {
+            MeterRegistry metrics) {
         this.store = store;
         this.email = email;
         this.policy = policy;
         this.metrics = metrics;
-        this.clock = clock;
     }
 
+    /**
+     * No local clock is read here. Whether a notification is due and whether a lease has expired are
+     * decided by the database, which is the only clock every worker replica shares — see {@link
+     * NotificationDeliveryStore}.
+     */
     @Scheduled(fixedDelayString = "${payflow.notification-delivery.poll-interval:500ms}")
     public void deliverDue() {
-        var now = clock.instant();
-        var batch = store.claim(owner, now, policy.lease(), policy.maxAttempts(), policy.batchSize());
+        var batch = store.claim(owner, policy.lease(), policy.maxAttempts(), policy.batchSize());
         metrics.counter("payflow.notification.delivery", "outcome", "lease_exhausted")
                 .increment(batch.exhaustedCount());
         metrics.summary("payflow.notification.pending.oldest.seconds")
-                .record(store.oldestPendingAgeSeconds(now));
+                .record(store.oldestPendingAgeSeconds());
         for (var notification : batch.notifications()) {
             if (notification.reclaimed()) {
                 metrics.counter("payflow.notification.delivery", "outcome", "reclaimed").increment();

@@ -35,6 +35,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -50,6 +51,7 @@ import org.springframework.test.web.servlet.MvcResult;
  */
 @WebMvcTest
 @Import(SecurityConfig.class)
+@ActiveProfiles("test")
 class PaymentErrorContractTest {
 
     private static final UUID UNKNOWN_PAYMENT_ID =

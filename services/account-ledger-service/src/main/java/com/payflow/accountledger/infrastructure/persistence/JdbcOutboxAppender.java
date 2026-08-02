@@ -6,6 +6,7 @@ import com.payflow.events.EventHeaders;
 import com.payflow.events.EventType;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -66,7 +67,7 @@ class JdbcOutboxAppender implements OutboxAppender {
                 .addValue("topic", topic)
                 .addValue("payload", objectMapper.writeValueAsString(envelope))
                 .addValue("headers", objectMapper.writeValueAsString(headers))
-                .addValue("createdAt", clock.instant());
+                .addValue("createdAt", clock.instant().atOffset(ZoneOffset.UTC));
         jdbc.update(INSERT, parameters);
         return eventId;
     }

@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -124,7 +125,7 @@ class JdbcOutboxLeaseStore implements OutboxLeaseStore {
                    set status = 'PENDING', next_attempt_at = :nextAttemptAt,
                        lock_owner = null, lock_until = null, last_error = :error
                  where id = :id and status = 'PROCESSING' and lock_owner = :owner
-                """, eventId, owner, Map.of("nextAttemptAt", nextAttemptAt, "error", error)) == 1;
+                """, eventId, owner, Map.of("nextAttemptAt", nextAttemptAt.atOffset(ZoneOffset.UTC), "error", error)) == 1;
     }
 
     @Override

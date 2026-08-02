@@ -1,5 +1,6 @@
 package com.payflow.accountledger.infrastructure.security;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;
@@ -8,9 +9,17 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
-/** No business HTTP API exists yet; health is public and every other route is denied. */
+/**
+ * No business HTTP API exists yet; health is public and every other route is denied.
+ *
+ * <p>Servlet stacks only. A filter chain has nothing to apply to without one, and the
+ * {@code JwtDecoder} it needs comes from an auto-configuration that is itself servlet-conditional,
+ * so in a non-web context ({@code WebEnvironment.NONE}) this class would ask for a bean that was
+ * never created and fail the whole context.
+ */
 @Configuration(proxyBeanMethods = false)
 @EnableWebSecurity
+@ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 class SecurityConfig {
 
     @Bean

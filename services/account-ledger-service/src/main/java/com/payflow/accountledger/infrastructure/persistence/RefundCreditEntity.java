@@ -9,6 +9,8 @@ import jakarta.persistence.Table;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "refund_credits", schema = "account")
@@ -32,6 +34,9 @@ class RefundCreditEntity {
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal amount;
 
+    // CHAR(3) in the migration, so the mapping says CHAR too. Without this Hibernate expects
+    // varchar(3), finds bpchar, and ddl-auto=validate refuses to start the service.
+    @JdbcTypeCode(SqlTypes.CHAR)
     @Column(nullable = false, length = 3)
     private String currency;
 

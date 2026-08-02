@@ -6,6 +6,7 @@ import com.payflow.notification.application.port.NotificationStore;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -30,6 +31,12 @@ class JdbcNotificationStore implements NotificationStore {
                and business_reference_id = :referenceId
                and channel = 'EMAIL'
             """;
+    // next_attempt_at is clock_timestamp() and created_at is bound: they are not the same kind of
+    // fact. created_at is the source event's occurredAt, produced by whichever service published it,
+    // and exists for lag reporting. next_attempt_at is a scheduling decision read back by the claim
+    // predicate in JdbcNotificationDeliveryStore, so it must come from the clock that predicate uses.
+    // Binding an upstream producer's timestamp here would make a new notification undeliverable for
+    // as long as that producer's clock runs ahead of this database.
     private static final String INSERT = """
             insert into notification.notifications (
                 id, source_event_id, source_event_type, aggregate_id,
@@ -76,7 +83,7 @@ class JdbcNotificationStore implements NotificationStore {
                 .addValue("recipientId", intent.recipientId())
                 .addValue("templateCode", intent.templateCode())
                 .addValue("payload", objectMapper.writeValueAsString(intent.payload()))
-                .addValue("createdAt", intent.createdAt());
+                .addValue("createdAt", intent.createdAt().atOffset(ZoneOffset.UTC));
         return jdbc.update(INSERT, parameters) == 1;
     }
 

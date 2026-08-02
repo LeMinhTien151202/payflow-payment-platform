@@ -12,6 +12,8 @@ import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(name = "accounts", schema = "account")
@@ -20,6 +22,9 @@ class AccountEntity {
     @Id
     private UUID id;
 
+    // CHAR(3) in the migration, so the mapping says CHAR too. Without this Hibernate expects
+    // varchar(3), finds bpchar, and ddl-auto=validate refuses to start the service.
+    @JdbcTypeCode(SqlTypes.CHAR)
     @Column(nullable = false, length = 3)
     private String currency;
 

@@ -3,6 +3,7 @@ package com.payflow.risk.infrastructure.persistence;
 import com.payflow.events.EventEnvelope;
 import com.payflow.events.EventHeaders;
 import com.payflow.risk.application.port.OutboxAppender;
+import java.time.ZoneOffset;
 import java.util.Map;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -48,7 +49,7 @@ class JdbcOutboxAppender implements OutboxAppender {
                 .addValue("topic", topic)
                 .addValue("payload", objectMapper.writeValueAsString(event))
                 .addValue("headers", objectMapper.writeValueAsString(headers))
-                .addValue("createdAt", event.occurredAt());
+                .addValue("createdAt", event.occurredAt().atOffset(ZoneOffset.UTC));
         jdbc.update(INSERT, parameters);
     }
 }

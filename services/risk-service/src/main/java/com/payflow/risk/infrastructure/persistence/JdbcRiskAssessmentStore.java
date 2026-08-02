@@ -11,6 +11,7 @@ import com.payflow.risk.domain.model.RiskRuleCode;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -77,7 +78,7 @@ class JdbcRiskAssessmentStore implements RiskAssessmentStore {
                 .addValue("sourceAccountId", payment.sourceAccountId())
                 .addValue("amount", payment.amount())
                 .addValue("currency", payment.currency())
-                .addValue("paymentCreatedAt", payment.createdAt())
+                .addValue("paymentCreatedAt", payment.createdAt().atOffset(ZoneOffset.UTC))
                 .addValue("count1m", record.signals().paymentCountLastMinute())
                 .addValue("total1h", record.signals().totalAmountLastHour())
                 .addValue("newDevice", record.signals().newDevice())
@@ -90,7 +91,7 @@ class JdbcRiskAssessmentStore implements RiskAssessmentStore {
                 .addValue("matchedRules", objectMapper.writeValueAsString(
                         assessment.matchedRules().stream().map(Enum::name).toList()))
                 .addValue("policyVersion", assessment.policyVersion())
-                .addValue("assessedAt", record.assessedAt());
+                .addValue("assessedAt", record.assessedAt().atOffset(ZoneOffset.UTC));
         return jdbc.update(INSERT, parameters) == 1;
     }
 
