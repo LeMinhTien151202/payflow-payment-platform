@@ -8,8 +8,6 @@ import com.payflow.events.ledger.LedgerRefundPostedData;
 import com.payflow.events.ledger.LedgerRefundPostingFailedData;
 import com.payflow.payment.application.exception.RefundFinalizationMismatchException;
 import com.payflow.payment.domain.model.FeePolicySnapshot;
-import com.payflow.payment.domain.model.MerchantSnapshot;
-import com.payflow.payment.domain.model.MerchantStatus;
 import com.payflow.payment.domain.model.Money;
 import com.payflow.payment.domain.model.Payment;
 import com.payflow.payment.domain.model.PaymentFeeSnapshot;

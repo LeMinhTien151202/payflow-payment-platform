@@ -8,8 +8,6 @@ import com.payflow.events.account.AccountFundsReservedData;
 import com.payflow.events.ledger.LedgerPaymentPostingFailedData;
 import com.payflow.events.payment.PaymentFailedData;
 import com.payflow.payment.application.exception.PaymentSagaContractMismatchException;
-import com.payflow.payment.domain.model.MerchantSnapshot;
-import com.payflow.payment.domain.model.MerchantStatus;
 import com.payflow.payment.domain.model.Money;
 import com.payflow.payment.domain.model.Payment;
 import com.payflow.payment.domain.model.PaymentIntake;

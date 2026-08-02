@@ -27,7 +27,6 @@ import com.payflow.payment.domain.model.PaymentSaga;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 

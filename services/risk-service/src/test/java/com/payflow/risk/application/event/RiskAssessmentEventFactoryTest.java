@@ -10,7 +10,6 @@ import com.payflow.events.payment.PaymentCreatedData;
 import com.payflow.events.payment.PaymentEvents;
 import com.payflow.events.risk.RiskAssessmentCompletedData;
 import com.payflow.events.risk.RiskDecisionValue;
-import com.payflow.events.risk.RiskEvents;
 import com.payflow.events.risk.RiskLevelValue;
 import com.payflow.risk.domain.exception.RiskInvariantViolationException;
 import com.payflow.risk.domain.model.RiskAssessment;
