@@ -2,6 +2,7 @@ package com.payflow.payment.application;
 
 import com.payflow.payment.domain.model.Payment;
 import com.payflow.payment.domain.model.PaymentStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Map;
@@ -22,19 +23,25 @@ import java.util.UUID;
  * does not hold. None of that is true yet, and two mapping paths to the same table is how a read view starts
  * quietly disagreeing with a write.
  */
+@Schema(description = "Ảnh chụp payment hiện tại dành cho merchant sở hữu")
 public record PaymentDetail(
-        UUID paymentId,
-        UUID merchantId,
-        String merchantReference,
-        UUID customerId,
-        UUID sourceAccountId,
-        BigDecimal amount,
-        String currency,
-        PaymentStatus status,
-        String description,
-        Map<String, String> metadata,
-        Instant createdAt,
-        Instant updatedAt) {
+        @Schema(description = "ID payment", format = "uuid") UUID paymentId,
+        @Schema(description = "Merchant sở hữu, lấy từ JWT khi tạo", format = "uuid") UUID merchantId,
+        @Schema(description = "Mã đơn hàng phía merchant", example = "ORDER-2026-00001")
+                String merchantReference,
+        @Schema(description = "Khách hàng thanh toán", format = "uuid") UUID customerId,
+        @Schema(description = "Tài khoản nguồn", format = "uuid") UUID sourceAccountId,
+        @Schema(description = "Số tiền payment", example = "500000.0000") BigDecimal amount,
+        @Schema(description = "Mã tiền tệ", example = "VND") String currency,
+        @Schema(
+                        description =
+                                "Trạng thái hiện tại của Saga; chỉ SUCCEEDED nghĩa là ledger và capture đều thành công",
+                        example = "SUCCEEDED")
+                PaymentStatus status,
+        @Schema(description = "Nội dung đối soát do merchant gửi") String description,
+        @Schema(description = "Metadata do merchant gửi") Map<String, String> metadata,
+        @Schema(description = "Thời điểm tạo", format = "date-time") Instant createdAt,
+        @Schema(description = "Thời điểm đổi trạng thái gần nhất", format = "date-time") Instant updatedAt) {
 
     public static PaymentDetail of(Payment payment) {
         return new PaymentDetail(

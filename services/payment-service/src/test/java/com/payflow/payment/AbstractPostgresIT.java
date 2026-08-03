@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Tag;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.TestPropertySource;
 
 /**
  * One real PostgreSQL, shared by every integration test in this service.
@@ -34,7 +33,6 @@ import org.springframework.test.context.TestPropertySource;
  */
 @Tag("docker")
 @ActiveProfiles("test")
-@TestPropertySource(properties = "payflow.workflow-consumer.enabled=false")
 public abstract class AbstractPostgresIT {
 
     // Not PostgreSQLContainer<?>: Testcontainers 2.x dropped the self-referential type parameter that

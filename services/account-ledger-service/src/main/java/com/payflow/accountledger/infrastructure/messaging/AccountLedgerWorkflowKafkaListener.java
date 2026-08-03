@@ -2,6 +2,7 @@ package com.payflow.accountledger.infrastructure.messaging;
 
 import com.payflow.events.PayFlowTopics;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
@@ -10,6 +11,8 @@ import org.springframework.stereotype.Component;
 
 /** Acknowledges Account/Ledger commands only after their local transaction returns successfully. */
 @Component
+@ConditionalOnExpression(
+        "${payflow.payment-consumer.enabled:true} or ${payflow.refund-consumer.enabled:true}")
 class AccountLedgerWorkflowKafkaListener {
 
     static final String GROUP_ID = "account-ledger-workflow-v1";

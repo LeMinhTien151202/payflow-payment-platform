@@ -2,6 +2,7 @@ package com.payflow.payment.application;
 
 import com.payflow.payment.domain.model.Payment;
 import com.payflow.payment.domain.model.PaymentStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.Objects;
@@ -24,8 +25,14 @@ import java.util.UUID;
  * to the resource, and a replay must carry the correlation id of the request being replayed rather than
  * the one that happened to create the payment.
  */
+@Schema(description = "Biên nhận cho biết payment đã được lưu và chờ Kafka xử lý")
 public record PaymentAcceptance(
-        UUID paymentId, PaymentStatus status, BigDecimal amount, String currency, Instant createdAt) {
+        @Schema(description = "ID dùng để polling GET payment", format = "uuid") UUID paymentId,
+        @Schema(description = "Trạng thái ngay lúc nhận, thường là CREATED", example = "CREATED")
+                PaymentStatus status,
+        @Schema(description = "Số tiền đã nhận xử lý", example = "500000.0000") BigDecimal amount,
+        @Schema(description = "Tiền tệ của payment", example = "VND") String currency,
+        @Schema(description = "Thời điểm payment được tạo", format = "date-time") Instant createdAt) {
 
     public PaymentAcceptance {
         Objects.requireNonNull(paymentId, "paymentId");

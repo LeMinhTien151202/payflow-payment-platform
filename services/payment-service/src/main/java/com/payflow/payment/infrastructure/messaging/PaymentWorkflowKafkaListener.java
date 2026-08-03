@@ -4,6 +4,7 @@ import com.payflow.events.PayFlowTopics;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
@@ -12,6 +13,11 @@ import org.springframework.stereotype.Component;
 
 /** Thin Kafka boundary: route, then acknowledge only after the local transaction returned. */
 @Component
+@ConditionalOnProperty(
+        prefix = "payflow.workflow-consumer",
+        name = "enabled",
+        havingValue = "true",
+        matchIfMissing = true)
 class PaymentWorkflowKafkaListener {
 
     static final String GROUP_ID = "payment-saga-orchestrator-v1";

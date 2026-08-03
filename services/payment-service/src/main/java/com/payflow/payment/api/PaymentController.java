@@ -17,6 +17,13 @@ import com.payflow.payment.application.handler.GetPaymentHandler;
 import com.payflow.payment.domain.model.PaymentIntake;
 import com.payflow.payment.domain.model.Refund;
 import com.payflow.payment.infrastructure.web.CorrelationIdFilter;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.enums.ParameterIn;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.time.Clock;
@@ -36,6 +43,12 @@ import org.springframework.web.bind.annotation.RestController;
 /** Public payment API. Authentication context được chuyển đổi tại đây; công việc nghiệp vụ nằm trong các handler. */
 @RestController
 @RequestMapping("/api/v1/payments")
+@Tag(
+        name = "Payments",
+        description =
+                "Nhận payment/refund và đọc trạng thái. Các lệnh ghi chạy bất đồng bộ: HTTP 202 "
+                        + "chỉ xác nhận đã lưu yêu cầu, kết quả cuối cùng được đọc bằng GET payment.")
+@SecurityRequirement(name = PaymentOpenApiConfig.BEARER_AUTH)
 public class PaymentController {
 
     public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
@@ -57,13 +70,45 @@ public class PaymentController {
         this.clock = clock;
     }
 
+    @Operation(
+            operationId = "createRefund",
+            summary = "Yêu cầu hoàn tiền cho một payment",
+            description =
+                    "Kiểm tra payment thuộc merchant trong JWT, khóa và giữ phần hạn mức có thể "
+                            + "hoàn, sau đó ghi refund.requested vào transactional outbox. Trả 202 "
+                            + "ngay khi yêu cầu đã được lưu; Kafka tiếp tục ghi sổ hoàn tiền và "
+                            + "cộng lại số dư. Gửi lại cùng Idempotency-Key và cùng body sẽ nhận "
+                            + "lại kết quả cũ, không tạo refund thứ hai.")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "202",
+                description = "Refund mới đã được nhận, hoặc replay idempotent của yêu cầu cũ",
+                useReturnTypeSchema = true),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Body/header không hợp lệ", content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Thiếu hoặc sai bearer token", content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Token thiếu payment:write/merchant_id", content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không thấy payment thuộc merchant", content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "409",
+                description = "Sai trạng thái, vượt hạn mức hoàn, hoặc xung đột idempotency",
+                content = @Content)
+    })
     @PostMapping("/{paymentId}/refunds")
     ResponseEntity<ApiResponse<RefundAcceptance>> refund(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable UUID paymentId,
-            @RequestHeader(value = IDEMPOTENCY_KEY_HEADER, required = false) String idempotencyKey,
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            @Parameter(description = "ID payment đã thành công cần hoàn", required = true)
+                    @PathVariable
+                    UUID paymentId,
+            @Parameter(
+                            name = IDEMPOTENCY_KEY_HEADER,
+                            in = ParameterIn.HEADER,
+                            required = true,
+                            description = "Khóa chống tạo refund trùng; tối đa 100 ký tự",
+                            example = "refund-order-2026-00001-v1")
+                    @RequestHeader(value = IDEMPOTENCY_KEY_HEADER, required = false)
+                    String idempotencyKey,
             @Valid @RequestBody CreateRefundRequest request,
-            HttpServletRequest servletRequest) {
+            @Parameter(hidden = true) HttpServletRequest servletRequest) {
 
         String key = requireIdempotencyKey(idempotencyKey);
         CreateRefundResult result = createRefund.handle(
@@ -72,12 +117,41 @@ public class PaymentController {
                 .body(envelope(result.refund(), servletRequest));
     }
 
+    @Operation(
+            operationId = "createPayment",
+            summary = "Nhận một payment để xử lý bất đồng bộ",
+            description =
+                    "Lấy merchant_id từ JWT, kiểm tra request, tạo payment ở trạng thái CREATED "
+                            + "và ghi payment.created vào transactional outbox trong cùng transaction. "
+                            + "Trả 202 trước khi risk/account/ledger hoàn tất. Client dùng paymentId "
+                            + "trả về để gọi GET và theo dõi đến trạng thái cuối. Gửi lại cùng "
+                            + "Idempotency-Key và cùng body không tạo giao dịch thứ hai.")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "202",
+                description = "Payment mới đã được nhận, hoặc replay idempotent của yêu cầu cũ",
+                useReturnTypeSchema = true),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Body/header không hợp lệ", content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Thiếu hoặc sai bearer token", content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Token thiếu payment:write/merchant_id", content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "409",
+                description = "Trùng merchantReference hoặc xung đột Idempotency-Key",
+                content = @Content)
+    })
     @PostMapping
     ResponseEntity<ApiResponse<PaymentAcceptance>> create(
-            @AuthenticationPrincipal Jwt jwt,
-            @RequestHeader(value = IDEMPOTENCY_KEY_HEADER, required = false) String idempotencyKey,
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            @Parameter(
+                            name = IDEMPOTENCY_KEY_HEADER,
+                            in = ParameterIn.HEADER,
+                            required = true,
+                            description = "Khóa chống tạo payment trùng; tối đa 100 ký tự",
+                            example = "pay-order-2026-00001-v1")
+                    @RequestHeader(value = IDEMPOTENCY_KEY_HEADER, required = false)
+                    String idempotencyKey,
             @Valid @RequestBody CreatePaymentRequest request,
-            HttpServletRequest servletRequest) {
+            @Parameter(hidden = true) HttpServletRequest servletRequest) {
 
         String key = requireIdempotencyKey(idempotencyKey);
         CreatePaymentResult result = createPayment.handle(request.toCommand(merchantId(jwt), key));
@@ -86,11 +160,27 @@ public class PaymentController {
                 .body(envelope(result.payment(), servletRequest));
     }
 
+    @Operation(
+            operationId = "getPayment",
+            summary = "Đọc payment và trạng thái xử lý hiện tại",
+            description =
+                    "Chỉ trả payment thuộc merchant_id trong JWT. Dùng API này để polling sau khi "
+                            + "POST trả 202; trạng thái có thể đang xử lý hoặc đã kết thúc như "
+                            + "SUCCEEDED, FAILED, MANUAL_REVIEW_REQUIRED, PARTIALLY_REFUNDED/REFUNDED. "
+                            + "API đọc này không phát Kafka event.")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Chi tiết payment hiện tại", useReturnTypeSchema = true),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Thiếu hoặc sai bearer token", content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Token thiếu payment:read/merchant_id", content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "Không thấy payment thuộc merchant", content = @Content)
+    })
     @GetMapping("/{paymentId}")
     ApiResponse<PaymentDetail> get(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable UUID paymentId,
-            HttpServletRequest servletRequest) {
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            @Parameter(description = "ID nhận từ POST /api/v1/payments", required = true)
+                    @PathVariable
+                    UUID paymentId,
+            @Parameter(hidden = true) HttpServletRequest servletRequest) {
 
         return envelope(getPayment.handle(paymentId, merchantId(jwt)), servletRequest);
     }

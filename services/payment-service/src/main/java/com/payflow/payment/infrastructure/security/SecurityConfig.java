@@ -55,6 +55,10 @@ public class SecurityConfig {
                 .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        // The local profile serves these resources. Business endpoints below still
+                        // require a JWT, so Swagger's Authorize button is not a security bypass.
+                        .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**")
+                        .permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/payments/**")
                         .hasAuthority(SCOPE_PAYMENT_READ)
                         .requestMatchers(HttpMethod.POST, "/api/v1/payments/**")

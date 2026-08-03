@@ -36,6 +36,26 @@ spring:
           # binding has a value to bind.
           issuer-uri: http://localhost:8180/realms/payflow
 
+  kafka:
+    admin:
+      auto-create: false
+
+payflow:
+  workflow-consumer:
+    enabled: false
+  outbox:
+    enabled: false
+  saga-recovery:
+    enabled: false
+
+# Contract tests enable the endpoints explicitly. Production defaults remain disabled and the
+# Docker `local` profile enables the same endpoints a developer opens in the browser.
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
 logging:
   # Plain text rather than ECS JSON: a failing test is read by a human, not shipped to a log store.
   structured:

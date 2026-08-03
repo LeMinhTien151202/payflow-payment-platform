@@ -21,6 +21,10 @@ Bắt đầu từ đâu:
   [architecture/business-processing-reference.md](architecture/business-processing-reference.md).
 - Muốn lần source từ Controller/Kafka đến domain, transaction, adapter và database:
   [architecture/code-flow-guide.md](architecture/code-flow-guide.md).
+- Muốn xem request đi qua chính xác file nào, Keycloak/phân quyền ra sao và từng handler xử lý gì:
+  [architecture/payment-api-code-walkthrough.md](architecture/payment-api-code-walkthrough.md).
+- Mới làm quen event-driven, muốn hiểu REST dùng ở đâu và Kafka xử lý bước nào:
+  [architecture/rest-kafka-flow-guide.md](architecture/rest-kafka-flow-guide.md).
 - Muốn chạy app từ IDE/host: [runbooks/local-development.md](runbooks/local-development.md).
 - Muốn xử lý Saga bị dừng: [runbooks/saga-manual-review.md](runbooks/saga-manual-review.md).
 - Muốn triage/replay poison event: [runbooks/payment-workflow-dlt.md](runbooks/payment-workflow-dlt.md).

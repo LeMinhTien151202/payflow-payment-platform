@@ -2,6 +2,7 @@ package com.payflow.notification.infrastructure.messaging;
 
 import com.payflow.events.PayFlowTopics;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.kafka.support.KafkaHeaders;
@@ -9,6 +10,11 @@ import org.springframework.messaging.handler.annotation.Header;
 import org.springframework.stereotype.Component;
 
 @Component
+@ConditionalOnProperty(
+        prefix = "payflow.notification-consumer",
+        name = "enabled",
+        havingValue = "true",
+        matchIfMissing = true)
 class NotificationOutcomeKafkaListener {
 
     static final String GROUP_ID = "notification-outcome-v1";

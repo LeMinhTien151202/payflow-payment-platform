@@ -2,10 +2,15 @@ openapi: 3.1.0
 info:
   title: PayFlow Payment Service API
   version: 1.0.0
-  description: Sandbox payment and refund intake contract.
+  description: >-
+    Public contract for asynchronous payment/refund intake and payment status reads.
+    A 202 response means the command and its outbox event were durably accepted; it does not mean
+    the financial workflow has already succeeded. Poll GET /api/v1/payments/{paymentId} for outcome.
 servers:
-  - url: http://localhost:8080
+  - url: http://localhost:8084
     description: Local API Gateway
+  - url: http://localhost:8081
+    description: Direct Payment Service port for local Swagger/debug only
 security:
   - bearerAuth: []
 paths:
@@ -13,6 +18,10 @@ paths:
     post:
       operationId: createPayment
       summary: Accept a payment for asynchronous processing
+      description: >-
+        Creates the merchant-owned payment, idempotency record, Saga and payment.created outbox row
+        atomically. Risk, balance reservation, ledger posting and capture continue through Kafka.
+        Replay the same body with the same Idempotency-Key safely; poll GET with the returned ID.
       parameters:
         - $ref: '#/components/parameters/IdempotencyKey'
         - $ref: '#/components/parameters/CorrelationId'
@@ -41,6 +50,9 @@ paths:
     get:
       operationId: getPayment
       summary: Read one payment visible to the authenticated merchant
+      description: >-
+        Returns the current Saga-derived payment state. This read emits no Kafka event and is the
+        polling endpoint after create returned 202.
       parameters:
         - name: paymentId
           in: path
@@ -70,6 +82,9 @@ paths:
     post:
       operationId: createRefund
       summary: Reserve refundable capacity and accept asynchronous refund processing
+      description: >-
+        Locks the merchant-owned payment, reserves refundable capacity and writes refund.requested
+        through the outbox. Ledger posting and account credit continue asynchronously through Kafka.
       parameters:
         - name: paymentId
           in: path

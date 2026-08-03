@@ -62,6 +62,15 @@ spring:
 server:
   port: ${PAYFLOW_PAYMENT_PORT:8081}
 
+# API documentation is intentionally closed by default. The local profile below opens it for
+# developers; a production-like profile cannot expose implementation metadata by accident.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+  paths-to-match: /api/v1/payments/**
+
 payflow:
   outbox:
     enabled: ${PAYFLOW_OUTBOX_ENABLED:true}
@@ -124,3 +133,15 @@ spring:
       on-profile: local
   flyway:
     locations: classpath:db/migration,classpath:db/seed
+
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    display-request-duration: true
+    operations-sorter: method
+    tags-sorter: alpha
+    document-title: PayFlow Payment API

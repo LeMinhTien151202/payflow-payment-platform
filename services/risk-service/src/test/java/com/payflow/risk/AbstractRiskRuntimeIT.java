@@ -2,17 +2,14 @@ package com.payflow.risk;
 
 import org.junit.jupiter.api.Tag;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
-import org.springframework.test.context.TestPropertySource;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 @Tag("docker")
-@TestPropertySource(properties = {
-    "payflow.risk-consumer.enabled=false",
-    "payflow.outbox.enabled=false"
-})
+@ActiveProfiles("test")
 public abstract class AbstractRiskRuntimeIT {
 
     @ServiceConnection
@@ -27,7 +24,7 @@ public abstract class AbstractRiskRuntimeIT {
     }
 
     @DynamicPropertySource
-    static void redisProperties(DynamicPropertyRegistry registry) {
+    static void runtimeProperties(DynamicPropertyRegistry registry) {
         registry.add("spring.data.redis.host", REDIS::getHost);
         registry.add("spring.data.redis.port", () -> REDIS.getMappedPort(6379));
     }

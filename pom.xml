@@ -42,6 +42,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <spring-cloud.version>2025.1.2</spring-cloud.version>
+        <springdoc-openapi.version>3.0.3</springdoc-openapi.version>
 
         <!-- Managed by the Boot BOM; pinned here only where the BOM does not manage them. -->
         <wiremock.version>3.13.1</wiremock.version>
@@ -62,6 +63,14 @@
                 <version>${spring-cloud.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
+            </dependency>
+
+            <!-- Spring Boot 4 support starts with springdoc 3.x. Keep the version centralized so
+                 every future REST-owning service publishes contracts with the same toolchain. -->
+            <dependency>
+                <groupId>org.springdoc</groupId>
+                <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+                <version>${springdoc-openapi.version}</version>
             </dependency>
 
             <!-- Internal modules -->

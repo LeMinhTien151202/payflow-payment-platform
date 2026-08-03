@@ -173,6 +173,23 @@ class PaymentServiceFoundationIT extends AbstractPostgresIT {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
+    @Test
+    @DisplayName("local/test profile exposes the documented Payment API without weakening business auth")
+    void openApiContractIsReachableAndContainsEveryPublicOperation() {
+        ResponseEntity<String> response =
+                restTemplate.getForEntity(url("/v3/api-docs"), String.class);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(response.getBody())
+                .contains("\"/api/v1/payments\"")
+                .contains("\"/api/v1/payments/{paymentId}\"")
+                .contains("\"/api/v1/payments/{paymentId}/refunds\"")
+                .contains("\"operationId\":\"createPayment\"")
+                .contains("\"operationId\":\"getPayment\"")
+                .contains("\"operationId\":\"createRefund\"")
+                .contains("202 là đã nhận xử lý, không phải thanh toán đã thành công");
+    }
+
     /**
      * The complement of the check above: opening health must not have opened the rest of actuator.
      * {@code management.endpoints.web.exposure.include} lists health only, so anything else is absent
