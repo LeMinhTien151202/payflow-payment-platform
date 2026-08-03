@@ -46,7 +46,7 @@ spring:
       acks: all
       properties:
         enable.idempotence: true
-        delivery.timeout.ms: ${PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS:30000}
+        delivery.timeout.ms: ${PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS:60000}
     consumer:
       enable-auto-commit: false
       auto-offset-reset: earliest
@@ -72,7 +72,7 @@ payflow:
     max-backoff: ${PAYFLOW_OUTBOX_MAX_BACKOFF:300s}
     # Bound to the same environment value as Kafka's producer property. A single value prevents the
     # lease guard and the actual network timeout from silently disagreeing.
-    delivery-timeout: ${PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS:30000}ms
+    delivery-timeout: ${PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS:60000}ms
   saga-recovery:
     enabled: ${PAYFLOW_SAGA_RECOVERY_ENABLED:true}
     poll-interval: ${PAYFLOW_SAGA_RECOVERY_POLL_INTERVAL:1s}

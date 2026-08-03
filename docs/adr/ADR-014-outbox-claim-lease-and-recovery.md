@@ -161,7 +161,7 @@ retry. Row của aggregate khác vẫn tiếp tục.
 > guarantee đã kiểm chứng.
 
 Producer config bắt buộc: `enable.idempotence=true`, `acks=all`,
-`delivery.timeout.ms=30000`. Idempotent producer chỉ chống duplicate **trong một lần
+`delivery.timeout.ms=60000`. Idempotent producer chỉ chống duplicate **trong một lần
 send** khi Kafka tự retry; nó không liên quan gì tới ranh giới
 PostgreSQL ↔ Kafka và không tạo ra exactly-once (spec §8.8).
 
@@ -198,7 +198,7 @@ Cấu hình qua `payflow.outbox.*`, giá trị mặc định:
 | --- | --- | --- |
 | `poll-interval` | 500ms (fixed delay) | Sàn latency chấp nhận được cho một API trả `202`; đủ thưa để không đốt connection khi bảng rỗng |
 | `batch-size` | 100 | Giới hạn lượng row bị giữ claim nếu instance chết ngay sau bước 1 |
-| `lease` | 120s | **Phải lớn hơn `delivery.timeout.ms` (30s) một khoảng an toàn rõ rệt.** Reclaim chỉ được xảy ra khi lần gửi trước đã chắc chắn bỏ cuộc; reclaim sớm hơn là tự sinh duplicate |
+| `lease` | 120s | **Phải lớn hơn `delivery.timeout.ms` (60s) một khoảng an toàn rõ rệt.** Reclaim chỉ được xảy ra khi lần gửi trước đã chắc chắn bỏ cuộc; reclaim sớm hơn là tự sinh duplicate |
 | `max-attempts` | 10 | Với backoff dưới đây, row poison tới terminal state sau khoảng 20 phút thay vì quay vòng mãi |
 | backoff | `next_attempt_at = now() + min(2^attempt_count, 300) giây` | Attempt 1 retry sau 2s (đủ cho lỗi thoáng qua), cap 300s để một Kafka down nửa tiếng không đẩy retry ra hàng giờ |
 

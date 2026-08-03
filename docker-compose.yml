@@ -233,7 +233,7 @@ services:
       keycloak:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "java", "/opt/payflow/HealthCheck.java", "http://localhost:8081/actuator/health/readiness"]
+      test: ["CMD", "java", "-cp", "/opt/payflow/healthcheck", "HealthCheck", "http://localhost:8081/actuator/health/readiness"]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -275,7 +275,7 @@ services:
       keycloak:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "java", "/opt/payflow/HealthCheck.java", "http://localhost:8082/actuator/health/readiness"]
+      test: ["CMD", "java", "-cp", "/opt/payflow/healthcheck", "HealthCheck", "http://localhost:8082/actuator/health/readiness"]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -321,7 +321,7 @@ services:
       keycloak:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "java", "/opt/payflow/HealthCheck.java", "http://localhost:8083/actuator/health/readiness"]
+      test: ["CMD", "java", "-cp", "/opt/payflow/healthcheck", "HealthCheck", "http://localhost:8083/actuator/health/readiness"]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -360,7 +360,7 @@ services:
       keycloak:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "java", "/opt/payflow/HealthCheck.java", "http://localhost:8085/actuator/health/readiness"]
+      test: ["CMD", "java", "-cp", "/opt/payflow/healthcheck", "HealthCheck", "http://localhost:8085/actuator/health/readiness"]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -387,7 +387,7 @@ services:
       keycloak:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "java", "/opt/payflow/HealthCheck.java", "http://localhost:8080/actuator/health/readiness"]
+      test: ["CMD", "java", "-cp", "/opt/payflow/healthcheck", "HealthCheck", "http://localhost:8080/actuator/health/readiness"]
       interval: 10s
       timeout: 5s
       retries: 20

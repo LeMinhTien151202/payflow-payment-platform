@@ -1,15 +1,4 @@
 {
-  "_comment": [
-    "PayFlow local sandbox realm. Imported by docker-compose (keycloak: start-dev --import-realm).",
-    "Contains no production secret: the service client secret is read from the",
-    "PAYFLOW_SERVICE_CLIENT_SECRET environment variable at import time.",
-    "Phase 0 defines only machine-to-machine access. A merchant integrating with PayFlow is a",
-    "confidential client using client_credentials, not an interactive user, so no user, password",
-    "grant, or browser flow is configured here.",
-    "This realm is not the source of truth for authorization: it issues scopes, and each service",
-    "decides what a scope permits. See ADR-005."
-  ],
-
   "realm": "payflow",
   "displayName": "PayFlow (local sandbox)",
   "enabled": true,

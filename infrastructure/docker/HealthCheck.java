@@ -4,7 +4,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 
-/** Dependency-free container health probe executed with Java's source-file launcher. */
+/** Dependency-free container health probe compiled in the JDK build stage and run on the JRE. */
 public final class HealthCheck {
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

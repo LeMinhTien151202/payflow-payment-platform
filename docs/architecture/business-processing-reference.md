@@ -357,7 +357,7 @@ Business mutation và outbox row được ghi trong cùng local transaction. Pub
 3. mark `PUBLISHED` có điều kiện theo owner;
 4. reclaim claim hết lease, retry exponential backoff hữu hạn, cuối cùng thành `FAILED`.
 
-Mặc định: poll `500ms`, batch `100`, lease `120s`, Kafka delivery timeout `30s`, tối đa 10 attempt và
+Mặc định: poll `500ms`, batch `100`, lease `120s`, Kafka delivery timeout `60s`, tối đa 10 attempt và
 backoff cap `300s`. Trong một batch, event sau của cùng aggregate bị dời retry khi event trước lỗi;
 ordering nhiều replica vẫn cần được chứng minh bằng Kafka/PostgreSQL E2E.
 
@@ -442,7 +442,7 @@ không chứa credential thật.
 | `PAYFLOW_OUTBOX_POLL_INTERVAL/BATCH_SIZE` | `500ms` / `100` | Độ trễ và tải mỗi vòng publisher. |
 | `PAYFLOW_OUTBOX_LEASE` | `120s` | Phải dài hơn Kafka delivery timeout để hạn chế claim trùng đang còn publish. |
 | `PAYFLOW_OUTBOX_MAX_ATTEMPTS/MAX_BACKOFF` | `10` / `300s` | Giới hạn retry và backoff terminal. |
-| `PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS` | `30000` | Bound cho network publish và guard của outbox lease. |
+| `PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS` | `60000` | Bound cho network publish và guard của outbox lease; phải lớn hơn tổng Kafka request timeout và linger. |
 | `PAYFLOW_WORKFLOW_CONSUMER_ENABLED` | `true` | Bật Payment consumer cho Risk/Account/Ledger outcomes. |
 | `PAYFLOW_WORKFLOW_CONSUMER_RETRY_BACKOFF/MAX_RETRIES` | `1s` / `3` | Retry listener Payment trước DLT. |
 | `PAYFLOW_SAGA_RECOVERY_ENABLED` | `true` | Bật scheduler xử lý Saga quá hạn. |

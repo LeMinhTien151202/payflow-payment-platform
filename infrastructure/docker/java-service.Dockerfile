@@ -8,6 +8,10 @@ ARG SERVICE_MODULE
 WORKDIR /workspace
 COPY . .
 
+# Compile the dependency-free health probe while the JDK is available. The runtime stage uses a
+# JRE deliberately, so Java source-file mode is unavailable there (`jdk.compiler` is absent).
+RUN javac -d /workspace/healthcheck infrastructure/docker/HealthCheck.java
+
 # Windows checkouts can present mvnw with CRLF and without an executable bit. Normalize only the
 # image copy, then build the selected service plus its internal library dependencies.
 RUN sed -i 's/\r$//' mvnw \
@@ -23,9 +27,8 @@ RUN groupadd --system --gid 10001 payflow \
 
 WORKDIR /opt/payflow
 COPY --from=build --chown=payflow:payflow /workspace/app.jar /opt/payflow/app.jar
-COPY --chown=payflow:payflow infrastructure/docker/HealthCheck.java /opt/payflow/HealthCheck.java
+COPY --from=build --chown=payflow:payflow /workspace/healthcheck/HealthCheck.class /opt/payflow/healthcheck/HealthCheck.class
 
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=75.0"
 USER 10001:10001
 ENTRYPOINT ["java", "-jar", "/opt/payflow/app.jar"]
-
