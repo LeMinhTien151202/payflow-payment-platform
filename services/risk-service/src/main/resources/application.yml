@@ -2,7 +2,7 @@ spring:
   application:
     name: risk-service
   datasource:
-    url: ${PAYFLOW_RISK_DB_URL:jdbc:postgresql://localhost:5432/payflow_risk}
+    url: ${PAYFLOW_RISK_DB_URL:jdbc:postgresql://localhost:5433/payflow_risk}
     username: ${PAYFLOW_RISK_DB_USERNAME}
     password: ${PAYFLOW_RISK_DB_PASSWORD}
   flyway:

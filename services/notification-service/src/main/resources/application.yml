@@ -2,7 +2,7 @@ spring:
   application:
     name: notification-service
   datasource:
-    url: ${PAYFLOW_NOTIFICATION_DB_URL:jdbc:postgresql://localhost:5432/payflow_notification}
+    url: ${PAYFLOW_NOTIFICATION_DB_URL:jdbc:postgresql://localhost:5433/payflow_notification}
     username: ${PAYFLOW_NOTIFICATION_DB_USERNAME}
     password: ${PAYFLOW_NOTIFICATION_DB_PASSWORD}
   flyway:

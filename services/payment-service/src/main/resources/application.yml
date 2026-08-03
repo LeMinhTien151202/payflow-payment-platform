@@ -5,7 +5,7 @@ spring:
   datasource:
     # Credentials come from the environment only. AGENTS.md section 8 forbids committing any
     # credential, so there is no fallback password here.
-    url: ${PAYFLOW_PAYMENT_DB_URL:jdbc:postgresql://localhost:5432/payflow_payment}
+    url: ${PAYFLOW_PAYMENT_DB_URL:jdbc:postgresql://localhost:5433/payflow_payment}
     username: ${PAYFLOW_PAYMENT_DB_USERNAME}
     password: ${PAYFLOW_PAYMENT_DB_PASSWORD}
 

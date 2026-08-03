@@ -2,7 +2,7 @@ spring:
   application:
     name: account-ledger-service
   datasource:
-    url: ${PAYFLOW_ACCOUNT_LEDGER_DB_URL:jdbc:postgresql://localhost:5432/payflow_account_ledger}
+    url: ${PAYFLOW_ACCOUNT_LEDGER_DB_URL:jdbc:postgresql://localhost:5433/payflow_account_ledger}
     username: ${PAYFLOW_ACCOUNT_LEDGER_DB_USERNAME}
     password: ${PAYFLOW_ACCOUNT_LEDGER_DB_PASSWORD}
   jpa:

@@ -43,7 +43,7 @@ Smoke script đọc nhiều database bằng PostgreSQL superuser với vai trò 
 
 - Docker Desktop đang chạy với Linux containers và Docker Compose v2.
 - Khuyến nghị dành khoảng 8 GB RAM cho Docker Desktop; Keycloak được giới hạn 1 GB.
-- Các port mặc định chưa bị chiếm: `5432`, `6379`, `9092`, `8180`, `8080`, `8081`, `8082`,
+- Các port mặc định chưa bị chiếm: `5433`, `6379`, `9092`, `8180`, `8080`, `8081`, `8082`,
   `8083`, `8085`. Có thể đổi port phía host trong `.env`.
 - PowerShell 5.1+ hoặc PowerShell 7 để chạy smoke script.
 - JDK 21 chỉ cần khi chạy Maven trên host; build image tự dùng JDK 21.
@@ -123,7 +123,7 @@ docker compose --env-file .env --profile mvp up -d --build
 | Risk health | <http://localhost:8083/actuator/health/readiness> |
 | Notification health | <http://localhost:8085/actuator/health/readiness> |
 | Keycloak | <http://localhost:8180> |
-| PostgreSQL / Kafka / Redis | `localhost:5432` / `localhost:9092` / `localhost:6379` |
+| PostgreSQL / Kafka / Redis | `localhost:5433` / `localhost:9092` / `localhost:6379` |
 
 ## 6. Smoke test xuyên dịch vụ
 
@@ -255,4 +255,3 @@ Compose để chứng minh wiring xuyên service.
 - Chưa có webhook HMAC, observability stack, Kubernetes, Reporting hay Settlement trong profile này.
 - `full` hiện là alias của MVP, không phải toàn bộ roadmap.
 - Image/Compose chỉ trở thành bằng chứng runtime sau khi chính các lệnh trên chạy thành công.
-

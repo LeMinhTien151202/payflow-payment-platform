@@ -137,7 +137,7 @@ Keycloak chờ PostgreSQL healthy rồi mới import realm.
 
 | Service | Container | Image (pin cứng) | Port host | Ghi chú |
 | --- | --- | --- | --- | --- |
-| PostgreSQL | `payflow-postgres` | `postgres:17.10-alpine` | `${POSTGRES_PORT}` = 5432 | Database `payflow_bootstrap` chỉ để bootstrap; service không kết nối vào đó |
+| PostgreSQL | `payflow-postgres` | `postgres:17.10-alpine` | `${POSTGRES_PORT}` = 5433 | Database `payflow_bootstrap` chỉ để bootstrap; service không kết nối vào đó |
 | Redis | `payflow-redis` | `redis:8.2.8-alpine` | `${REDIS_PORT}` = 6379 | Persistence tắt hẳn. Chưa service nào dùng; sẽ dùng từ Phase 1A |
 | Kafka | `payflow-kafka` | `apache/kafka:4.3.1` | `${KAFKA_PORT}` = 9092 | KRaft single-node, không ZooKeeper. Auto-create topic **tắt** |
 | Keycloak | `payflow-keycloak` | `quay.io/keycloak/keycloak:26.7.0` | `${KEYCLOAK_PORT}` = 8180 | `start-dev`, chỉ dùng local |
@@ -380,7 +380,7 @@ Xoá build output:
 | Flyway `Validate failed` | Đã sửa một migration script đã apply | `docker compose down -v` rồi start lại. Không sửa migration đã apply trên môi trường có dữ liệu |
 | Hibernate fail lúc start với lỗi schema | `ddl-auto=validate` phát hiện entity lệch schema | Sửa migration cho khớp entity. Không đổi sang `ddl-auto=update` |
 | `invalid_client` khi lấy token | Có thể là vấn đề `${ENV}` substitution ở phần 5 | Regenerate secret trong admin console |
-| Port đã bị chiếm | 5432/6379/9092/8180/8080/8081 đang có process khác | Đổi giá trị port trong `.env` |
+| Port đã bị chiếm | 5433/6379/9092/8180/8080/8081 đang có process khác | Đổi giá trị port trong `.env` |
 | Keycloak không bao giờ healthy | Nó chờ PostgreSQL healthy trước | `docker compose logs keycloak`; kiểm tra `payflow_keycloak` đã được tạo |
 
 ---
