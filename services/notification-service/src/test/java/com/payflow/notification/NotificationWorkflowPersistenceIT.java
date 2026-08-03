@@ -110,9 +110,9 @@ class NotificationWorkflowPersistenceIT extends AbstractNotificationRuntimeIT {
         var event = paymentSucceeded(UUID.randomUUID(), UUID.randomUUID());
         handler.handle(factory.paymentSucceeded(event));
 
-        // No instant is passed in. The row was made due by the database clock on insert and the
-        // claim reads it against that same clock, so NOW being a frozen 2026-07-30 — the event's
-        // occurredAt, an upstream fact — cannot decide whether this notification is deliverable.
+        // Không có instant nào được truyền vào. Dòng dữ liệu được làm cho đến hạn bởi đồng hồ database khi insert và
+        // claim đọc nó đối chiếu với chính đồng hồ đó, do đó NOW là một mốc thời gian đóng đóng băng 2026-07-30 — occurredAt
+        // của event, một sự thật upstream — không thể quyết định notification này có thể deliver hay không.
         NotificationClaimBatch batch =
                 deliveryStore.claim("worker-a", Duration.ofSeconds(30), 5, 10);
         assertThat(batch.notifications()).hasSize(1);

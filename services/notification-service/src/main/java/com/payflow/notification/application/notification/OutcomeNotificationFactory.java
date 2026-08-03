@@ -30,7 +30,7 @@ public final class OutcomeNotificationFactory {
     public OutcomeNotificationIntent paymentFailed(EventEnvelope<PaymentFailedData> event) {
         requirePaymentContract(event, PaymentEvents.PAYMENT_FAILED, event.data().paymentId());
         var data = event.data();
-        // payment.failed v1 has no customerId; PAYMENT/paymentId is the only truthful routing key.
+        // payment.failed v1 không có customerId; PAYMENT/paymentId là routing key duy nhất chính xác.
         return intent(event, "PAYMENT_OUTCOME", data.paymentId(), "PAYMENT",
                 data.paymentId().toString(), "PAYMENT_FAILED", Map.of(
                         "paymentId", data.paymentId().toString(),

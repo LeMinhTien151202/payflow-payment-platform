@@ -27,7 +27,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** Transactional ADR-021 orchestrator for refund financial outcomes. */
+/** Orchestrator giao dịch theo ADR-021 cho các kết quả tài chính của refund. */
 @Service
 public class HandleRefundWorkflowEventHandler {
 
@@ -131,7 +131,7 @@ public class HandleRefundWorkflowEventHandler {
                 return EventProcessingResult.DUPLICATE;
             }
 
-            // Consistent lock order with refund intake: Payment first, Refund second.
+            // Thứ tự lock nhất quán với refund intake: Payment trước, Refund sau.
             Payment payment = payments.findForRefundWorkflow(paymentId)
                     .orElseThrow(() -> new RefundWorkflowDataException("Payment", paymentId));
             Refund refund = refunds.findForWorkflow(refundId)

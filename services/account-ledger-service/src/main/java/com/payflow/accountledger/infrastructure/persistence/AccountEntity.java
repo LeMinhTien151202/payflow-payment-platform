@@ -22,8 +22,8 @@ class AccountEntity {
     @Id
     private UUID id;
 
-    // CHAR(3) in the migration, so the mapping says CHAR too. Without this Hibernate expects
-    // varchar(3), finds bpchar, and ddl-auto=validate refuses to start the service.
+    // CHAR(3) trong DDL migration, do đó mapping ở đây cũng phải là CHAR. Nếu không có điều này, Hibernate
+    // sẽ mong đợi varchar(3), tìm thấy bpchar trong DB, và ddl-auto=validate từ chối khởi chạy service.
     @JdbcTypeCode(SqlTypes.CHAR)
     @Column(nullable = false, length = 3)
     private String currency;

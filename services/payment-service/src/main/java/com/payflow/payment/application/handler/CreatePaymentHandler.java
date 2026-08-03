@@ -31,40 +31,40 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Accepts a payment: exactly once per idempotency key, with its event, in one transaction.
+ * Chấp nhận một payment: chính xác 1 lần cho mỗi idempotency key, cùng với event của nó, trong 1 transaction.
  *
- * <h2>Why this class is not annotated {@code @Transactional}</h2>
+ * <h2>TẠI SAO CLASS NÀY KHÔNG DÙNG ANNOTATION {@code @Transactional}</h2>
  *
- * <p>Two reasons, and both are the kind that produce a subtly broken system rather than a failing test.
+ * <p>Có 2 lý do, và cả hai đều thuộc dạng tạo ra một hệ thống bị hỏng ngầm thay vì làm bài test thất bại.
  *
- * <p>The first is that recovering from a lost race requires reading the winner's row, and a transaction
- * that has just failed a unique constraint is marked rollback-only — every further statement on it fails.
- * The read has to happen outside the transaction that failed, which means the transaction boundary must be
- * inside this method rather than around it.
+ * <p>Thứ nhất là việc khôi phục từ một race condition bị thua đòi hỏi phải đọc dòng chiến thắng, và một transaction
+ * vừa vi phạm unique constraint sẽ bị đánh dấu rollback-only — mọi câu lệnh tiếp theo trên đó đều thất bại.
+ * Thao tác đọc phải xảy ra bên ngoài transaction bị lỗi, có nghĩa là ranh giới transaction phải nằm
+ * bên trong method này chứ không bao quanh nó.
  *
- * <p>The second is that a {@code @Transactional} method calling another method of the same class goes
- * through {@code this}, not the proxy, so the inner boundary would silently not exist. A
- * {@link TransactionTemplate} makes the boundary a visible statement instead of a property of how the call
- * was routed.
+ * <p>Thứ hai là một method có {@code @Transactional} khi gọi một method khác trong cùng class sẽ đi
+ * qua {@code this}, chứ không qua proxy, do đó ranh giới bên trong sẽ âm thầm không tồn tại. Một
+ * {@link TransactionTemplate} giúp ranh giới trở thành một câu lệnh rõ ràng thay vì là một thuộc tính phụ thuộc vào cách gọi
+ * method.
  *
- * <h2>Order of writes inside the transaction</h2>
+ * <h2>Thứ tự ghi bên trong transaction</h2>
  *
- * <p>The idempotency record is inserted first, before the payment. Two concurrent requests carrying the
- * same key normally also carry the same {@code merchantReference}, so both unique indexes are in play; the
- * one that fires decides which exception the caller gets. Inserting the idempotency row first makes the
- * race serialise on {@code uq_idempotency_records_scope_key}, whose answer is "replay the winner's
- * response". If the payment went in first, the same race would surface as a duplicate merchant reference —
- * a 409 for a client that did nothing wrong.
+ * <p>Bản ghi idempotency được insert trước, trước khi insert payment. Hai request đồng thời mang
+ * cùng key thông thường cũng mang cùng {@code merchantReference}, do đó cả 2 unique index đều tham gia; request
+ * chạy trước sẽ quyết định exception nào caller nhận được. Việc insert dòng idempotency trước sẽ giúp
+ * race condition được serialise trên {@code uq_idempotency_records_scope_key}, với câu trả lời là "replay response của request thắng".
+ * Nếu payment được insert trước, cùng race condition đó sẽ xuất hiện dưới dạng duplicate merchant reference —
+ * một lỗi 409 cho một client không làm gì sai.
  */
 @Service
 public class CreatePaymentHandler {
 
     /**
-     * How long a stored response stays replayable.
+     * Thời gian một response được lưu giữ có thể replay.
      *
-     * <p>A day covers any sane client retry policy, including a queue that was down overnight, and bounds
-     * how long a merchant's request bodies are kept. Nothing deletes expired rows yet — the cleanup job is
-     * outside Phase 1A — so this is a retention promise the schema records, not one it enforces.
+     * <p>Một ngày bao phủ bất kỳ retry policy hợp lý nào của client, bao gồm một queue bị sập qua đêm, và giới hạn
+     * thời gian lưu giữ request body của merchant. Chưa có gì xóa các row hết hạn — job dọn dẹp nằm
+     * ngoài Phase 1A — nên đây là một cam kết lưu giữ mà schema ghi nhận, chứ chưa phải cơ chế cưỡng chế.
      */
     static final Duration REPLAY_WINDOW = Duration.ofHours(24);
 
@@ -101,19 +101,19 @@ public class CreatePaymentHandler {
     }
 
     /**
-     * @throws MerchantNotRegisteredException if the token's merchant is not in the catalog
-     * @throws IdempotencyConflictException if the key was used by a different request
-     * @throws com.payflow.payment.application.exception.DuplicateMerchantReferenceException if the merchant
-     *     already used this reference
-     * @throws com.payflow.payment.domain.exception.PaymentDomainException if the merchant may not transact,
-     *     does not settle in this currency, or the amount is over its per-payment limit
+     * @throws MerchantNotRegisteredException nếu merchant của token không có trong catalog
+     * @throws IdempotencyConflictException nếu key được sử dụng bởi một request khác
+     * @throws com.payflow.payment.application.exception.DuplicateMerchantReferenceException nếu merchant
+     *     đã sử dụng reference này rồi
+     * @throws com.payflow.payment.domain.exception.PaymentDomainException nếu merchant không được phép giao dịch,
+     *     không hỗ trợ thanh toán loại currency này, hoặc số tiền vượt quá hạn mức mỗi giao dịch
      */
     public CreatePaymentResult handle(CreatePaymentCommand command) {
         String scope = IdempotencyScope.createPayment(command.merchantId());
         String fingerprint = RequestFingerprint.of(command);
 
-        // Read before opening a transaction. A retry is the expected case for a client with a queue behind
-        // it, and answering it should not take a write lock on anything.
+        // Đọc trước khi mở một transaction. Việc retry là trường hợp dự kiến đối với một client có queue đằng sau,
+        // và việc trả lời retry không nên chiếm giữ write lock trên bất kỳ tài nguyên nào.
         var stored = idempotency.find(scope, command.idempotencyKey());
         if (stored.isPresent()) {
             return replay(stored.get(), fingerprint, scope, command.idempotencyKey());
@@ -122,9 +122,9 @@ public class CreatePaymentHandler {
         try {
             return transactions.execute(status -> create(command, scope, fingerprint));
         } catch (ConcurrentIdempotentRequestException lostTheRace) {
-            // The other request has committed by the time the constraint reported the conflict, so its
-            // response is readable now. If it somehow is not, the key exists with no response behind it
-            // and there is nothing honest left to return.
+            // Request kia đã committed tại thời điểm constraint báo cáo xung đột, nên response
+            // của nó có thể đọc được ngay bây giờ. Nếu vì lý do nào đó không đọc được, key đã tồn tại mà không có response đằng sau
+            // và không còn gì trung thực để trả về.
             return idempotency
                     .find(scope, command.idempotencyKey())
                     .map(winner -> replay(winner, fingerprint, scope, command.idempotencyKey()))
@@ -155,9 +155,9 @@ public class CreatePaymentHandler {
                         now);
 
         Payment payment = Payment.create(merchant, intake);
-        // The public 202 contract returns the initial CREATED snapshot. The stored aggregate advances
-        // to RISK_CHECKING in the same transaction that appends payment.created, so a later Risk result
-        // cannot arrive while Payment still claims it was never submitted.
+        // Public 202 contract trả về snapshot CREATED ban đầu. Aggregate được lưu trữ chuyển tiến
+        // sang RISK_CHECKING trong cùng 1 transaction đã append payment.created, nên kết quả Risk đến sau
+        // không thể tới khi Payment vẫn khẳng định rằng nó chưa bao giờ được gửi đi.
         PaymentAcceptance acceptance = PaymentAcceptance.of(payment);
         payment.submitForRisk(now);
 

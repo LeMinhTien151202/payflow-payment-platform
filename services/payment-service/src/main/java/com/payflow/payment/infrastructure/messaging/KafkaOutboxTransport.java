@@ -10,7 +10,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
-/** Sends the immutable bytes stored in the outbox and waits for the broker acknowledgement. */
+/** Gửi các byte bất biến được lưu trong outbox và chờ xác nhận (acknowledgement) từ broker. */
 @Component
 class KafkaOutboxTransport implements OutboxTransport {
 
@@ -45,8 +45,8 @@ class KafkaOutboxTransport implements OutboxTransport {
             }
             throw failedSend;
         } catch (TimeoutException timeout) {
-            // The broker may still have accepted the send. Retrying can duplicate, which is why eventId is
-            // stable and consumers need an inbox; never reinterpret timeout as a definite rejection.
+            // Broker vẫn có thể đã nhận và chấp nhận đợt gửi này. Việc retry có thể tạo trùng (duplicate), đó là lý do vì sao eventId
+            // ổn định và các consumer cần một inbox; tuyệt đối không diễn giải lỗi timeout thành một từ chối chắc chắn.
             throw timeout;
         }
     }

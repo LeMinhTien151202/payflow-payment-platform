@@ -10,7 +10,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
-/** Sends immutable outbox bytes and waits for the broker acknowledgement. */
+/** Gửi byte outbox bất biến và chờ xác nhận (acknowledgement) từ broker. */
 @Component
 class KafkaOutboxTransport implements OutboxTransport {
 
@@ -45,7 +45,7 @@ class KafkaOutboxTransport implements OutboxTransport {
             }
             throw failedSend;
         } catch (TimeoutException timeout) {
-            // A timeout is ambiguous. Stable event ids plus consumer inboxes make a retry safe.
+            // Lỗi timeout mang tính mập mờ (ambiguous). Event id ổn định cộng với consumer inbox giúp việc retry an toàn.
             throw timeout;
         }
     }

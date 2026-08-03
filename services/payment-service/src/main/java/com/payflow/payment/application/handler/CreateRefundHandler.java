@@ -26,7 +26,7 @@ import java.time.Instant;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
-/** Atomically reserves payment capacity, creates a refund and appends its workflow event. */
+/** Dự trữ payment capacity, tạo refund và append workflow event của nó một cách atomic. */
 @Service
 public class CreateRefundHandler {
 
@@ -84,8 +84,8 @@ public class CreateRefundHandler {
                 .orElseThrow(() ->
                         new PaymentNotFoundException(command.paymentId(), command.merchantId()));
 
-        // A same-payment retry may have waited behind the winner's row lock. Re-read after acquiring
-        // the lock so it replays without transiently reserving capacity that would only be rolled back.
+        // Một đợt retry trên cùng payment có thể đã chờ sau row lock của request chiến thắng. Đọc lại sau khi lấy được
+        // lock để nó replay mà không cần dự trữ tạm thời capacity vốn sẽ bị rollback ngay sau đó.
         var winner = idempotency.find(scope, command.idempotencyKey());
         if (winner.isPresent()) {
             return replay(winner.get(), fingerprint, scope, command.idempotencyKey());

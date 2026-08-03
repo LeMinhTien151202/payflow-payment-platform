@@ -78,8 +78,8 @@ public final class LedgerPaymentPostedEventFactory {
             throw new JournalInvariantViolationException(
                     "posted journal does not match ledger payment command");
         }
-        // Command time belongs to Payment's clock. Only compare timestamps produced locally by
-        // Ledger; causationId carries the cross-service logical order.
+        // Thời điểm command thuộc về đồng hồ của Payment. Chỉ so sánh các timestamp được tạo cục bộ bởi
+        // Ledger; causationId sẽ mang thứ tự logic giữa các service.
         if (occurredAt.isBefore(journal.createdAt())) {
             throw new JournalInvariantViolationException(
                     "ledger event timestamp cannot precede journal commit");

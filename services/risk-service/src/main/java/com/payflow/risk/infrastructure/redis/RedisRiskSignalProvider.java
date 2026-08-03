@@ -13,8 +13,8 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
 /**
- * Atomically records one candidate payment and returns customer velocity windows.
- * Payment IDs are Redis members, so a retry cannot count the same payment twice.
+ * Ghi nhận một candidate payment một cách atomic và trả về các velocity window của customer.
+ * Payment ID là các member trong Redis, do đó việc retry không thể đếm trùng 1 payment 2 lần.
  */
 @Component
 class RedisRiskSignalProvider implements RiskSignalProvider {
@@ -93,8 +93,8 @@ class RedisRiskSignalProvider implements RiskSignalProvider {
         int count = Integer.parseInt(result.get(0).toString());
         BigDecimal total = new BigDecimal(new BigInteger(result.get(1).toString()), 4);
 
-        // payment.created v1 has no trusted device/IP/failure/merchant-risk signals. Neutral values
-        // are explicit until a versioned enrichment contract is introduced.
+        // payment.created v1 không có tín hiệu trusted device/IP/failure/merchant-risk. Các giá trị trung tính (neutral values)
+        // được sử dụng tường minh cho đến khi một enrichment contract có version được giới thiệu.
         return new RiskSignalSnapshot(count, total, false, 0, false, false);
     }
 

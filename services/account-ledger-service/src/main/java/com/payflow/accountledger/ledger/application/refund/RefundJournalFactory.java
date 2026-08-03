@@ -43,8 +43,8 @@ public final class RefundJournalFactory {
                                 EntryDirection.CREDIT,
                                 request.amount(),
                                 request.currency())),
-                // Both timestamps come from Ledger's local clock. Causation, not wall-clock
-                // comparison across services, establishes that this journal follows the request.
+                // Cả hai timestamp đều đến từ đồng hồ nội bộ của Ledger. Quan hệ nhân quả (causation), chứ không phải
+                // việc so sánh đồng hồ giữa các service, thiết lập việc journal này nối tiếp request.
                 createdAt,
                 createdAt);
     }

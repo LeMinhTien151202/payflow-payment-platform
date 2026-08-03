@@ -43,11 +43,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /**
- * Transactional Payment Saga consumer use case.
+ * Use case consumer cho Payment Saga với giao dịch transactional.
  *
- * <p>Every public method performs inbox insert, Payment/Saga transition and outgoing outbox append
- * in one local transaction. Kafka acknowledgement belongs to the listener and happens only after
- * one of these methods returns successfully.
+ * <p>Mỗi public method đều thực hiện inbox insert, Payment/Saga transition và outgoing outbox append
+ * trong cùng 1 local transaction. Việc Kafka acknowledgement thuộc về listener và chỉ xảy ra
+ * sau khi một trong các method này trả về kết quả thành công.
  */
 @Service
 public class HandlePaymentWorkflowEventHandler {
@@ -159,9 +159,9 @@ public class HandlePaymentWorkflowEventHandler {
             EventEnvelope<LedgerPaymentPostingFailedData> event) {
         UUID paymentId = event.data().paymentId();
         return process(event, LedgerEvents.PAYMENT_POSTING_FAILED, paymentId, (payment, saga, now) -> {
-            // The v1 event is a definitive or producer-retry-exhausted outcome. Missing responses are
-            // retried by the persisted deadline scheduler; Payment does not infer retryability from a
-            // free-form failure code.
+            // Event v1 là một kết quả dứt điểm hoặc là kết quả sau khi producer đã cạn số lần retry. Các response bị thiếu sẽ
+            // được retry bởi scheduler dựa theo deadline được lưu trữ; Payment không suy ra khả năng retry từ một
+            // failure code dạng tự do.
             SagaRecoveryAction action = recoveryPolicy.onLedgerPostingFailed(
                     payment,
                     saga,

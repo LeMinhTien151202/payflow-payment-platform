@@ -6,31 +6,30 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * The single envelope every PayFlow Kafka message uses, per spec 8.2.
+ * Envelope duy nhất cho mọi thông điệp PayFlow Kafka, theo spec 8.2.
  *
- * <p>Component names are the wire format. Renaming one is a breaking change for every consumer, so
- * they are not refactored for style. There are no serialisation annotations on purpose: the JSON
- * shape is a contract that happens to be produced by Jackson, not a Jackson mapping that happens to
- * be published.
+ * <p>Tên component là wire format. Việc đổi tên là breaking change đối với mọi consumer, nên
+ * không được refactor chỉ vì phong cách trình bày. Cố tình không dùng annotation serialisation: hình
+ * dạng JSON là một contract do Jackson tạo ra, không phải một Jackson mapping tùy ý.
  *
- * <p><strong>{@code eventId} is generated when the outbox row is inserted, not when the message is
- * published.</strong> ADR-014 depends on this: a republish after a crash must carry the same
- * {@code eventId} as the send that may already have reached the broker, otherwise the consumer inbox
- * cannot recognise the duplicate and the whole at-least-once chain is worthless.
+ * <p><strong>{@code eventId} được tạo khi dòng outbox được insert, không phải khi thông điệp được
+ * publish.</strong> ADR-014 phụ thuộc vào điều này: một đợt republish sau khi crash phải mang cùng
+ * {@code eventId} với lượt gửi có thể đã tới broker, nếu không consumer inbox không thể nhận biết
+ * duplicate và toàn bộ chuỗi at-least-once sẽ mất hiệu lực.
  *
- * @param eventId stable identity of this event, and the deduplication key for every consumer
- * @param eventType contract name, for example {@code payment.created}
- * @param eventVersion schema version of {@code data}
- * @param aggregateType aggregate kind, for example {@code PAYMENT}
- * @param aggregateId aggregate instance; also the Kafka key, which is what keeps per-aggregate
- *     ordering inside a partition (spec 8.3)
- * @param correlationId ties this event back to the HTTP request that caused it
- * @param causationId {@code eventId} of the event that caused this one, {@code null} when the cause
- *     was an inbound request rather than another event
- * @param producer service that wrote the outbox row
- * @param occurredAt when the business fact happened, not when it was published
- * @param data the versioned payload; its schema is owned by the producing service
- * @param <T> payload type
+ * @param eventId định danh định hình của event này, và là key deduplication cho mọi consumer
+ * @param eventType tên contract, ví dụ {@code payment.created}
+ * @param eventVersion schema version của {@code data}
+ * @param aggregateType loại aggregate, ví dụ {@code PAYMENT}
+ * @param aggregateId instance của aggregate; đồng thời là Kafka key giữ thứ tự per-aggregate
+ *     bên trong một partition (spec 8.3)
+ * @param correlationId liên kết event này ngược về HTTP request gây ra nó
+ * @param causationId {@code eventId} của event đã gây ra event này, {@code null} khi nguyên nhân
+ *     là một inbound request thay vì một event khác
+ * @param producer service đã ghi dòng outbox
+ * @param occurredAt thời điểm xảy ra sự thật nghiệp vụ, không phải thời điểm publish
+ * @param data payload có version; schema của nó do service phát hành sở hữu
+ * @param <T> kiểu payload
  */
 public record EventEnvelope<T>(
         UUID eventId,
@@ -44,10 +43,10 @@ public record EventEnvelope<T>(
         Instant occurredAt,
         T data) {
 
-    /** Matches {@code outbox_events.aggregate_id}, which holds a UUID string in every current use. */
+    /** Khớp với {@code outbox_events.aggregate_id}, chứa chuỗi UUID trong mọi trường hợp sử dụng hiện tại. */
     public static final int MAX_AGGREGATE_ID_LENGTH = 100;
 
-    /** Matches the producer column width used by the outbox and inbox tables. */
+    /** Khớp với độ rộng cột producer được sử dụng bởi các bảng outbox và inbox. */
     public static final int MAX_PRODUCER_LENGTH = 100;
 
     public EventEnvelope {
@@ -78,10 +77,10 @@ public record EventEnvelope<T>(
         Objects.requireNonNull(occurredAt, "occurredAt is required");
         Objects.requireNonNull(data, "data is required");
 
-        // The correlation id reaches here from an HTTP header that a client controls, and from here
-        // it goes into a persisted row, a log line, and a Kafka header. Rejecting rather than
-        // sanitising is deliberate: by this point the request filter has already replaced anything
-        // unsafe, so an unsafe value means a code path bypassed the filter.
+        // Correlation id chuyển đến đây từ một HTTP header do client kiểm soát, và từ đây
+        // nó sẽ đi vào một dòng lưu trữ, một dòng log, và một Kafka header. Việc reject thay vì
+        // sanitise là cố ý: tại thời điểm này request filter đã thay thế bất kỳ giá trị
+        // không an toàn nào, nên một giá trị không an toàn có nghĩa là một code path đã bỏ qua filter.
         if (!CorrelationId.isSafe(correlationId)) {
             throw new IllegalArgumentException("correlationId is missing or not safe to propagate");
         }
@@ -91,10 +90,10 @@ public record EventEnvelope<T>(
     }
 
     /**
-     * Builds an envelope for a business fact caused by an inbound request rather than another event.
+     * Tạo envelope cho một sự thật nghiệp vụ được gây ra bởi một inbound request thay vì một event khác.
      *
-     * @param eventId identity to assign; the caller supplies it because it must be generated once,
-     *     at outbox insert time, and reused by every republish
+     * @param eventId định danh được gán; caller cung cấp vì nó phải được sinh ra một lần,
+     *     tại thời điểm insert outbox, và dùng lại bởi mọi đợt republish
      */
     public static <T> EventEnvelope<T> of(
             UUID eventId,
@@ -119,9 +118,9 @@ public record EventEnvelope<T>(
     }
 
     /**
-     * Builds an envelope for a business fact caused by consuming another event, recording that cause
-     * in {@code causationId}. Without this link a Saga is only traceable by correlation id, which
-     * tells you the request but not the chain of steps inside it.
+     * Tạo envelope cho một sự thật nghiệp vụ được gây ra bởi việc consume một event khác, ghi nhận nguyên nhân đó
+     * vào {@code causationId}. Nếu không có liên kết này, một Saga chỉ có thể truy vết được qua correlation id,
+     * vốn chỉ cho biết request chứ không cho biết chuỗi các bước bên trong nó.
      */
     public static <T> EventEnvelope<T> causedBy(
             UUID eventId,

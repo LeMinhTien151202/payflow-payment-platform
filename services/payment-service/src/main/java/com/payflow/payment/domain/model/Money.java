@@ -6,36 +6,36 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * An amount and the currency it is denominated in, inseparable.
+ * Một số tiền và loại currency mà nó đại diện, không thể tách rời.
  *
- * <p>The pairing is the point. A bare {@code BigDecimal} passed between methods loses its currency,
- * and the resulting bug is not a crash — it is a number that looks plausible and is wrong.
+ * <p>Việc ghép cặp này chính là điểm mấu chốt. Một {@code BigDecimal} đơn thuần khi truyền qua các method sẽ mất đi thông tin currency,
+ * và bug phát sinh từ đó không phải là lỗi crash — nó là một con số trông có vẻ hợp lý nhưng lại hoàn toàn sai.
  *
- * <p>{@code BigDecimal} at a fixed scale of 4, matching {@code NUMERIC(19,4)} in PostgreSQL.
- * AGENTS.md section 5 forbids {@code double} and {@code float} for money outright: they cannot
- * represent 0.1, so a sum of them drifts, and the drift lands in someone's balance.
+ * <p>{@code BigDecimal} tại mốc scale cố định là 4, khớp với {@code NUMERIC(19,4)} trong PostgreSQL.
+ * AGENTS.md phần 5 cấm hoàn toàn kiểu {@code double} và {@code float} cho tiền tệ: chúng không thể
+ * biểu diễn chính xác 0.1, do đó tổng của chúng sẽ bị lệch, và sai số đó sẽ rơi vào số dư của ai đó.
  *
- * <p>Scale is normalised on construction so that two amounts equal in value are also equal by
- * {@code equals}. Without it, {@code Money.of("100")} and {@code Money.of("100.0000")} would be
- * different objects representing the same money, and every comparison in the codebase would have to
- * remember to use {@code compareTo}.
+ * <p>Scale được chuẩn hóa ngay khi khởi tạo để hai số tiền có giá trị bằng nhau cũng sẽ bằng nhau thông qua
+ * {@code equals}. Nếu không có điều đó, {@code Money.of("100")} và {@code Money.of("100.0000")} sẽ là
+ * các object khác nhau đại diện cho cùng một số tiền, và mọi so sánh trong codebase sẽ phải
+ * nhớ việc sử dụng {@code compareTo}.
  *
- * <p>Zero is permitted; negative is not. A zero amount is a real quantity — nothing refunded yet, no
- * fee charged. A negative one would mean direction, which belongs in the ledger's debit/credit
- * distinction rather than smuggled into a sign here. That a <em>payment</em> must be strictly
- * positive is a separate rule, enforced by {@link Payment}.
+ * <p>Số 0 được chấp nhận; số âm thì không. Một số tiền bằng 0 là một lượng có thật — chưa hoàn tiền, chưa
+ * tính phí. Một số âm sẽ mang ý nghĩa hướng giao dịch, vốn thuộc về sự phân biệt debit/credit của sổ cái
+ * chứ không phải tuồn vào dấu âm ở đây. Việc một <em>payment</em> phải là số dương nghiêm ngặt
+ * là một quy tắc riêng biệt, được thực thi bởi {@link Payment}.
  */
 public record Money(BigDecimal amount, String currency) {
 
-    /** Matches {@code NUMERIC(19,4)}. Changing it is a database migration, not a constant edit. */
+    /** Khớp với {@code NUMERIC(19,4)}. Việc thay đổi nó là một database migration, không phải sửa hằng số. */
     public static final int SCALE = 4;
 
     /**
-     * MVP is VND only (spec 7.4).
+     * MVP chỉ hỗ trợ VND (spec 7.4).
      *
-     * <p>Adding a currency is not adding an entry here: it needs an FX-rate source, a rounding rule
-     * per currency, and a decision about what a multi-currency merchant balance means. The narrow set
-     * is what forces that conversation instead of letting a second currency arrive unnoticed.
+     * <p>Thêm một loại currency không đơn thuần là thêm một mục ở đây: nó cần nguồn FX-rate, quy tắc làm tròn
+     * cho mỗi currency, và quyết định về ý nghĩa số dư merchant đa tiền tệ. Tập hợp hẹp
+     * chính là thứ ép buộc cuộc thảo luận đó thay vì vô tình để currency thứ hai xuất hiện mà không được kiểm soát.
      */
     private static final Set<String> SUPPORTED_CURRENCIES = Set.of("VND");
 
@@ -53,21 +53,21 @@ public record Money(BigDecimal amount, String currency) {
         if (amount.signum() < 0) {
             throw new IllegalArgumentException("amount must not be negative: " + amount);
         }
-        // Rejected rather than rounded. PostgreSQL would round the extra digits away silently, and a
-        // rounding policy is a business decision that must not be made by a value object's
-        // constructor. See PaymentIntakeSchemaIT.extraScaleIsRoundedNotRejected.
+        // Từ chối thay vì tự làm tròn. PostgreSQL sẽ làm tròn các chữ số thừa một cách âm thầm, và một
+        // policy làm tròn là một quyết định nghiệp vụ không được đưa ra bởi constructor của một value object.
+        // Xem PaymentIntakeSchemaIT.extraScaleIsRoundedNotRejected.
         if (amount.scale() > SCALE) {
             throw new IllegalArgumentException(
                     "amount scale must not exceed " + SCALE + ": " + amount);
         }
 
-        // Exact by construction: the scale was just checked to be at most SCALE, so this widens and
-        // never rounds.
+        // Chính xác theo cấu trúc: scale vừa được kiểm tra tối đa là SCALE, do đó lệnh này mở rộng và
+        // không bao giờ làm tròn.
         amount = amount.setScale(SCALE);
     }
 
     /**
-     * @param amount decimal text, for example {@code "500000"} or {@code "1234.5678"}
+     * @param amount văn bản dạng số thập phân, ví dụ {@code "500000"} hoặc {@code "1234.5678"}
      */
     public static Money of(String amount, String currency) {
         return new Money(new BigDecimal(amount), currency);
@@ -82,9 +82,8 @@ public record Money(BigDecimal amount, String currency) {
     }
 
     /**
-     * @throws IllegalArgumentException if the currencies differ — a mismatch here is not a business
-     *     rejection but two values that came from sources which disagree, and returning any boolean
-     *     would be a guess
+     * @throws IllegalArgumentException nếu các currency khác nhau — sự mâu thuẫn ở đây không phải là một lỗi từ chối nghiệp vụ
+     *     mà là hai giá trị đến từ các nguồn mâu thuẫn nhau, và việc trả về bất kỳ boolean nào cũng chỉ là sự suy đoán
      */
     public boolean isGreaterThan(Money other) {
         requireSameCurrency(other);
@@ -112,7 +111,7 @@ public record Money(BigDecimal amount, String currency) {
         }
     }
 
-    /** Plain notation, so a large amount never renders as {@code 5E+5} in a log or a message. */
+    /** Định dạng hiển thị chuỗi thường (plain notation), để một số tiền lớn không bao giờ hiển thị dưới dạng {@code 5E+5} trong log hay message. */
     @Override
     public String toString() {
         return amount.toPlainString() + " " + currency;

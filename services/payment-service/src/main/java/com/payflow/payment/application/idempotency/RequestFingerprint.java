@@ -12,32 +12,32 @@ import java.util.TreeMap;
 import java.util.UUID;
 
 /**
- * Turns payment/refund write requests into fingerprints stored in
+ * Chuyển các write request payment/refund thành các fingerprint lưu trữ trong
  * {@code idempotency_records.request_hash}.
  *
- * <p>The fingerprint answers one question: is this the same request as the one that used this key before?
- * Comparing raw request bodies would answer it wrongly, because a client that reorders JSON members or
- * writes {@code 500000.00} instead of {@code 500000} has sent the same payment. Everything here exists to
- * make equivalent requests produce equal strings, and different requests produce different ones.
+ * <p>Fingerprint trả lời 1 câu hỏi: đây có phải là request giống hệt với request đã sử dụng key này trước đó hay không?
+ * Việc so sánh trực tiếp raw request body sẽ cho câu trả lời sai, bởi vì một client sắp xếp lại thứ tự các member JSON hoặc
+ * viết {@code 500000.00} thay vì {@code 500000} thực chất đã gửi cùng một payment. Tất cả ở đây tồn tại để
+ * làm cho các request tương đương tạo ra các chuỗi bằng nhau, và các request khác nhau tạo ra các chuỗi khác nhau.
  *
- * <p>Three properties matter, and each is a decision rather than a detail:
+ * <p>Ba thuộc tính quan trọng, và mỗi thuộc tính là một quyết định kiến trúc chứ không phải chi tiết nhỏ:
  *
  * <ul>
- *   <li><strong>Length-prefixed.</strong> Every value is encoded as {@code name:length:value|}. Plain
- *       concatenation would give reference {@code "AB"} with description {@code "C"} the same bytes as
- *       reference {@code "A"} with description {@code "BC"}, and those are different payments.
- *   <li><strong>Metadata sorted by key.</strong> JSON member order is not significant, so two orderings of
- *       the same metadata must not look like two different requests.
- *   <li><strong>Amount stripped of trailing zeros.</strong> {@code 500000}, {@code 500000.00} and
- *       {@code 5E+5} are one amount and must fingerprint alike.
+ *   <li><strong>Length-prefixed.</strong> Mỗi giá trị được encode dạng {@code name:length:value|}. Việc nối chuỗi
+ *       đơn thuần sẽ khiến reference {@code "AB"} với description {@code "C"} có cùng byte với
+ *       reference {@code "A"} với description {@code "BC"}, trong khi đó là hai payment hoàn toàn khác nhau.
+ *   <li><strong>Metadata sorted by key.</strong> Thứ tự member JSON không quan trọng, do đó hai cách sắp xếp
+ *       của cùng một metadata không được coi là hai request khác nhau.
+ *   <li><strong>Amount stripped of trailing zeros.</strong> {@code 500000}, {@code 500000.00} và
+ *       {@code 5E+5} là cùng một số tiền và phải tạo ra fingerprint giống hệt nhau.
  * </ul>
  *
- * <p>The idempotency key itself is excluded — it is the lookup key, not part of what is being compared.
- * The correlation id is excluded too: it differs on every retry, which would make every retry a conflict.
+ * <p>Bản thân idempotency key bị loại trừ — nó là key tìm kiếm, chứ không phải một phần của dữ liệu được so sánh.
+ * Correlation id cũng bị loại trừ: nó khác nhau ở mỗi lần retry, điều đó sẽ khiến cho mọi đợt retry trở thành lỗi conflict.
  *
- * <p>SHA-256 is used for a stable fixed width, not for secrecy. Nothing here is a credential and the hash
- * is never returned to a caller, so the comparison in {@link IdempotentResponse#matches(String)} does not
- * need to be constant-time. 64 hex characters fit {@code VARCHAR(128)} with room for a longer algorithm.
+ * <p>SHA-256 được sử dụng để có độ rộng cố định ổn định, chứ không phải cho mục đích bảo mật. Không có gì ở đây là credential và hash
+ * không bao giờ trả về cho caller, do đó việc so sánh trong {@link IdempotentResponse#matches(String)} không
+ * cần phải là constant-time. 64 ký tự hex vừa vặn trong {@code VARCHAR(128)} còn dư chỗ cho một algorithm dài hơn.
  */
 public final class RequestFingerprint {
 
@@ -46,7 +46,7 @@ public final class RequestFingerprint {
     private RequestFingerprint() {
     }
 
-    /** Lowercase hex SHA-256 of the canonical encoding of {@code command}. */
+    /** Chuỗi hex chữ thường SHA-256 của định dạng chuẩn hóa (canonical encoding) từ {@code command}. */
     public static String of(CreatePaymentCommand command) {
         StringBuilder canonical = new StringBuilder();
 
@@ -58,8 +58,8 @@ public final class RequestFingerprint {
         field(canonical, "currency", command.currency());
         field(canonical, "description", command.description());
 
-        // TreeMap rather than a sorted stream: the keys are strings and natural ordering is the one
-        // property this needs to keep across JVM versions.
+        // TreeMap thay vì sorted stream: các key là string và thứ tự tự nhiên (natural ordering) là
+        // thuộc tính duy nhất cần giữ nguyên xuyên suốt các phiên bản JVM.
         for (Map.Entry<String, String> entry : new TreeMap<>(command.metadata()).entrySet()) {
             field(canonical, "metadata." + entry.getKey(), entry.getValue());
         }
@@ -67,7 +67,7 @@ public final class RequestFingerprint {
         return hex(canonical.toString());
     }
 
-    /** Canonical refund payload. Actor is excluded so a legitimate retry can be replayed by the merchant. */
+    /** Canonical refund payload. Actor bị loại trừ để đợt retry hợp lệ có thể được replay bởi merchant. */
     public static String of(CreateRefundCommand command) {
         StringBuilder canonical = new StringBuilder();
         field(canonical, "merchantId", text(command.merchantId()));
@@ -82,9 +82,9 @@ public final class RequestFingerprint {
     }
 
     /**
-     * Normalises without validating. An amount with more precision than the column accepts is rejected by
-     * {@code Money}, with a message about scale; throwing here instead would report a fingerprinting
-     * failure for what is a plain validation error.
+     * Chuẩn hóa mà không validate. Một số tiền với độ chính xác cao hơn cột cho phép sẽ bị từ chối bởi
+     * {@code Money}, kèm theo thông điệp về scale; việc ném ngoại lệ ở đây thay vào đó sẽ báo cáo lỗi
+     * fingerprint cho một lỗi vốn là validation error thông thường.
      */
     private static String amount(BigDecimal value) {
         return value == null ? null : value.stripTrailingZeros().toPlainString();
@@ -93,8 +93,8 @@ public final class RequestFingerprint {
     private static void field(StringBuilder target, String name, String value) {
         target.append(name).append(':');
         if (value == null) {
-            // A distinct marker rather than an empty string, so an absent description and an empty one
-            // are not the same request.
+            // Một đánh dấu phân biệt chứ không phải chuỗi rỗng, để một description bị vắng mặt và một description rỗng
+            // không bị coi là cùng một request.
             target.append("null");
         } else {
             target.append(value.length()).append(':').append(value);
@@ -107,8 +107,8 @@ public final class RequestFingerprint {
             MessageDigest digest = MessageDigest.getInstance(ALGORITHM);
             return HexFormat.of().formatHex(digest.digest(canonical.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException impossible) {
-            // Every JVM is required to provide SHA-256. Wrapped rather than declared, because no caller
-            // has a meaningful response to an absent standard digest.
+            // Mọi JVM đều bắt buộc phải cung cấp SHA-256. Bọc ngoại lệ thay vì khai báo throws, vì không có caller nào
+            // có phản hồi có ý nghĩa cho một tiêu chuẩn digest bị thiếu.
             throw new IllegalStateException(ALGORITHM + " is not available", impossible);
         }
     }

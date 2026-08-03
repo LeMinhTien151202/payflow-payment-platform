@@ -13,25 +13,25 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 /**
- * Shared fixtures for the gateway integration tests.
+ * Shared fixtures cho các bài gateway integration tests.
  *
- * <p>Holds the downstream stub and the token builders so each test class states only what it is
- * proving. WireMock stands in for payment-service: the gateway's own routing and authorization must
- * be provable without another service running, otherwise a gateway test failure would be ambiguous.
+ * <p>Giữ downstream stub và token builder để mỗi class test chỉ nêu những gì nó đang chứng minh.
+ * WireMock đóng vai trò thay thế cho payment-service: việc routing và authorization của gateway phải
+ * chứng minh được mà không cần service khác đang chạy, nếu không lỗi ở gateway test sẽ rất mơ hồ.
  *
- * <p>The stub is started once for the whole JVM rather than per class, because the port is published
- * through {@link DynamicPropertySource} into the Spring context and restarting it would invalidate
- * an already-cached context.
+ * <p>Stub được start 1 lần cho toàn bộ JVM chứ không phải từng class, vì port được công bố
+ * thông qua {@link DynamicPropertySource} vào Spring context và việc restart nó sẽ làm mất hiệu lực
+ * của context đã cached.
  */
 abstract class GatewayTestSupport {
 
-    /** Token value the mocked decoder resolves to a principal holding both payment scopes. */
+    /** Giá trị token mà mocked decoder phân giải thành principal chứa cả 2 payment scopes. */
     static final String TOKEN_FULL_SCOPE = "test-token-full-scope";
 
-    /** Token value resolving to a principal holding only {@code payment:read}. */
+    /** Giá trị token phân giải thành principal chỉ chứa {@code payment:read}. */
     static final String TOKEN_READ_ONLY = "test-token-read-only";
 
-    /** Token value the mocked decoder rejects, standing in for an expired or forged token. */
+    /** Giá trị token mà mocked decoder từ chối, thay thế cho token hết hạn hoặc giả mạo. */
     static final String TOKEN_INVALID = "test-token-invalid";
 
     static final WireMockServer PAYMENT_SERVICE_STUB =
@@ -39,19 +39,19 @@ abstract class GatewayTestSupport {
 
     static {
         PAYMENT_SERVICE_STUB.start();
-        // Not stopped explicitly: the stub lives for the JVM's lifetime alongside the cached Spring
-        // contexts that were configured with its port. Surefire/Failsafe tear down the whole JVM.
+        // Không dừng tường minh: stub sống theo vòng đời JVM cùng với các Spring context
+        // đã cached và được cấu hình với port của nó. Surefire/Failsafe sẽ tear down toàn bộ JVM.
     }
 
     @LocalServerPort
     private int port;
 
     /**
-     * Client bound to the real running gateway.
+     * Client được bind tới gateway thật đang chạy.
      *
-     * <p>Built by hand rather than injected: Spring Boot only auto-configures a {@code WebTestClient}
-     * for a mock web environment, and these tests need a genuine HTTP hop so that the gateway's proxy
-     * behaviour and header rewriting are actually exercised.
+     * <p>Tự khởi tạo thay vì inject: Spring Boot chỉ tự động cấu hình {@code WebTestClient}
+     * cho môi trường web mock, trong khi các test này cần một HTTP hop thực sự để proxy behaviour
+     * và header rewriting của gateway thực sự được chạy.
      */
     protected WebTestClient webTestClient;
 
@@ -60,8 +60,8 @@ abstract class GatewayTestSupport {
         webTestClient =
                 WebTestClient.bindToServer()
                         .baseUrl("http://localhost:" + port)
-                        // Above the default 5s: the first request pays gateway route and security
-                        // initialisation, which is slow enough on a cold JVM to flake otherwise.
+                        // Cao hơn mức 5s mặc định: request đầu tiên phải trả chi phí cho gateway route và security
+                        // initialisation, vốn đủ chậm trên một JVM lạnh để gây ra lỗi flake nếu không nâng timeout.
                         .responseTimeout(Duration.ofSeconds(20))
                         .build();
     }
@@ -74,11 +74,11 @@ abstract class GatewayTestSupport {
     }
 
     /**
-     * Builds a decoded token with the given space-delimited scopes.
+     * Tạo một decoded token với các scopes cách nhau bởi khoảng trắng.
      *
-     * <p>Spring Security's default converter turns the {@code scope} claim into {@code SCOPE_}
-     * authorities, which is exactly what the security configuration asserts on, so the claim shape
-     * here has to match what Keycloak issues.
+     * <p>Converter mặc định của Spring Security chuyển claim {@code scope} thành các authority {@code SCOPE_},
+     * khớp chính xác với những gì security configuration kiểm tra, do đó cấu trúc claim ở đây
+     * phải khớp với những gì Keycloak phát hành.
      */
     static Jwt jwtWithScopes(String tokenValue, String scopes) {
         Instant now = Instant.now();

@@ -6,22 +6,22 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Everything needed to create one payment, already validated and typed.
+ * Tất cả thông tin cần thiết để tạo một payment, đã được validate và typed.
  *
- * <p>Exists so {@link Payment#create} takes two arguments instead of ten. A factory with ten
- * positional parameters, four of them strings, is a transposition waiting to happen — and swapping
- * {@code merchantReference} with {@code idempotencyKey} would compile, pass, and quietly break
- * idempotency.
+ * <p>Tồn tại để {@link Payment#create} chỉ nhận hai tham số thay vì mười. Một factory với mười
+ * tham số theo vị trí, trong đó bốn tham số là kiểu string, rất dễ dẫn đến lỗi nhầm vị trí tham số — và việc tráo đổi
+ * {@code merchantReference} với {@code idempotencyKey} vẫn sẽ biên dịch, pass test, nhưng âm thầm phá hỏng
+ * cơ chế idempotency.
  *
- * <p>Defined in the domain rather than reusing the application's command object, so that the dependency
- * still points inward. The mapping between the two is written out by hand in the application layer,
- * which makes it a step a reviewer can see.
+ * <p>Được định nghĩa trong domain layer thay vì dùng lại command object của application layer, để hướng phụ thuộc
+ * vẫn trỏ vào bên trong. Việc chuyển đổi giữa hai object được viết tay trong application layer,
+ * giúp người review code có thể nhìn thấy rõ ràng từng bước.
  *
- * <p>The identifier and the timestamp are supplied by the caller, not generated here. A domain object
- * that calls {@code UUID.randomUUID()} or {@code Instant.now()} cannot be tested about either.
+ * <p>Identifier và timestamp được cung cấp bởi caller, không phải sinh ra ở đây. Một domain object
+ * tự gọi {@code UUID.randomUUID()} hoặc {@code Instant.now()} sẽ không thể test độc lập về cả 2 giá trị này.
  *
- * @param metadata merchant-supplied key/value pairs, bounded and copied defensively
- * @param description free text from the merchant; never used in a decision, only stored and displayed
+ * @param metadata cặp key/value do merchant cung cấp, có giới hạn kích thước và được copy bảo vệ (defensive copy)
+ * @param description văn bản tự do từ merchant; không bao giờ dùng cho việc ra quyết định, chỉ lưu trữ và hiển thị
  */
 public record PaymentIntake(
         UUID paymentId,
@@ -34,22 +34,22 @@ public record PaymentIntake(
         Map<String, String> metadata,
         Instant createdAt) {
 
-    /** Matches {@code payments.merchant_reference}. */
+    /** Khớp với {@code payments.merchant_reference}. */
     public static final int MAX_MERCHANT_REFERENCE_LENGTH = 100;
 
-    /** Matches {@code payments.idempotency_key}. */
+    /** Khớp với {@code payments.idempotency_key}. */
     public static final int MAX_IDEMPOTENCY_KEY_LENGTH = 100;
 
-    /** Matches {@code payments.description}. */
+    /** Khớp với {@code payments.description}. */
     public static final int MAX_DESCRIPTION_LENGTH = 500;
 
     /**
-     * Metadata bounds.
+     * Giới hạn Metadata.
      *
-     * <p>The column is {@code jsonb} and would happily accept a megabyte. These caps exist because the
-     * value is opaque third-party content stored on the write path of a payment: unbounded, it becomes
-     * a way to make every insert slow, and a place to park data this platform never promised to
-     * protect.
+     * <p>Cột DB có kiểu {@code jsonb} và sẵn sàng chấp nhận dung lượng hàng megabyte. Các giới hạn này tồn tại bởi vì
+     * giá trị ở đây là nội dung bên thứ ba không xác định nằm trên luồng ghi của payment: nếu không giới hạn, nó sẽ
+     * trở thành cách khiến cho mọi câu lệnh insert bị chậm, và là nơi chứa dữ liệu mà nền tảng này chưa bao giờ cam kết
+     * bảo vệ.
      */
     public static final int MAX_METADATA_ENTRIES = 20;
 
@@ -69,9 +69,9 @@ public record PaymentIntake(
         idempotencyKey =
                 requireBounded(idempotencyKey, "idempotencyKey", MAX_IDEMPOTENCY_KEY_LENGTH);
 
-        // A payment for nothing is not a payment (spec 7.4 validation). The API rejects this first
-        // with a field-level error; reaching here with zero means that path was bypassed, so this is
-        // an IllegalArgumentException rather than a domain rejection.
+        // Một payment bằng 0 không phải là một payment (validation theo spec 7.4). API sẽ từ chối việc này đầu tiên
+        // bằng một lỗi ở cấp field; việc chạy tới đây với số tiền bằng 0 có nghĩa là luồng validation đã bị bỏ qua, nên đây
+        // là một IllegalArgumentException chứ không phải domain rejection.
         if (!amount.isPositive()) {
             throw new IllegalArgumentException("payment amount must be positive: " + amount);
         }
@@ -114,7 +114,7 @@ public record PaymentIntake(
                                         + " characters");
                     }
                 });
-        // Map.copyOf, so a caller holding the original map cannot change what was validated.
+        // Dùng Map.copyOf, để caller giữ map ban đầu không thể thay đổi những gì đã được validate.
         return Map.copyOf(metadata);
     }
 }

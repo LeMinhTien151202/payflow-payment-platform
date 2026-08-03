@@ -80,7 +80,7 @@ class OutboxLeaseStorePersistenceIT extends AbstractPostgresIT {
                 status,
                 attempts,
                 "PROCESSING".equals(status) ? "previous-owner" : null,
-                // The driver cannot infer a SQL type for Instant, exactly as production code hit.
+                // Driver không thể tự suy luận kiểu SQL cho Instant, khớp chính xác với lỗi ở production code.
                 lockUntil == null ? null : lockUntil.atOffset(ZoneOffset.UTC));
         return eventId;
     }

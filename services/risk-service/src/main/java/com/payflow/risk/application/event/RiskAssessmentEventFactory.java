@@ -30,8 +30,8 @@ public final class RiskAssessmentEventFactory {
         Objects.requireNonNull(occurredAt, "occurredAt");
         requirePaymentCreated(cause);
         requireSamePaymentContext(cause.data(), assessment);
-        // Payment and Risk own different clocks. Logical order comes from causationId; rejecting a
-        // valid assessment because Risk's wall clock is slightly behind Payment's would be unsafe.
+        // Payment và Risk sở hữu đồng hồ khác nhau. Thứ tự logic đến từ causationId; từ chối một
+        // đánh giá hợp lệ vì wall clock của Risk chậm hơn một chút so với của Payment là không an toàn.
 
         RiskAssessmentCompletedData data = new RiskAssessmentCompletedData(
                 assessment.paymentId(),

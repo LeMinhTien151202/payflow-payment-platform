@@ -13,11 +13,11 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Writes RFC 9457 Problem Details for edge failures that never reach a controller.
+ * Ghi kết quả lỗi RFC 9457 Problem Details cho các thất bại ở tầng Edge mà không bao giờ tới controller.
  *
- * <p>Spring's reactive security entry points default to an empty body with a
- * {@code WWW-Authenticate} header. AGENTS.md section 7 requires every error to be Problem Details
- * with a stable code, so 401 and 403 responses are rendered here instead.
+ * <p>Các entry point bảo mật reactive mặc định của Spring trả về body rỗng kèm theo header
+ * {@code WWW-Authenticate}. AGENTS.md phần 7 yêu cầu mọi lỗi đều phải là Problem Details
+ * kèm theo mã code định danh ổn định, do đó response 401 và 403 được render tại đây.
  */
 @Component
 public class ProblemDetailErrorWriter {
@@ -29,11 +29,10 @@ public class ProblemDetailErrorWriter {
     }
 
     /**
-     * Renders a Problem Details body for the current exchange.
+     * Render body Problem Details cho exchange hiện tại.
      *
-     * <p>{@code detail} must stay generic. Explaining which scope was missing would tell an
-     * unauthenticated caller about the authorization model, so the message says only that access was
-     * refused.
+     * <p>{@code detail} phải giữ dạng tổng quát. Việc giải thích scope nào bị thiếu sẽ vô tình làm cho caller
+     * chưa xác thực biết về mô hình phân quyền, do đó thông điệp chỉ nêu rằng truy cập bị từ chối.
      */
     public Mono<Void> write(
             ServerWebExchange exchange, HttpStatus status, PayFlowErrorCode code, String detail) {
@@ -48,8 +47,8 @@ public class ProblemDetailErrorWriter {
         try {
             body = objectMapper.writeValueAsBytes(problem);
         } catch (JacksonException e) {
-            // Serialising a ProblemDetail cannot realistically fail; if it does, the status code is
-            // still correct and an empty body is preferable to leaking an exception to the client.
+            // Việc serialise một ProblemDetail về mặt thực tế không thể thất bại; nếu xảy ra lỗi, status code
+            // vẫn đúng và một body rỗng vẫn tốt hơn là rò rỉ ngoại lệ (exception) cho client.
             return exchange.getResponse().setComplete();
         }
 
@@ -57,7 +56,7 @@ public class ProblemDetailErrorWriter {
         return exchange.getResponse().writeWith(Mono.just(buffer));
     }
 
-    /** Body for a request with missing, malformed, or expired credentials. */
+    /** Body cho request thiếu, hỏng định dạng, hoặc hết hạn credential. */
     public Mono<Void> unauthenticated(ServerWebExchange exchange) {
         return write(
                 exchange,
@@ -66,7 +65,7 @@ public class ProblemDetailErrorWriter {
                 "Valid authentication credentials are required.");
     }
 
-    /** Body for an authenticated caller lacking the required authority. */
+    /** Body cho caller đã được xác thực nhưng thiếu authority bắt buộc. */
     public Mono<Void> forbidden(ServerWebExchange exchange) {
         return write(
                 exchange,

@@ -6,21 +6,19 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * A request to create a payment, as the application layer sees it.
+ * Một yêu cầu tạo payment, theo góc nhìn của application layer.
  *
- * <p>{@code merchantId} is first, and is not part of the HTTP request body. The body in spec 7.4 has no
- * merchant field: the merchant is the authenticated caller, resolved from the token. AGENTS.md section 8
- * is explicit that ownership must never be taken from the request body — a merchant that could name
- * itself could name someone else.
+ * <p>{@code merchantId} đứng đầu tiên, và không nằm trong HTTP request body. Body trong spec 7.4 không có
+ * field merchant: merchant chính là caller đã được xác thực, giải mã từ token. AGENTS.md phần 8 chỉ rõ
+ * rằng ownership không bao giờ được lấy từ request body — một merchant nếu tự đặt tên cho mình thì cũng có thể đặt tên merchant khác.
  *
- * <p>{@code idempotencyKey} comes from the {@code Idempotency-Key} header rather than the body, so it is
- * carried separately from the fields that describe the payment. That separation is what lets the request
- * fingerprint cover the payment and not the key.
+ * <p>{@code idempotencyKey} đến từ header {@code Idempotency-Key} chứ không phải body, nên nó được
+ * mang riêng biệt với các field mô tả payment. Sự tách biệt đó giúp request fingerprint chỉ bao phủ
+ * nội dung payment chứ không chứa key.
  *
- * <p>Amount and currency stay separate primitives here and only become a {@code Money} inside the
- * handler. The boundary has to accept whatever a client sent in order to reject it with a 400; turning it
- * into a domain type at the edge would make an invalid amount a domain exception instead of a validation
- * failure.
+ * <p>Amount và currency giữ nguyên dạng các kiểu dữ liệu nguyên thủy riêng biệt ở đây và chỉ trở thành {@code Money} bên trong
+ * handler. Biên giới API phải nhận bất kỳ dữ liệu nào client gửi lên để từ chối với lỗi 400; việc biến nó
+ * thành domain type ngay ở tầng edge sẽ khiến cho một số tiền không hợp lệ trở thành một domain exception thay vì validation failure.
  */
 public record CreatePaymentCommand(
         UUID merchantId,
@@ -34,18 +32,18 @@ public record CreatePaymentCommand(
         Map<String, String> metadata) {
 
     public CreatePaymentCommand {
-        // Only the two values the API boundary cannot validate for itself are checked here. The rest is
-        // bounded by PaymentIntake and Money, and duplicating those rules in a third place is how the
-        // three copies end up disagreeing.
+        // Chỉ có hai giá trị mà ranh giới API không thể tự mình validate mới được kiểm tra ở đây. Phần còn lại được
+        // giới hạn bởi PaymentIntake và Money, và việc nhân bản các quy tắc đó ở một nơi thứ ba là nguyên nhân
+        // khiến ba bản sao kết thúc mâu thuẫn với nhau.
         Objects.requireNonNull(merchantId, "merchantId");
         Objects.requireNonNull(idempotencyKey, "idempotencyKey");
 
         if (metadata == null) {
             metadata = Map.of();
         } else {
-            // Checked before copying rather than left to PaymentIntake, because Map.copyOf answers a
-            // null value with a bare NullPointerException — which the error handler can only turn into
-            // a 500, for what is a client mistake.
+            // Kiểm tra trước khi copy thay vì để cho PaymentIntake làm, vì Map.copyOf sẽ phản hồi
+            // một giá trị null bằng NullPointerException thuần túy — thứ mà error handler chỉ có thể chuyển thành
+            // lỗi 500, cho một sai sót từ phía client.
             for (Map.Entry<String, String> entry : metadata.entrySet()) {
                 if (entry.getValue() == null) {
                     throw new IllegalArgumentException(

@@ -10,11 +10,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
- * Locks the topic names against accidental change.
+ * Khóa các tên topic tránh bị thay đổi vô tình.
  *
- * <p>A renamed topic is not a refactor: producers write to the new name, already-deployed consumers
- * keep polling the old one, and nothing fails — messages simply stop arriving. This test is the only
- * thing standing between a tidy-up commit and that outcome.
+ * <p>Việc đổi tên topic không phải là một đợt refactor thông thường: producer ghi vào tên mới, các consumer
+ * đã deploy tiếp tục poll tên cũ, và không có gì báo lỗi — chỉ đơn giản là message dừng tới. Test này là thứ duy nhất
+ * đứng giữa một commit dọn dẹp code và hậu quả đó.
  */
 class PayFlowTopicsTest {
 
@@ -40,7 +40,7 @@ class PayFlowTopicsTest {
     @Test
     @DisplayName("every declared topic is versioned, so a breaking change has an escape hatch")
     void everyTopicIsVersioned() {
-        // payflow.<context>[.<kind>].v<n> — the dead-letter topic has no kind segment.
+        // payflow.<context>[.<kind>].v<n> — topic dead-letter không có phân đoạn kind.
         assertThat(declaredTopicNames())
                 .allMatch(name -> name.matches("^payflow\\.[a-z-]+(\\.[a-z]+)?\\.v\\d+$"));
     }

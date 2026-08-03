@@ -33,7 +33,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Public payment API. Authentication context is converted here; business work stays in handlers. */
+/** Public payment API. Authentication context được chuyển đổi tại đây; công việc nghiệp vụ nằm trong các handler. */
 @RestController
 @RequestMapping("/api/v1/payments")
 public class PaymentController {
@@ -111,7 +111,7 @@ public class PaymentController {
         try {
             return UUID.fromString(claim);
         } catch (IllegalArgumentException | NullPointerException invalid) {
-            // Do not echo the claim. It is token content and may have been supplied by an invalid issuer.
+            // Không echo lại nội dung claim. Nó là nội dung của token và có thể được cung cấp bởi một issuer không hợp lệ.
             throw new AccessDeniedException("authenticated principal has no merchant identity", invalid);
         }
     }

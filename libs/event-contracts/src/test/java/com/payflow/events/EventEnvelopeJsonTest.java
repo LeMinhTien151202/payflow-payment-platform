@@ -16,15 +16,15 @@ import tools.jackson.databind.cfg.DateTimeFeature;
 import tools.jackson.databind.json.JsonMapper;
 
 /**
- * Proves the serialised envelope matches spec 8.2 field for field.
+ * Chứng minh envelope được serialise khớp chính xác từng field với spec 8.2.
  *
- * <p>This is the only place the wire format is actually verified rather than described. A rename or a
- * reordering of record components changes what consumers receive, and nothing else in the build would
- * notice.
+ * <p>Đây là nơi duy nhất wire format thực sự được kiểm chứng thay vì chỉ được mô tả. Việc đổi tên hoặc
+ * đổi thứ tự của các record component sẽ làm thay đổi những gì consumer nhận được, và không có gì khác trong
+ * quá trình build nhận ra điều đó.
  *
- * <p>The mapper is configured the way a service must configure it, so the test fails if that
- * configuration turns out to be insufficient: ISO-8601 timestamps rather than epoch numbers, and
- * plain-notation {@code BigDecimal} so a money value never reaches a consumer as {@code 5E+5}.
+ * <p>Mapper được cấu hình theo đúng cách mà một service phải cấu hình, nên test sẽ thất bại nếu
+ * cấu hình đó không đủ: timestamp ISO-8601 thay vì dạng số epoch, và dạng biểu diễn thường {@code BigDecimal}
+ * để giá trị tiền không bao giờ gửi tới consumer dưới dạng {@code 5E+5}.
  */
 class EventEnvelopeJsonTest {
 
@@ -92,8 +92,8 @@ class EventEnvelopeJsonTest {
     void amountIsPlainWithFixedScale() {
         String json = mapper.writeValueAsString(envelope());
 
-        // The raw text matters, not the parsed value: a consumer in another language reads the
-        // characters. "5E+5" is a valid JSON number and a broken money value.
+        // Văn bản thô (raw text) mới quan trọng, không phải giá trị sau parse: consumer viết bằng ngôn ngữ khác đọc
+        // các ký tự. "5E+5" là một số JSON hợp lệ nhưng là một giá trị tiền hỏng.
         assertThat(json).contains("\"amount\":500000.0000");
     }
 

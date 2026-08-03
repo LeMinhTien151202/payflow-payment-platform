@@ -21,12 +21,12 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import reactor.core.publisher.Mono;
 
 /**
- * Proves the edge authorization rules of ARCHITECTURE.md and AGENTS.md section 8.
+ * Chứng minh các quy tắc phân quyền ở tầng Edge theo ARCHITECTURE.md và AGENTS.md phần 8.
  *
- * <p>The JWT decoder is mocked rather than backed by a live Keycloak. What is under test is the
- * authorization decision — scope to route mapping, deny-by-default, and the error contract — not
- * Nimbus signature verification, which is Spring Security's own tested code. Mocking the decoder
- * also keeps the suite runnable without Docker.
+ * <p>JWT decoder được mock thay vì kết nối tới Keycloak thật. Thứ được kiểm thử ở đây là
+ * quyết định phân quyền — ánh xạ scope tới route, deny-by-default, và error contract — chứ không phải
+ * việc kiểm tra chữ ký Nimbus (vốn là code đã được test của Spring Security). Việc mock decoder
+ * cũng giúp test suite có thể chạy được mà không cần Docker.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ApiGatewaySecurityIT extends GatewayTestSupport {
@@ -36,8 +36,8 @@ class ApiGatewaySecurityIT extends GatewayTestSupport {
 
     @BeforeEach
     void stubDecoderAndDownstream() {
-        // Any token this suite did not deliberately mint is invalid. Without this catch-all an
-        // unstubbed call would return null and surface as a 500, masking the real assertion.
+        // Bất kỳ token nào mà test suite này không chủ động tạo ra đều là không hợp lệ. Nếu không có catch-all này,
+        // một call không được stub sẽ trả về null và xuất hiện dưới dạng lỗi 500, làm che mất assertion thực tế.
         given(jwtDecoder.decode(anyString()))
                 .willReturn(Mono.error(new BadJwtException("unknown token")));
         given(jwtDecoder.decode(TOKEN_FULL_SCOPE))
@@ -98,7 +98,7 @@ class ApiGatewaySecurityIT extends GatewayTestSupport {
                 .jsonPath("$.code")
                 .isEqualTo("AUTH_UNAUTHENTICATED");
 
-        // The point of the edge check: an unauthenticated request must cost the downstream nothing.
+        // Điểm mấu chốt của việc kiểm tra ở tầng edge: request chưa xác thực phải không làm tốn chi phí của downstream service.
         PAYMENT_SERVICE_STUB.verify(0, getRequestedFor(urlPathMatching("/api/v1/payments.*")));
     }
 
@@ -153,9 +153,9 @@ class ApiGatewaySecurityIT extends GatewayTestSupport {
     }
 
     /**
-     * The regression this guards against: adding a route without adding an authorization rule. With
-     * {@code anyExchange().denyAll()} last, the omission produces a 403 instead of silently exposing
-     * the route to any authenticated caller.
+     * Trường hợp regression mà test này bảo vệ: thêm một route mới mà quên thêm quy tắc phân quyền. Với
+     * quy tắc {@code anyExchange().denyAll()} đứng cuối, việc bỏ sót sẽ tạo ra lỗi 403 thay vì âm thầm mở
+     * route cho bất kỳ caller nào đã được xác thực.
      */
     @Test
     @DisplayName("a path with no explicit rule is denied even with a fully scoped token")
@@ -193,8 +193,8 @@ class ApiGatewaySecurityIT extends GatewayTestSupport {
     }
 
     /**
-     * An error body must not describe the authorization model. Naming the missing scope would tell an
-     * attacker exactly which scope to go after, so the message stays generic.
+     * Lỗi trả về tuyệt đối không được mô tả chi tiết mô hình phân quyền. Việc gọi tên scope bị thiếu sẽ cho
+     * kẻ tấn công biết chính xác scope nào cần nhắm tới, do đó thông điệp phải giữ dạng tổng quát.
      */
     @Test
     @DisplayName("a 403 body does not disclose which scope was missing")

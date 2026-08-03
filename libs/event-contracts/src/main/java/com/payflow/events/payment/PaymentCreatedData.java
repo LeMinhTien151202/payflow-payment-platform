@@ -6,29 +6,30 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * Payload of {@code payment.created} v1, per spec 8.4.
+ * Payload của {@code payment.created} v1, theo spec 8.4.
  *
- * <p>{@code amount} is a {@link BigDecimal} and never a {@code double}. ADR-007 bans binary floating
- * point for money everywhere, explicitly including event payloads: an event is persisted in the outbox
- * and replayed later, so a rounding artefact introduced here outlives the request that caused it.
+ * <p>{@code amount} là một {@link BigDecimal} và không bao giờ là {@code double}. ADR-007 cấm kiểu
+ * số thực dấu phẩy động (binary floating point) cho tiền tệ ở mọi nơi, bao gồm cả event payload: một event
+ * được lưu trữ trong outbox và được replay sau đó, nên một sai số làm tròn phát sinh ở đây sẽ tồn tại lâu hơn
+ * request đã gây ra nó.
  *
- * <p>Amount and currency stay two flat fields rather than a shared {@code Money} type.
- * {@code MODULE_MAP.md} forbids shared money policy in a library, and a {@code Money} class is where
- * rounding and scale rules accumulate. Each service keeps its own money value object; only the wire
- * shape is shared.
+ * <p>Amount và currency giữ nguyên là hai trường phẳng (flat fields) thay vì dùng chung type {@code Money}.
+ * {@code MODULE_MAP.md} cấm dùng chung policy tiền tệ trong một shared library, và class {@code Money} là nơi
+ * tích tụ các quy tắc làm tròn và scale. Mỗi service tự giữ value object tiền tệ riêng; chỉ có hình dạng trên
+ * wire format là được dùng chung.
  *
- * <p>{@code customerId} and {@code sourceAccountId} are copied from the request without being
- * checked against anything. account-service does not exist yet, so Phase 1A cannot confirm the
- * account is real or belongs to that customer. That validation arrives with the Saga in Phase 1B —
- * consumers of v1 must not read these fields as verified.
+ * <p>{@code customerId} và {@code sourceAccountId} được copy từ request mà không được kiểm tra với nguồn nào.
+ * account-service chưa tồn tại ở thời điểm này, nên Phase 1A không thể xác nhận tài khoản là có thật hay thuộc về
+ * customer đó. Việc validation đó sẽ đến cùng với Saga ở Phase 1B — các consumer của v1 không được đọc các trường
+ * này như là dữ liệu đã được xác minh.
  *
- * @param paymentId the aggregate id, and the Kafka key for this event
- * @param merchantId merchant the payment belongs to
- * @param customerId customer as supplied by the merchant, unverified in v1
- * @param sourceAccountId account the funds are to come from, unverified in v1
- * @param amount positive amount, normalised to scale 4
- * @param currency ISO-4217 alphabetic code; MVP accepts VND only
- * @param createdAt when the payment was accepted
+ * @param paymentId id của aggregate, và là Kafka key cho event này
+ * @param merchantId merchant mà payment thuộc về
+ * @param customerId customer do merchant cung cấp, chưa được xác minh ở v1
+ * @param sourceAccountId tài khoản trích tiền, chưa được xác minh ở v1
+ * @param amount số tiền dương, được chuẩn hóa về scale 4
+ * @param currency mã chữ ISO-4217; MVP chỉ chấp nhận VND
+ * @param createdAt thời điểm payment được chấp nhận
  */
 public record PaymentCreatedData(
         UUID paymentId,
@@ -39,7 +40,7 @@ public record PaymentCreatedData(
         String currency,
         Instant createdAt) {
 
-    /** ADR-007 fixes money at {@code NUMERIC(19,4)}, so the payload scale must match the column. */
+    /** ADR-007 cố định số tiền ở dạng {@code NUMERIC(19,4)}, nên payload scale phải khớp với cột trong DB. */
     public static final int MONEY_SCALE = 4;
 
     public PaymentCreatedData {
@@ -57,9 +58,9 @@ public record PaymentCreatedData(
             throw new IllegalArgumentException(
                     "amount scale " + amount.scale() + " exceeds " + MONEY_SCALE);
         }
-        // Widen to exactly scale 4 — exact, never rounding, because a larger scale was rejected
-        // above. This makes the serialised JSON deterministic, which is what lets a republish after a
-        // crash produce byte-identical bytes for the same eventId (ADR-014).
+        // Mở rộng chính xác về scale 4 — chính xác, không bao giờ làm tròn, vì scale lớn hơn đã bị
+        // từ chối ở trên. Điều này giúp chuỗi JSON sau khi serialise có tính định hình (deterministic),
+        // cho phép việc republish sau khi crash tạo ra các byte hoàn toàn giống nhau cho cùng một eventId (ADR-014).
         amount = amount.setScale(MONEY_SCALE);
 
         if (currency == null || currency.length() != 3) {

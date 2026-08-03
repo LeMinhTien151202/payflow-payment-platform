@@ -10,24 +10,24 @@ import org.springframework.security.config.web.server.ServerHttpSecurity;
 import org.springframework.security.web.server.SecurityWebFilterChain;
 
 /**
- * Edge authorization.
+ * Phân quyền ở tầng Edge (Gateway).
  *
- * <p>Deny-by-default per AGENTS.md section 8: {@code anyExchange().denyAll()} is the last rule, so a
- * new route is unreachable until someone states its required authority. Forgetting a rule produces a
- * 403, not accidental public access.
+ * <p>Từ chối mặc định (Deny-by-default) theo AGENTS.md phần 8: {@code anyExchange().denyAll()} là quy tắc cuối cùng,
+ * nên một route mới sẽ không thể truy cập cho đến khi có ai đó chỉ định authority bắt buộc. Việc quên một quy tắc
+ * sẽ tạo ra lỗi 403, chứ không vô tình mở quyền public.
  *
- * <p>The gateway validating the token does not make downstream validation optional. Each service
- * validates the JWT again and enforces ownership itself, because the gateway cannot know which
- * merchant owns a given resource.
+ * <p>Gateway validate token không có nghĩa là downstream service được bỏ qua bước validation. Mỗi service
+ * tự validate lại JWT và tự thực thi phân quyền sở hữu (ownership), vì gateway không thể biết merchant nào
+ * sở hữu một resource cụ thể.
  */
 @Configuration(proxyBeanMethods = false)
 @EnableWebFluxSecurity
 public class SecurityConfig {
 
-    /** Scope required to read payment resources. */
+    /** Scope cần thiết để đọc các tài nguyên payment. */
     private static final String SCOPE_PAYMENT_READ = "SCOPE_payment:read";
 
-    /** Scope required to create or mutate payment resources. */
+    /** Scope cần thiết để tạo hoặc thay đổi các tài nguyên payment. */
     private static final String SCOPE_PAYMENT_WRITE = "SCOPE_payment:write";
 
     @Bean
@@ -35,13 +35,13 @@ public class SecurityConfig {
             ServerHttpSecurity http, ProblemDetailErrorWriter errors) {
 
         return http
-                // Stateless bearer-token API: there is no browser session or CSRF token to protect.
+                // API dùng bearer-token phi trạng thái (stateless): không có browser session hay CSRF token để bảo vệ.
                 .csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .httpBasic(ServerHttpSecurity.HttpBasicSpec::disable)
                 .formLogin(ServerHttpSecurity.FormLoginSpec::disable)
                 .authorizeExchange(exchanges -> exchanges
-                        // Liveness/readiness only. The full actuator surface stays private per
-                        // AGENTS.md section 10.
+                        // Chỉ áp dụng cho Liveness/readiness. Toàn bộ các actuator endpoint còn lại giữ private theo
+                        // AGENTS.md phần 10.
                         .pathMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .pathMatchers(HttpMethod.OPTIONS).permitAll()
                         .pathMatchers(HttpMethod.GET, "/api/v1/payments/**")
@@ -49,12 +49,12 @@ public class SecurityConfig {
                         .pathMatchers(HttpMethod.POST, "/api/v1/payments/**")
                         .hasAuthority(SCOPE_PAYMENT_WRITE)
                         .anyExchange().denyAll())
-                // The entry point is set in both places on purpose. exceptionHandling covers a
-                // request that carried no credentials at all, while oauth2ResourceServer covers a
-                // token that was supplied and rejected — that failure is handled by the bearer-token
-                // filter and never reaches exceptionHandling. Configuring only one leaves the other
-                // path returning Spring's default empty body, so the error contract would depend on
-                // whether the caller sent a token.
+                // Entry point được thiết lập ở cả hai nơi là có mục đích. exceptionHandling xử lý cho
+                // request hoàn toàn không mang credential nào, trong khi oauth2ResourceServer xử lý cho
+                // token được cung cấp nhưng bị từ chối — lỗi đó do bearer-token filter xử lý
+                // và không bao giờ tới exceptionHandling. Việc chỉ cấu hình một nơi sẽ khiến đường dẫn kia
+                // trả về empty body mặc định của Spring, dẫn tới error contract bị phụ thuộc vào
+                // việc caller có gửi token hay không.
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .authenticationEntryPoint((exchange, ex) -> errors.unauthenticated(exchange))
                         .accessDeniedHandler((exchange, ex) -> errors.forbidden(exchange))

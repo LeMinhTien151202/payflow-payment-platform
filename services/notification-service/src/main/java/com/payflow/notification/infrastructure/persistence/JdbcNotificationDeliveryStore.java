@@ -22,12 +22,12 @@ import tools.jackson.databind.ObjectMapper;
 class JdbcNotificationDeliveryStore implements NotificationDeliveryStore {
 
     private static final TypeReference<Map<String, String>> STRING_MAP = new TypeReference<>() {};
-    // clock_timestamp() rather than a bound instant, in every predicate below. next_attempt_at is
-    // written by clock_timestamp() on insert, so reading it against a worker's own clock compares
-    // two different clocks: under drift the row is either not yet due when it is, or a live lease
-    // looks expired and a second worker sends the same email. The lease is a protocol between
-    // hosts, and the database is the only clock all of them observe. This is the same idiom the
-    // outbox lease stores in payment, account-ledger and risk already use.
+    // Dùng clock_timestamp() thay vì một instant truyền vào, trong tất cả điều kiện bên dưới. next_attempt_at được
+    // ghi bởi clock_timestamp() khi insert, do đó việc đọc nó dựa trên đồng hồ của một worker sẽ so sánh
+    // hai đồng hồ khác nhau: khi bị trôi đồng hồ (drift), dòng đó có thể chưa đến hạn khi nó thực sự đã đến hạn, hoặc một lease
+    // đang sống lại trông như đã hết hạn và worker thứ hai gửi cùng một email. Lease là một protocol giữa các
+    // host, và database là đồng hồ duy nhất mà tất cả các host cùng quan sát. Đây là cùng một idiom mà các
+    // outbox lease store trong payment, account-ledger và risk đã sử dụng.
     private static final String FAIL_EXHAUSTED = """
             update notification.notifications
                set status = 'FAILED', failure_code = 'DELIVERY_LEASE_EXHAUSTED',
@@ -68,9 +68,9 @@ class JdbcNotificationDeliveryStore implements NotificationDeliveryStore {
                    lock_owner = null, lock_until = null
              where id = :id and status = 'PROCESSING' and lock_owner = :owner
             """;
-    // created_at is the source event's occurredAt, so this measures age from the business fact
-    // rather than from the row, which is the lag a merchant would actually notice. The subtraction
-    // still crosses services, hence the Math.max floor below.
+    // created_at là occurredAt của nguồn event, nên phép đo này đo độ tuổi từ sự thật nghiệp vụ (business fact)
+    // thay vì từ chính dòng này, vốn là độ trễ mà một merchant thực sự nhận thấy. Phép trừ
+    // vẫn đi xuyên service, do đó có thêm giới hạn Math.max bên dưới.
     private static final String OLDEST_PENDING_AGE = """
             select coalesce(extract(epoch from (clock_timestamp() - min(created_at))), 0)
               from notification.notifications where status in ('PENDING', 'PROCESSING')

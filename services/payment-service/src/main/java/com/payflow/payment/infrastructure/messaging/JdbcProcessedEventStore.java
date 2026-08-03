@@ -9,7 +9,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
-/** PostgreSQL {@code ON CONFLICT DO NOTHING} implementation of ADR-017's inbox gate. */
+/** Implementation {@code ON CONFLICT DO NOTHING} trên PostgreSQL cho inbox gate của ADR-017. */
 @Component
 class JdbcProcessedEventStore implements ProcessedEventStore {
 
@@ -31,9 +31,9 @@ class JdbcProcessedEventStore implements ProcessedEventStore {
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public boolean recordIfNew(IncomingEventIdentity event) {
-        // Bound as OffsetDateTime, not Instant: the PostgreSQL driver cannot infer a SQL type for
-        // java.time.Instant and fails the statement. UTC because the column is TIMESTAMPTZ, which
-        // mirrors how every read here converts back with getObject(..., OffsetDateTime.class).
+        // Khởi tạo dưới dạng OffsetDateTime, chứ không phải Instant: driver PostgreSQL không thể tự suy luận kiểu SQL cho
+        // java.time.Instant và làm câu lệnh thất bại. Dùng UTC vì cột DB có kiểu TIMESTAMPTZ,
+        // phản chiếu lại cách mọi câu lệnh đọc ở đây convert ngược lại với getObject(..., OffsetDateTime.class).
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("eventId", event.eventId())
                 .addValue("consumerName", event.consumerName())

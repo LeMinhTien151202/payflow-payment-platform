@@ -31,12 +31,12 @@ class JdbcNotificationStore implements NotificationStore {
                and business_reference_id = :referenceId
                and channel = 'EMAIL'
             """;
-    // next_attempt_at is clock_timestamp() and created_at is bound: they are not the same kind of
-    // fact. created_at is the source event's occurredAt, produced by whichever service published it,
-    // and exists for lag reporting. next_attempt_at is a scheduling decision read back by the claim
-    // predicate in JdbcNotificationDeliveryStore, so it must come from the clock that predicate uses.
-    // Binding an upstream producer's timestamp here would make a new notification undeliverable for
-    // as long as that producer's clock runs ahead of this database.
+    // next_attempt_at là clock_timestamp() và created_at được bind vào: chúng không phải cùng một loại
+    // sự thật. created_at là occurredAt của event nguồn, tạo ra bởi bất kỳ service nào phát hành nó,
+    // và tồn tại phục vụ báo cáo lag. next_attempt_at là một quyết định scheduling đọc lại bởi claim
+    // predicate trong JdbcNotificationDeliveryStore, do đó nó phải đến từ đồng hồ mà predicate đó sử dụng.
+    // Việc bind timestamp của producer upstream tại đây sẽ khiến một notification mới không thể deliver trong
+    // suốt khoảng thời gian đồng hồ của producer đó chạy nhanh hơn database này.
     private static final String INSERT = """
             insert into notification.notifications (
                 id, source_event_id, source_event_type, aggregate_id,

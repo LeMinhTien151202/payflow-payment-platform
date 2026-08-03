@@ -10,7 +10,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
-/** Maps a committed Account reserve result to its versioned, causally linked outcome envelope. */
+/** Ánh xạ kết quả reserve Account đã commit sang outcome envelope có version và liên kết nhân quả (causally linked). */
 public final class AccountReservationEventFactory {
 
     public static final String PRODUCER = "account-ledger-service";
@@ -72,8 +72,8 @@ public final class AccountReservationEventFactory {
             throw new AccountInvariantViolationException(
                     "reserve command aggregateId does not match paymentId");
         }
-        // Causation defines logical order. Comparing wall clocks from Payment and Account would make
-        // harmless clock skew reject a valid outcome.
+        // Quan hệ nhân quả (causation) định nghĩa thứ tự logic. Việc so sánh wall clock giữa Payment và Account
+        // sẽ làm cho việc lệch đồng hồ (clock skew) vô hại từ chối một outcome hợp lệ.
     }
 
     private static void requireMatchingOutcome(
