@@ -14,9 +14,9 @@
     <artifactId>error-contract</artifactId>
     <name>PayFlow Error Contract</name>
     <description>
-        RFC 9457 Problem Details convention and stable error codes shared across services.
-        MODULE_MAP.md permits a generic error convention in a shared library; it does not permit
-        domain services or business rules, so only platform-level codes belong here.
+        Quy ước Problem Details RFC 9457 và các mã lỗi ổn định được dùng chung giữa các service.
+        MODULE_MAP.md cho phép một quy ước lỗi chung nằm trong shared library; nó không cho phép
+        domain service hay business rules, nên chỉ có các mã lỗi cấp platform mới thuộc về đây.
     </description>
 
     <dependencies>

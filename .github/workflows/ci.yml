@@ -1,14 +1,14 @@
 # PayFlow CI — Phase 0 skeleton.
 #
-# Two jobs, split the same way the local build is split, so a failure tells you which class of
-# problem you have:
+# Hai job, được chia theo cùng một cách mà build local được chia, để khi có lỗi xảy ra bạn sẽ biết ngay nhóm
+# vấn đề bạn đang gặp phải:
 #
-#   fast-tests  — compile + Surefire. No Docker. Must stay fast enough to gate every push.
-#   verify      — the real gate: Failsafe too, including the Testcontainers-backed tests.
+#   fast-tests  — compile + Surefire. Không dùng Docker. Phải giữ tốc độ đủ nhanh để gate cho mỗi đợt push.
+#   verify      — gate thực sự: bao gồm cả Failsafe và các bài test chạy trên Testcontainers.
 #
-# The `verify` job is what makes a `VERIFIED_CI` claim in .docs/IMPLEMENTATION_STATUS.md possible.
-# Do not add `-Pno-docker` to it: GitHub's ubuntu runners provide a Docker daemon, so there is no
-# reason to skip the container tests in CI, and skipping them would make the badge meaningless.
+# Job `verify` là thứ giúp cho tuyên bố `VERIFIED_CI` trong .docs/IMPLEMENTATION_STATUS.md trở nên khả thi.
+# Không thêm `-Pno-docker` vào job này: các runner ubuntu của GitHub cung cấp sẵn Docker daemon, nên không có
+# lý do gì để bỏ qua container test trong CI, và việc bỏ qua chúng sẽ khiến badge trở nên vô nghĩa.
 name: CI
 
 on:
@@ -17,8 +17,8 @@ on:
   pull_request:
   workflow_dispatch:
 
-# A new push to the same branch cancels the previous run. Two runs of the same commit range prove
-# nothing extra and the Testcontainers job is the expensive one.
+# Một lượt push mới vào cùng một branch sẽ hủy bỏ lượt chạy trước đó. Hai lượt chạy cùng một phạm vi commit không chứng minh
+# thêm được điều gì và job Testcontainers là job tốn kém tài nguyên.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -27,7 +27,7 @@ permissions:
   contents: read
 
 env:
-  # Keep Maven quiet about download progress; the log is read by humans looking for failures.
+  # Giữ Maven yên lặng về tiến trình tải xuống; log được đọc bởi con người khi tìm kiếm lỗi.
   MAVEN_ARGS: -B -ntp
 
 jobs:
@@ -42,22 +42,22 @@ jobs:
       - name: Set up JDK 21
         uses: actions/setup-java@v5
         with:
-          # Must match the toolchain in the parent POM. ADR-013 locks Java 21.
+          # Phải khớp với toolchain trong parent POM. ADR-013 khóa cố định Java 21.
           java-version: '21'
           distribution: temurin
           cache: maven
 
       - name: Ensure the Maven wrapper is executable
-        # The repository is authored on Windows, where git cannot record the exec bit unless it is
-        # set explicitly (`git update-index --chmod=+x mvnw`). Without this, `./mvnw` fails on the
-        # Linux runner with "Permission denied" and the failure looks nothing like its cause.
+        # Repository được khởi tạo trên Windows, nơi git không ghi nhận được quyền thực thi (exec bit) trừ khi nó được
+        # đặt tường minh (`git update-index --chmod=+x mvnw`). Nếu không có lệnh này, `./mvnw` sẽ thất bại trên
+        # Linux runner với lỗi "Permission denied" và lỗi đó không phản ánh đúng nguyên nhân gây ra nó.
         run: chmod +x ./mvnw
 
       - name: Compile and run unit and slice tests
         run: ./mvnw $MAVEN_ARGS clean test
 
       - name: Upload Surefire reports
-        # Reports matter most when the step above failed, so this must not be skipped on failure.
+        # Báo cáo quan trọng nhất khi bước trên thất bại, nên bước này tuyệt đối không được bỏ qua khi có lỗi.
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -70,8 +70,8 @@ jobs:
     name: Full verify with Testcontainers
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    # Sequential on purpose: if the code does not compile or a unit test fails, spending runner
-    # minutes on containers tells nobody anything new.
+    # Chạy tuần tự theo thiết kế: nếu code không biên dịch được hoặc một unit test bị hỏng, việc tiêu tốn thời gian
+    # chạy container trên runner sẽ không mang lại thông tin gì mới.
     needs: fast-tests
 
     steps:
@@ -88,8 +88,8 @@ jobs:
         run: chmod +x ./mvnw
 
       - name: Confirm a Docker daemon is available
-        # Fail loudly here rather than letting Testcontainers fail later with a message that reads
-        # like a test defect. If this step ever fails, the runner image changed, not the code.
+        # Báo lỗi rõ ràng tại đây thay vì để Testcontainers thất bại sau đó với một thông điệp trông
+        # như một lỗi của bài test. Nếu bước này thất bại, nghĩa là image runner đã thay đổi chứ không phải do code.
         run: docker version
 
       - name: Run the full gate
@@ -115,9 +115,10 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Validate compose file interpolation
-        # --env-file .env.example, never a real .env: this proves the committed template is complete
-        # enough to render the file. It does not start anything.
+        # --env-file .env.example, tuyệt đối không dùng .env thật: điều này chứng minh template được commit đã đủ
+        # hoàn thiện để render ra file. Lệnh này không khởi động bất kỳ dịch vụ nào.
         run: |
           docker compose --env-file .env.example --profile infra config --quiet
           docker compose --env-file .env.example --profile mvp config --quiet
           test "$(docker compose --env-file .env.example --profile mvp config --services | wc -l)" -eq 10
+

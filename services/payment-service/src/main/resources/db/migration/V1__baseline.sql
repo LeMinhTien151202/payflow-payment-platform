@@ -1,13 +1,13 @@
 -- PayFlow payment-service schema baseline.
 --
--- Phase 0 establishes ownership and the migration mechanism only. The Phase 0 gate in
--- DELIVERY_ROADMAP.md forbids business payment structures at this point, so no payment,
--- idempotency, outbox, or Saga table is created here. Those arrive in Phase 1A together with the
--- constraints and indexes that protect their invariants.
+-- Phase 0 chỉ thiết lập quyền sở hữu (ownership) và cơ chế migration. Gate Phase 0 trong
+-- DELIVERY_ROADMAP.md cấm các cấu trúc thanh toán nghiệp vụ tại mốc này, nên chưa có bảng payment,
+-- idempotency, outbox hay Saga nào được tạo ở đây. Các bảng đó đến trong Phase 1A cùng với
+-- các constraint và index bảo vệ invariants của chúng.
 --
--- Flyway creates the schema itself (spring.flyway.create-schemas). This migration records who owns
--- it, so a later reader does not have to infer ownership from configuration.
+-- Bản thân Flyway tự tạo schema (spring.flyway.create-schemas). Migration này ghi nhận ai sở hữu
+-- nó, để người đọc sau này không phải suy đoán ownership từ file cấu hình.
 
 COMMENT ON SCHEMA payment IS
-    'Owned exclusively by payment-service. No other service may read or write these tables; '
-    'cross-context data moves through REST contracts or Kafka events only.';
+    'Sở hữu duy nhất bởi payment-service. Không có service nào khác được phép đọc hoặc ghi các bảng này; '
+    'dữ liệu xuyên context chỉ di chuyển qua hợp đồng REST hoặc Kafka events.';

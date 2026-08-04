@@ -14,17 +14,17 @@
     <artifactId>event-contracts</artifactId>
     <name>PayFlow Event Contracts</name>
     <description>
-        Versioned Kafka event envelope, topic names, and event payload schemas shared by producers
-        and consumers. MODULE_MAP.md permits "event envelope và schema contract ổn định" in a shared
-        library; it forbids shared domain services, state machines, and money policy, so nothing in
-        this module may contain behaviour beyond contract validation.
+        Kafka event envelope có version, tên các topic, và các schema payload event được dùng chung bởi các producer
+        và consumer. MODULE_MAP.md cho phép "event envelope và schema contract ổn định" trong một shared
+        library; nó cấm các domain service, state machine, và chính sách tiền tệ dùng chung, nên không có gì trong
+        module này được phép chứa hành vi nghiệp vụ ngoài việc validate hợp đồng.
     </description>
 
     <dependencies>
         <!--
-          For the correlation id header name and its safety rules. The envelope persists and logs a
-          correlation id, so it must apply the same validation as the HTTP boundary rather than
-          re-implementing it with a slightly different character set.
+          Dành cho tên correlation id header và các quy tắc an toàn của nó. Envelope lưu trữ và log
+          correlation id, do đó nó phải áp dụng cùng một quy tắc validation như ở ranh giới HTTP thay vì
+          tự triển khai lại với một tập ký tự khác biệt nhỏ.
         -->
         <dependency>
             <groupId>com.payflow</groupId>
@@ -32,10 +32,10 @@
         </dependency>
 
         <!--
-          Test scope only. This module deliberately has no compile-time JSON dependency: the wire
-          format is a contract, not a library choice, and nothing here is annotated. Jackson is
-          present so the tests can prove the serialised shape actually matches spec 8.2 instead of
-          asserting it in a comment.
+          Dành riêng cho phạm vi Test. Module này cố ý không chứa dependency JSON tại thời điểm biên dịch: wire
+          format là một hợp đồng, chứ không phải lựa chọn thư viện, và không có gì ở đây sử dụng annotation. Jackson hiện
+          diện để các bài test có thể chứng minh cấu trúc sau khi serialised thực sự khớp với spec 8.2 thay vì
+          khẳng định điều đó trong một chú thích.
         -->
         <dependency>
             <groupId>tools.jackson.core</groupId>

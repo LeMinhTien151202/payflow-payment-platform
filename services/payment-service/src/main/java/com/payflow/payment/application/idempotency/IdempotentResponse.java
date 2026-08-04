@@ -5,22 +5,21 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * A stored response, ready to be returned again.
+ * Một response được lưu trữ, sẵn sàng để được trả về lại.
  *
- * <p>Holds the finished body rather than the inputs needed to rebuild it. That is the whole point of the
- * table: a payment that has since moved to {@code SUCCEEDED} would re-render as {@code SUCCEEDED}, so a
- * replay built from the current payment row would contradict the response the client originally received
- * — and a client retrying a request must not be told the state changed because they retried.
+ * <p>Lưu giữ body đã hoàn tất chứ không phải các đầu vào cần thiết để dựng lại nó. Đó chính là toàn bộ mục đích của
+ * bảng này: một payment mà kể từ đó đã chuyển sang {@code SUCCEEDED} sẽ dựng lại dưới dạng {@code SUCCEEDED}, nên một đợt
+ * replay dựng từ dòng payment hiện tại sẽ mâu thuẫn với response mà client nhận được ban đầu
+ * — và một client retry lại một request tuyệt đối không được thông báo rằng trạng thái đã thay đổi chỉ vì họ vừa retry.
  *
- * <p>{@code body} is typed as {@link PaymentAcceptance} because this is the create-payment endpoint's
- * stored response. Refund intake uses a separate endpoint-specific view over the same table, preventing
- * an accidental JSON cast across two independently versioned response contracts.
+ * <p>{@code body} mang kiểu dữ liệu {@link PaymentAcceptance} bởi vì đây là response được lưu trữ của endpoint tạo payment.
+ * Refund intake sử dụng một view riêng theo từng endpoint trên cùng một bảng, ngăn chặn
+ * việc cast JSON vô tình giữa hai hợp đồng response có version độc lập.
  *
- * @param requestHash fingerprint of the request that produced this response, used to tell a replay from a
- *     reused key
- * @param resourceId the payment this response describes; also inside {@code body}, and kept separately
- *     because the column is what makes "which payment did that key create" a query rather than a JSON scan
- * @param responseStatus the HTTP status the original request returned
+ * @param requestHash fingerprint của request đã tạo ra response này, dùng để phân biệt đợt replay với đợt dùng lại key
+ * @param resourceId payment mà response này mô tả; cũng nằm bên trong {@code body}, và giữ riêng
+ *     vì cột DB là thứ giúp câu hỏi "key này đã tạo ra payment nào" thành một query index thay vì scan JSON
+ * @param responseStatus mã trạng thái HTTP mà request ban đầu đã trả về
  */
 public record IdempotentResponse(
         String requestHash, UUID resourceId, int responseStatus, PaymentAcceptance body) {

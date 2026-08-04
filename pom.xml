@@ -5,10 +5,10 @@
     <modelVersion>4.0.0</modelVersion>
 
     <!--
-      Platform baseline is locked by docs/adr/ADR-013-platform-version-baseline.md.
-      Spring Boot 4.0.7 pairs with Spring Cloud 2025.1.2: that release train declares
-      <spring-boot.version>4.0.7</spring-boot.version>. Do not bump Boot to 4.1.x until a
-      Spring Cloud release train targets it, and never mix release trains.
+      Baseline nền tảng được khóa bởi docs/adr/ADR-013-platform-version-baseline.md.
+      Spring Boot 4.0.7 đi kèm với Spring Cloud 2025.1.2: release train đó khai báo
+      <spring-boot.version>4.0.7</spring-boot.version>. Không nâng Boot lên 4.1.x cho tới khi có một
+      Spring Cloud release train hướng tới nó, và tuyệt đối không trộn lẫn các release train.
     -->
     <parent>
         <groupId>org.springframework.boot</groupId>
@@ -23,7 +23,7 @@
     <packaging>pom</packaging>
 
     <name>PayFlow Parent</name>
-    <description>Sandbox payment platform: parent aggregator and dependency lock</description>
+    <description>Sandbox payment platform: parent aggregator và dependency lock</description>
 
     <modules>
         <module>libs/observability-support</module>
@@ -44,13 +44,13 @@
         <spring-cloud.version>2025.1.2</spring-cloud.version>
         <springdoc-openapi.version>3.0.3</springdoc-openapi.version>
 
-        <!-- Managed by the Boot BOM; pinned here only where the BOM does not manage them. -->
+        <!-- Được quản lý bởi Boot BOM; ghim ở đây cho những trường hợp BOM không quản lý. -->
         <wiremock.version>3.13.1</wiremock.version>
 
         <!--
-          Empty by default: `mvnw verify` runs every integration test, including the ones that
-          start a real container. Failsafe ignores a blank excludedGroups.
-          The `no-docker` profile below sets it, so keep this empty here.
+          Mặc định rỗng: `mvnw verify` chạy mọi integration test, bao gồm cả những bài test
+          khởi động một container thực sự. Failsafe bỏ qua một giá trị excludedGroups rỗng.
+          Profile `no-docker` bên dưới sẽ đặt giá trị cho nó, do đó hãy giữ giá trị này rỗng ở đây.
         -->
         <payflow.failsafe.excludedGroups/>
     </properties>
@@ -65,8 +65,8 @@
                 <scope>import</scope>
             </dependency>
 
-            <!-- Spring Boot 4 support starts with springdoc 3.x. Keep the version centralized so
-                 every future REST-owning service publishes contracts with the same toolchain. -->
+            <!-- Việc hỗ trợ Spring Boot 4 bắt đầu từ springdoc 3.x. Giữ phiên bản tập trung để
+                 mọi service sở hữu REST trong tương lai đều publish contract với cùng một toolchain. -->
             <dependency>
                 <groupId>org.springdoc</groupId>
                 <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
@@ -100,7 +100,7 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- Every module gets the test baseline: JUnit 5, AssertJ, Mockito. -->
+        <!-- Mỗi module đều nhận bộ test baseline: JUnit 5, AssertJ, Mockito. -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -112,8 +112,8 @@
         <pluginManagement>
             <plugins>
                 <!--
-                  Surefire runs fast tests with no external dependency: unit, domain, and
-                  web/security slice tests. These must pass without Docker.
+                  Surefire chạy các bài test nhanh không có dependency bên ngoài: unit, domain, và
+                  các bài slice test web/security. Các bài test này phải pass mà không cần Docker.
                 -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -126,13 +126,13 @@
                 </plugin>
 
                 <!--
-                  Failsafe runs *IT: tests that boot a full application context, or need an
-                  external dependency such as a WireMock stub or a Testcontainers database.
+                  Failsafe chạy *IT: các bài test boot cả một application context hoàn chỉnh, hoặc cần một
+                  dependency bên ngoài như WireMock stub hay Testcontainers database.
 
-                  Only the Testcontainers-backed ones need a running Docker daemon. The split is
-                  by cost and blast radius, not by which tests need Docker, so that `mvnw test`
-                  stays fast enough to run on every save while `mvnw verify` is the real gate.
-                  TESTING_STRATEGY.md forbids proving PostgreSQL behaviour with H2.
+                  Chỉ những bài test dựa trên Testcontainers mới cần Docker daemon đang chạy. Việc phân tách là
+                  dựa trên chi phí và phạm vi ảnh hưởng, chứ không phải bài test nào cần Docker, để `mvnw test`
+                  giữ tốc độ đủ nhanh để chạy mỗi lần save trong khi `mvnw verify` mới là gate thực sự.
+                  TESTING_STRATEGY.md cấm chứng minh hành vi PostgreSQL bằng H2.
                 -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -169,13 +169,12 @@
 
     <profiles>
         <!--
-          `./mvnw -Pno-docker verify` — the full gate minus anything that needs a Docker daemon.
-          Useful before infrastructure is running locally, and as the fast pre-push check.
+          `./mvnw -Pno-docker verify` — gate hoàn chỉnh trừ những bài test cần Docker daemon.
+          Hữu ích trước khi hạ tầng được khởi chạy ở local, và đóng vai trò kiểm tra nhanh trước khi push.
 
-          It is deliberately opt-in. The default `verify` includes the container-backed tests, so
-          nobody can pass the real gate without having run them; a developer who skips them has to
-          say so on the command line. Tests carrying @Tag("docker") are the ones excluded — see
-          PaymentServiceFoundationIT and docs/runbooks/local-development.md.
+          Đây là tùy chọn tham gia (opt-in) cố ý. Lệnh `verify` mặc định bao gồm cả các bài test dựa trên container, do đó
+          không ai có thể pass gate thực sự nếu chưa chạy chúng; một dev muốn bỏ qua chúng phải chỉ định rõ trên câu lệnh.
+          Các bài test có tag @Tag("docker") là các bài test bị loại trừ — xem PaymentServiceFoundationIT và docs/runbooks/local-development.md.
         -->
         <profile>
             <id>no-docker</id>

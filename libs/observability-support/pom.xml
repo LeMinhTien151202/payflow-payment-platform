@@ -14,10 +14,10 @@
     <artifactId>observability-support</artifactId>
     <name>PayFlow Observability Support</name>
     <description>
-        Correlation identity conventions shared by every PayFlow service. Technical only:
-        MODULE_MAP.md forbids shared entities, repositories, domain services, and money policy here.
-        Deliberately has no Spring dependency so both the WebFlux gateway and the MVC services
-        can build their own filter on top of the same conventions.
+        Các quy ước Correlation identity được dùng chung bởi mọi service của PayFlow. Thuần túy về kỹ thuật:
+        MODULE_MAP.md cấm việc dùng chung entity, repository, domain service, và chính sách tiền tệ ở đây.
+        Cố ý không chứa dependency Spring để cả WebFlux gateway lẫn các dịch vụ MVC
+        đều có thể xây dựng filter của riêng mình dựa trên cùng một tập quy ước.
     </description>
 
     <dependencies/>

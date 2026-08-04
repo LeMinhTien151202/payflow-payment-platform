@@ -12,13 +12,13 @@ import java.time.Instant;
 import java.util.UUID;
 
 /**
- * One {@code payment.payment_status_history} row.
+ * Một dòng tương ứng trong {@code payment.payment_status_history}.
  *
- * <p>{@code paymentId} is a plain UUID, not a {@code @ManyToOne}. Nothing here ever navigates to the payment,
- * and an association would let a lazy-loading bug turn writing a history row into loading an aggregate.
+ * <p>{@code paymentId} là một UUID đơn thuần, không phải là một {@code @ManyToOne}. Không có gì ở đây chuyển hướng đến payment,
+ * và một quan hệ association sẽ khiến một bug lazy-loading biến việc ghi một dòng history thành việc load cả một aggregate.
  *
- * <p>The database refuses UPDATE and DELETE on this table via a trigger. Hibernate is therefore never asked
- * to do either: the id is assigned, the row is inserted once, and the entity is never modified after that.
+ * <p>Database từ chối thao tác UPDATE và DELETE trên bảng này thông qua một trigger. Do đó Hibernate không bao giờ phải thực hiện
+ * cả hai thao tác này: id được gán, dòng dữ liệu được insert một lần duy nhất, và entity không bao giờ bị sửa đổi sau đó.
  */
 @Entity
 @Table(name = "payment_status_history", schema = "payment")
@@ -31,7 +31,7 @@ class PaymentStatusHistoryEntity {
     @Column(name = "payment_id", nullable = false)
     private UUID paymentId;
 
-    /** Null marks the entry that records the payment coming into existence. */
+    /** Null đánh dấu entry ghi nhận sự ra đời của payment. */
     @Enumerated(EnumType.STRING)
     @Column(name = "from_status", length = 40)
     private PaymentStatus fromStatus;
@@ -47,12 +47,12 @@ class PaymentStatusHistoryEntity {
     private Instant occurredAt;
 
     protected PaymentStatusHistoryEntity() {
-        // Required by JPA.
+        // Bắt buộc bởi JPA.
     }
 
     /**
-     * @param id a surrogate key with no business meaning, so it is generated here rather than passed through
-     *     the application layer
+     * @param id một surrogate key không có ý nghĩa nghiệp vụ, nên nó được tạo ở đây thay vì truyền qua
+     *     layer application
      */
     static PaymentStatusHistoryEntity from(UUID id, UUID paymentId, PaymentStatusChange change) {
         PaymentStatusHistoryEntity entity = new PaymentStatusHistoryEntity();

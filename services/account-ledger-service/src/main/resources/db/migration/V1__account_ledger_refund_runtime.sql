@@ -1,4 +1,4 @@
--- ADR-017/021: separate Account, Ledger and operational ownership inside the MVP deployable.
+-- ADR-017/021: tách biệt Account, Ledger và quyền sở hữu vận hành bên trong MVP deployable.
 
 CREATE SCHEMA IF NOT EXISTS account;
 CREATE SCHEMA IF NOT EXISTS ledger;

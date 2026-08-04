@@ -1,8 +1,8 @@
--- Phase 1B consumer inbox, per ADR-017.
+-- Phase 1B consumer inbox, theo ADR-017.
 --
--- The row is inserted in the same local transaction as the consumer's payment mutation and
--- outcome outbox row. Duplicate delivery is a normal result of at-least-once messaging, so callers
--- use INSERT ... ON CONFLICT DO NOTHING and only apply business logic when one row was inserted.
+-- Dòng dữ liệu được insert trong cùng local transaction với việc biến đổi trạng thái payment của consumer và
+-- dòng outcome outbox. Duplicate delivery là kết quả bình thường của cơ chế messaging at-least-once, do đó các caller
+-- sử dụng INSERT ... ON CONFLICT DO NOTHING và chỉ áp dụng business logic khi có đúng 1 dòng được insert.
 
 CREATE TABLE payment.processed_events (
     event_id       UUID         NOT NULL,

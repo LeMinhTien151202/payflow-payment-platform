@@ -4,19 +4,19 @@ import java.time.Instant;
 import java.util.Objects;
 
 /**
- * One movement of a payment through the state machine, as it will be written to
+ * Một bước chuyển của payment qua state machine, như những gì sẽ được ghi vào
  * {@code payment.payment_status_history}.
  *
- * <p>{@code from} is null for the first entry, which records the payment coming into existence rather
- * than moving. Everything else is required, because a history row that cannot say when something
- * happened answers no question worth asking.
+ * <p>{@code from} mang giá trị null ở entry đầu tiên, vốn ghi nhận sự ra đời của payment chứ không phải
+ * một bước chuyển. Tất cả thông tin còn lại đều bắt buộc, vì một dòng lịch sử không thể chỉ ra thời điểm xảy ra
+ * sự kiện sẽ không thể trả lời bất kỳ câu hỏi có ý nghĩa nào.
  *
- * <p>The history table also has a {@code metadata} column that this record has no field for. Nothing
- * in Phase 1A has anything to put in it, and inventing a shape now would fix the format of an audit
- * column before there is a single reader to satisfy.
+ * <p>Bảng lịch sử cũng có một cột {@code metadata} mà bản ghi này không có field tương ứng. Không có gì
+ * trong Phase 1A có dữ liệu để đưa vào đó, và việc tự bịa ra một cấu trúc lúc này sẽ làm cố định định dạng của một
+ * cột audit trước khi có một reader nào cần đến nó.
  *
- * @param occurredAt supplied by the caller from an injected {@code Clock}, never read from the system
- *     clock here — a domain object that reads the time cannot be tested about time
+ * @param occurredAt được cung cấp bởi caller từ một {@code Clock} được inject vào, không bao giờ đọc từ hệ thống
+ *     system clock tại đây — một domain object tự mình đọc thời gian sẽ không thể kiểm thử độc lập về mặt thời gian
  */
 public record PaymentStatusChange(
         PaymentStatus from, PaymentStatus to, String reasonCode, Instant occurredAt) {

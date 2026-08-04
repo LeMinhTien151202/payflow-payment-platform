@@ -7,47 +7,47 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 
 /**
- * Builds the PayFlow extension of RFC 9457 Problem Details.
+ * Dựng cấu trúc mở rộng PayFlow cho RFC 9457 Problem Details.
  *
- * <p>Every error response carries four extension members beyond the RFC:
+ * <p>Mỗi response lỗi đều mang 4 trường mở rộng ngoài RFC:
  *
  * <ul>
- *   <li>{@code code} — a stable business/platform code clients can branch on
- *   <li>{@code correlationId} — the id needed to find the request in logs and traces
- *   <li>{@code timestamp} — when the error body was built
- *   <li>{@code fieldErrors} — per-field validation failures, empty for errors that are not about a field
+ *   <li>{@code code} — một mã lỗi nghiệp vụ/platform ổn định mà client có thể rẽ nhánh xử lý
+ *   <li>{@code correlationId} — id cần thiết để tìm kiếm request trong log và trace
+ *   <li>{@code timestamp} — thời điểm body lỗi được khởi tạo
+ *   <li>{@code fieldErrors} — thông tin lỗi validation cho từng trường, rỗng đối với các lỗi không liên quan đến từng trường
  * </ul>
  *
- * <p>{@code fieldErrors} is always present, even when empty. A client that has to distinguish "absent" from
- * "empty" before it can read a list is being asked to handle two shapes for one meaning.
+ * <p>{@code fieldErrors} luôn hiện diện, ngay cả khi rỗng. Một client phải phân biệt giữa "absent" và
+ * "empty" trước khi đọc danh sách sẽ phải xử lý hai cấu trúc cho cùng một ý nghĩa.
  *
- * <p>{@code detail} is caller-facing text only. Stack traces, SQL, driver messages, and internal
- * hostnames must never reach it.
+ * <p>{@code detail} là văn bản chỉ dành riêng cho caller. Stack traces, SQL, driver messages, và internal
+ * hostnames tuyệt đối không được rò rỉ vào đây.
  */
 public final class ProblemDetails {
 
-    /** Extension member holding the stable error code. */
+    /** Trường mở rộng chứa mã lỗi ổn định. */
     public static final String FIELD_CODE = "code";
 
-    /** Extension member holding the correlation id for support and log lookup. */
+    /** Trường mở rộng chứa correlation id phục vụ hỗ trợ và tra cứu log. */
     public static final String FIELD_CORRELATION_ID = "correlationId";
 
-    /** Extension member holding the instant the error body was built. */
+    /** Trường mở rộng chứa thời điểm body lỗi được dựng. */
     public static final String FIELD_TIMESTAMP = "timestamp";
 
-    /** Extension member holding the per-field validation failures. */
+    /** Trường mở rộng chứa các lỗi validation theo từng trường. */
     public static final String FIELD_FIELD_ERRORS = "fieldErrors";
 
     private ProblemDetails() {
     }
 
     /**
-     * Creates a Problem Details body with the PayFlow extension members set.
+     * Tạo một body Problem Details với các trường mở rộng của PayFlow được thiết lập.
      *
-     * @param status HTTP status for the response
-     * @param code stable error code clients may branch on
-     * @param detail safe, caller-facing explanation; must not contain internal detail
-     * @param correlationId correlation id of the current request, may be {@code null}
+     * @param status Mã trạng thái HTTP cho response
+     * @param code Mã lỗi ổn định phía client có thể rẽ nhánh xử lý
+     * @param detail Lời giải thích an toàn dành cho caller; không được chứa chi tiết nội bộ
+     * @param correlationId correlation id của request hiện tại, có thể là {@code null}
      */
     public static ProblemDetail of(
             HttpStatus status, ErrorCode code, String detail, String correlationId) {
@@ -56,8 +56,8 @@ public final class ProblemDetails {
     }
 
     /**
-     * Adds the PayFlow extension members to a Problem Details body that Spring already created,
-     * for example from {@code ResponseEntityExceptionHandler}.
+     * Thêm các trường mở rộng của PayFlow vào body Problem Details mà Spring đã khởi tạo sẵn,
+     * ví dụ từ {@code ResponseEntityExceptionHandler}.
      */
     public static ProblemDetail enrich(
             ProblemDetail problem, ErrorCode code, String correlationId) {
@@ -72,7 +72,7 @@ public final class ProblemDetails {
     }
 
     /**
-     * Replaces the {@code fieldErrors} member. Returns the same body, so it chains onto
+     * Thay thế thành phần {@code fieldErrors}. Trả về cùng một body, để có thể chain tiếp vào
      * {@link #of(HttpStatus, ErrorCode, String, String)}.
      */
     public static ProblemDetail withFieldErrors(
@@ -83,13 +83,13 @@ public final class ProblemDetails {
     }
 
     /**
-     * Read from the system clock rather than an injected one.
+     * Đọc thời gian từ system clock thay vì từ một clock được inject vào.
      *
-     * <p>This is a diagnostic — it tells an operator when the failure was rendered — and no invariant, stored
-     * value, or business decision depends on it. The injected {@code Clock} exists for timestamps that end up
-     * in the database or in an event, where a test has to be able to fix time; threading it into the error
-     * path would mean giving every component that can fail a constructor dependency to produce a field
-     * nothing asserts on.
+     * <p>Đây là thông tin chẩn đoán — nó cho operator biết khi nào lỗi được render — và không có invariant, giá trị lưu trữ,
+     * hay quyết định nghiệp vụ nào phụ thuộc vào nó. Instance {@code Clock} được inject tồn tại cho các timestamp được lưu vào
+     * database hoặc event, nơi một test case cần có khả năng cố định thời gian; việc trỏ nó vào đường đi của lỗi
+     * sẽ khiến mọi component có khả năng thất bại phải nhận thêm một constructor dependency chỉ để tạo ra một field
+     * không có gì assert đến.
      */
     private static Instant timestamp() {
         return Instant.now();

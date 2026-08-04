@@ -1,28 +1,28 @@
 -- Phase 1A — payment intake.
 --
--- Creates only what the Phase 1A gate in DELIVERY_ROADMAP.md actually needs: accept a payment
--- idempotently, record its state and history, and hand one event to the outbox in the same
--- transaction. Everything the later phases need is deliberately absent, and each omission is listed
--- at the bottom of this file with the reason.
+-- Chỉ tạo những gì gate Phase 1A trong DELIVERY_ROADMAP.md thực sự cần: nhận payment một cách
+-- idempotent, ghi nhận trạng thái và lịch sử, và đưa 1 event vào outbox trong cùng một
+-- transaction. Mọi thứ mà các phase sau cần được cố ý bỏ qua, và mỗi mục bỏ qua được liệt kê
+-- ở cuối file này kèm lý do.
 --
--- Money is NUMERIC(19,4) with a NOT NULL CHAR(3) currency, per docs/adr/ADR-007. Amount columns are
--- never nullable: a payment with an unknown amount is not a payment.
+-- Tiền là NUMERIC(19,4) với currency là NOT NULL CHAR(3), theo docs/adr/ADR-007. Các cột amount
+-- tuyệt đối không bao giờ được nullable: một payment có số tiền không xác định thì không phải là payment.
 --
--- These constraints duplicate rules the Java domain also enforces. That is intended. The domain
--- keeps a bad request out; the constraint keeps a bug from persisting money in an impossible state,
--- which is the failure that cannot be fixed by deploying again.
+-- Các constraint này lặp lại các quy tắc mà Java domain cũng cưỡng chế. Điều đó là cố ý. Domain
+-- chặn một request xấu từ bên ngoài; constraint ngăn một bug lưu trữ tiền ở một trạng thái không thể xảy ra,
+-- vốn là loại lỗi không thể sửa đơn thuần bằng cách deploy lại.
 
 -- ---------------------------------------------------------------------------------------------
--- merchant — a separate schema, on purpose
+-- merchant — một schema riêng biệt, hoàn toàn cố ý
 -- ---------------------------------------------------------------------------------------------
--- Spec 7.3 calls this a "merchant module/service": it is not its own service yet, but it will be.
--- Giving it a schema now means that split is a code change plus a database move, not an untangling
--- of interleaved tables. Nothing in the payment schema has a foreign key into it — see the note on
+-- Spec 7.3 gọi đây là một "merchant module/service": nó chưa phải service riêng lúc này, nhưng sẽ là như vậy.
+-- Việc cấp cho nó 1 schema ngay từ bây giờ có nghĩa là việc chia tách sau này chỉ là thay đổi mã nguồn cộng với việc di chuyển DB, chứ không phải việc gỡ rối
+-- các bảng đan xen vào nhau. Không có gì trong schema payment có khóa ngoại trỏ vào nó — xem ghi chú tại
 -- payments.merchant_id.
 
 COMMENT ON SCHEMA merchant IS
-    'Merchant catalog. Owned by the merchant module, which currently runs inside payment-service. '
-    'Reachable only through the merchant catalog port; no payment table may reference it by foreign key.';
+    'Merchant catalog. Sở hữu bởi merchant module, hiện tại đang chạy bên trong payment-service. '
+    'Chỉ có thể truy cập qua cổng merchant catalog port; không bảng payment nào được tham chiếu tới nó bằng khóa ngoại.';
 
 CREATE TABLE merchant.merchants (
     id                      UUID          NOT NULL,

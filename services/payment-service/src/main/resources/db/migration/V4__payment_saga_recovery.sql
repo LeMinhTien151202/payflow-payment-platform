@@ -1,5 +1,5 @@
--- Pre-Phase-2 failure recovery, ADR-012 and ADR-018.
--- Expand-only migration: existing payment rows remain valid and no value is rewritten.
+-- Khôi phục sự cố trước Phase 2, ADR-012 và ADR-018.
+-- Migration dạng Expand-only: các dòng payment hiện tại vẫn giữ nguyên giá trị hợp lệ và không bị ghi đè.
 
 ALTER TABLE payment.payments
     DROP CONSTRAINT payments_status_known;
@@ -19,8 +19,8 @@ ALTER TABLE payment.payment_status_history
         'MANUAL_REVIEW_REQUIRED', 'SUCCEEDED', 'FAILED', 'CANCELLED',
         'PARTIALLY_REFUNDED', 'REFUNDED'));
 
--- V2 constrained only to_status. Add the symmetric guard now because resolution can leave
--- MANUAL_REVIEW_REQUIRED and history must reject a fabricated previous state as well.
+-- V2 chỉ kiểm tra to_status. Thêm guard đối xứng bây giờ vì việc xử lý có thể rời khỏi
+-- MANUAL_REVIEW_REQUIRED và lịch sử phải từ chối một trạng thái previous bị làm giả.
 ALTER TABLE payment.payment_status_history
     ADD CONSTRAINT payment_status_history_from_status_known CHECK (
         from_status IS NULL OR from_status IN (
@@ -79,11 +79,11 @@ CREATE INDEX idx_payment_sagas_manual_review
     WHERE status = 'MANUAL_REVIEW_REQUIRED';
 
 COMMENT ON TABLE payment.payment_sagas IS
-    'Durable Payment-owned Saga state. Scheduler claims due rows with optimistic versioning; '
-    'network I/O is performed only after the local transaction commits.';
+    'Trạng thái Saga bền vững do Payment sở hữu. Scheduler claim các dòng tới hạn với optimistic versioning; '
+    'network I/O chỉ được thực hiện sau khi local transaction commit.';
 
 COMMENT ON COLUMN payment.payment_sagas.reservation_id IS
-    'Committed Account fact used to decide whether pre-ledger release compensation is safe.';
+    'Dữ liệu Account fact đã commit dùng để quyết định liệu pre-ledger release compensation có an toàn hay không.';
 
 COMMENT ON COLUMN payment.payment_sagas.journal_id IS
-    'Committed Ledger fact. When present, automatic reservation release is forbidden by ADR-011.';
+    'Dữ liệu Ledger fact đã commit. Khi hiện diện, việc tự động release reservation bị cấm theo ADR-011.';

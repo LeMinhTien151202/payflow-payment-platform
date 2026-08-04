@@ -78,7 +78,7 @@ logging:
     root: INFO
 
 ---
-# Fake, deterministic portfolio data. No non-local profile may load these callbacks.
+# Dữ liệu portfolio giả lập, định hình (deterministic). Tuyệt đối không có profile non-local nào được phép nạp các callback này.
 spring:
   config:
     activate:

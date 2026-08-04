@@ -21,16 +21,16 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 /**
- * The {@code payment.payments} row.
+ * Dòng dữ liệu tương ứng trong {@code payment.payments}.
  *
- * <p>Separate from {@link Payment} rather than annotating the aggregate. The aggregate has no {@code version}
- * field, keeps its recorded status changes in a list JPA has no column for, and validates itself in a
- * constructor JPA is not allowed to use. Mapping it directly would mean giving it a no-arg constructor and
- * mutable fields — which is to say, removing the reason it exists.
+ * <p>Tách biệt với {@link Payment} chứ không dùng annotation trực tiếp trên aggregate. Aggregate không có field {@code version},
+ * lưu giữ các thay đổi trạng thái được ghi nhận trong một danh sách mà JPA không có cột tương ứng, và tự validate chính nó trong
+ * một constructor mà JPA không được phép dùng. Việc map trực tiếp sẽ đồng nghĩa với việc cung cấp cho nó một constructor không tham số và
+ * các field có thể thay đổi (mutable fields) — cũng có nghĩa là làm mất đi lý do nó tồn tại.
  *
- * <p>{@code metadata} is a JSON string here, not a {@code Map}. The adapter serialises it with the
- * application's {@code ObjectMapper}, so what reaches the column is decided by code that can be read, rather
- * than by whichever JSON format mapper Hibernate happens to resolve.
+ * <p>{@code metadata} là một chuỗi JSON ở đây, chứ không phải một {@code Map}. Adapter serialise nó bằng
+ * {@code ObjectMapper} của application, do đó những gì đi vào cột DB được quyết định bởi code có thể đọc được, chứ
+ * không phụ thuộc vào định dạng JSON mapper nào mà Hibernate vô tình giải mã.
  */
 @Entity
 @Table(name = "payments", schema = "payment")
@@ -106,21 +106,21 @@ class PaymentEntity {
     private Instant updatedAt;
 
     /**
-     * Optimistic lock. Unused in Phase 1A, which only inserts, and present so that the first Phase 1B state
-     * transition cannot be written without one.
+     * Khóa lạc quan (Optimistic lock). Chưa dùng trong Phase 1A, vốn chỉ insert, và hiện diện để chuyển đổi
+     * trạng thái đầu tiên của Phase 1B không thể được ghi nếu thiếu nó.
      */
     @Version
     @Column(name = "version", nullable = false)
     private long version;
 
     protected PaymentEntity() {
-        // Required by JPA.
+        // Bắt buộc bởi JPA.
     }
 
     /**
-     * @param metadataJson the aggregate's metadata already serialised, or {@code null} when it is empty —
-     *     an empty JSON object and no metadata are the same fact, and NULL is the one the column comment
-     *     describes
+     * @param metadataJson metadata của aggregate đã được serialised, hoặc {@code null} khi nó rỗng —
+     *     một object JSON rỗng và việc không có metadata là cùng một sự thật, và NULL là thứ mà comment
+     *     cột DB mô tả
      */
     static PaymentEntity from(Payment payment, String metadataJson) {
         PaymentEntity entity = new PaymentEntity();
@@ -149,13 +149,13 @@ class PaymentEntity {
     }
 
     /**
-     * Rebuilds the aggregate.
+     * Dựng lại aggregate.
      *
-     * <p>Goes through {@link PaymentIntake}, which re-validates what it was given. That is deliberate: a row
-     * that no longer satisfies the intake rules — a non-positive amount, a currency the platform has stopped
-     * supporting — is corrupt data, and finding out when it is read is better than passing it on.
+     * <p>Đi qua {@link PaymentIntake}, nơi tái validate những gì nó được cung cấp. Điều đó là cố ý: một dòng
+     * không còn thỏa mãn các quy tắc intake — số tiền không dương, một loại currency mà nền tảng đã dừng
+     * hỗ trợ — là dữ liệu hỏng, và việc phát hiện khi đọc nó vẫn tốt hơn là tiếp tục truyền nó đi.
      *
-     * @param metadata the {@code metadata} column already deserialised, empty when the column is NULL
+     * @param metadata cột {@code metadata} đã được deserialised, rỗng khi cột DB là NULL
      */
     Payment toPayment(Map<String, String> metadata) {
         return Payment.rehydrate(

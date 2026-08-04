@@ -3,58 +3,55 @@ package com.payflow.observability;
 import java.util.UUID;
 
 /**
- * Correlation identity conventions shared by every PayFlow service.
+ * Quy ước về Correlation identity được dùng chung bởi mọi service của PayFlow.
  *
- * <p>The gateway creates or forwards the correlation id and every downstream service keeps it, so
- * the header name and MDC key must be identical everywhere. That is the only reason this lives in a
- * shared library instead of each service.
+ * <p>Gateway khởi tạo hoặc chuyển tiếp correlation id và mọi service phía sau giữ nguyên nó, nên
+ * tên header và tên MDC key phải giống hệt nhau ở mọi nơi. Đó là lý do duy nhất class này nằm trong một
+ * shared library thay vì ở từng service.
  *
- * <p>Incoming values are untrusted: a client controls the header. {@link #resolveOrGenerate(String)}
- * therefore rejects anything that could forge log lines or bloat log storage rather than passing it
- * through.
+ * <p>Các giá trị đầu vào là không tin cậy: client điều khiển header. {@link #resolveOrGenerate(String)}
+ * do đó từ chối bất kỳ thứ gì có thể làm giả các dòng log hoặc làm đầy bộ lưu trữ log thay vì truyền thẳng nó qua.
  */
 public final class CorrelationId {
 
-    /** Request/response header carrying the correlation id across HTTP boundaries. */
+    /** Request/response header mang correlation id qua các ranh giới HTTP. */
     public static final String HEADER = "X-Correlation-Id";
 
-    /** SLF4J MDC key, so structured logs expose the id under a stable field name. */
+    /** Key cho SLF4J MDC, để structured logs hiển thị id dưới một tên field ổn định. */
     public static final String MDC_KEY = "correlationId";
 
     /**
-     * Longest accepted incoming value. A correlation id is an identifier, not a payload; bounding it
-     * keeps log volume predictable when a client sends something unreasonable.
+     * Độ dài tối đa chấp nhận cho giá trị đầu vào. Một correlation id là một định danh, không phải payload; việc giới hạn độ dài
+     * giữ cho dung lượng log nằm trong mức có thể dự đoán khi client gửi một giá trị bất hợp lý.
      */
     public static final int MAX_LENGTH = 64;
 
     private CorrelationId() {
     }
 
-    /** Creates a fresh correlation id. */
+    /** Tạo một correlation id mới. */
     public static String generate() {
         return UUID.randomUUID().toString();
     }
 
     /**
-     * Returns the incoming value when it is safe to propagate and log, otherwise a fresh id.
+     * Trả về giá trị đầu vào khi nó an toàn để lan truyền và log, nếu không sẽ tạo mới một id.
      *
-     * <p>A malformed value is replaced rather than rejected with an error: losing the client's
-     * chosen id is harmless, while failing the request would turn a cosmetic header problem into an
-     * outage.
+     * <p>Một giá trị sai định dạng sẽ được thay thế thay vì bị từ chối bằng một lỗi: việc mất id do client chọn
+     * là vô hại, trong khi việc làm thất bại request sẽ biến một vấn đề header hình thức thành một sự cố dừng dịch vụ (outage).
      *
-     * @param incoming header value from the request, may be {@code null}
-     * @return a value safe to place in a log line and forward downstream
+     * @param incoming giá trị header từ request, có thể là {@code null}
+     * @return một giá trị an toàn để đặt vào dòng log và chuyển tiếp xuống hạ nguồn
      */
     public static String resolveOrGenerate(String incoming) {
         return isSafe(incoming) ? incoming : generate();
     }
 
     /**
-     * Whether a value may be logged and forwarded as-is.
+     * Kiểm tra xem một giá trị có được phép log và chuyển tiếp nguyên bản hay không.
      *
-     * <p>Only unreserved URL characters are allowed. This blocks CR/LF, which would otherwise let a
-     * caller inject fabricated lines into structured logs, and blocks control characters that break
-     * log parsers.
+     * <p>Chỉ các ký tự URL không bảo lưu (unreserved) mới được phép. Điều này chặn các ký tự CR/LF, vốn có thể cho phép
+     * caller chèn các dòng log giả mạo vào structured logs, và chặn các ký tự điều khiển làm hỏng các bộ log parser.
      */
     public static boolean isSafe(String value) {
         if (value == null || value.isEmpty() || value.length() > MAX_LENGTH) {

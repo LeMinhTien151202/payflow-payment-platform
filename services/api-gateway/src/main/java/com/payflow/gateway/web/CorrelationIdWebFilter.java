@@ -14,29 +14,29 @@ import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
 /**
- * Establishes the correlation id at the edge.
+ * Thiết lập correlation id tại ranh giới edge.
  *
- * <p>The gateway is where a correlation id is created if the client did not supply one, per
- * ARCHITECTURE.md section 12. The id is then:
+ * <p>Gateway là nơi khởi tạo correlation id nếu client không tự cung cấp, theo
+ * ARCHITECTURE.md phần 12. Id sau đó sẽ được:
  *
  * <ol>
- *   <li>stored as an exchange attribute so error handlers can include it in Problem Details
- *   <li>rewritten onto the forwarded request so downstream services inherit the same id
- *   <li>echoed on the response so a caller can quote it in a support request
+ *   <li>lưu dưới dạng exchange attribute để các error handler có thể đưa vào Problem Details
+ *   <li>ghi đè lên forwarded request để các downstream service thừa hưởng cùng id
+ *   <li>echo lại trong response để caller có thể trích dẫn khi cần hỗ trợ (support request)
  * </ol>
  *
- * <p>Runs at highest precedence so that authentication failures, which are produced by the security
- * filter chain, still carry the id.
+ * <p>Chạy ở mốc ưu tiên cao nhất (highest precedence) để ngay cả các lỗi xác thực, vốn tạo ra bởi security
+ * filter chain, vẫn mang theo id này.
  *
- * <p>The access log line is written with MDC set and cleared around the single logging call. MDC is
- * thread-bound and this is a reactive chain, so it is only safe for the duration of that one
- * statement; nothing else in this class may assume MDC is populated.
+ * <p>Dòng log truy cập được ghi với MDC được set và clear xung quanh câu lệnh log duy nhất. MDC bị
+ * ràng buộc theo thread (thread-bound) và đây là một chuỗi reactive, do đó nó chỉ an toàn trong khoảng thời gian diễn ra
+ * câu lệnh đó; không có thành phần nào khác trong class này được giả định rằng MDC chứa sẵn dữ liệu.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class CorrelationIdWebFilter implements WebFilter {
 
-    /** Exchange attribute holding the resolved correlation id for the current request. */
+    /** Attribute của Exchange lưu trữ correlation id đã giải mã cho request hiện tại. */
     public static final String ATTRIBUTE = "payflow.correlationId";
 
     private static final Logger log = LoggerFactory.getLogger(CorrelationIdWebFilter.class);

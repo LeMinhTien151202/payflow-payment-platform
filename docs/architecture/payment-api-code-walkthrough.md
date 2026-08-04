@@ -496,5 +496,6 @@ Tài liệu liên quan:
 
 - [Business processing reference](business-processing-reference.md): nghiệp vụ và phương án thay thế.
 - [Code flow guide](code-flow-guide.md): package và implementation theo lát cắt.
+- [Shared libraries và runtime configuration](shared-libraries-and-runtime-configuration-guide.md): `libs`, Maven, `.env`, Compose, Flyway, Kafka và Keycloak.
 - [REST và Kafka flow guide](rest-kafka-flow-guide.md): giải thích nhập môn REST/Kafka.
 - [MVP Docker runbook](../runbooks/mvp-docker.md): cách chạy toàn bộ stack.

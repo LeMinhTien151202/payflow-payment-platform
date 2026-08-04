@@ -3,15 +3,15 @@ spring:
     name: payment-service
 
   datasource:
-    # Credentials come from the environment only. AGENTS.md section 8 forbids committing any
-    # credential, so there is no fallback password here.
+    # Credentials chỉ đến từ môi trường. AGENTS.md phần 8 cấm việc commit bất kỳ
+    # credential nào, nên không có mật khẩu mặc định (fallback) ở đây.
     url: ${PAYFLOW_PAYMENT_DB_URL:jdbc:postgresql://localhost:5433/payflow_payment}
     username: ${PAYFLOW_PAYMENT_DB_USERNAME}
     password: ${PAYFLOW_PAYMENT_DB_PASSWORD}
 
   jpa:
     hibernate:
-      # Flyway owns the schema. Hibernate must never mutate it.
+      # Flyway sở hữu schema. Hibernate tuyệt đối không được tự thay đổi nó.
       ddl-auto: validate
     open-in-view: false
     properties:
@@ -21,14 +21,14 @@ spring:
 
   flyway:
     enabled: true
-    # Both schemas belong to this service and no other service may write to either. `merchant` is
-    # separate because the merchant catalog is expected to become its own service (see
-    # V2__payment_intake.sql); until then one Flyway history table, in `payment`, governs both.
+    # Cả hai schema đều thuộc sở hữu của service này và không có service nào khác được quyền ghi vào một trong hai. `merchant`
+    # tách biệt vì merchant catalog dự kiến sẽ trở thành service riêng (xem V2__payment_intake.sql);
+    # cho đến lúc đó, một bảng lịch sử Flyway trong `payment` sẽ quản lý cả hai.
     schemas: payment,merchant
     default-schema: payment
     create-schemas: true
-    # Seed data is not here. It is added by the `local` profile below, so no environment can load it
-    # by forgetting to exclude it.
+    # Seed data không nằm ở đây. Nó được thêm bởi profile `local` bên dưới, để không môi trường nào bị nạp nhầm
+    # do vô tình quên trừ nó ra.
     locations: classpath:db/migration
 
   security:
@@ -62,8 +62,8 @@ spring:
 server:
   port: ${PAYFLOW_PAYMENT_PORT:8081}
 
-# API documentation is intentionally closed by default. The local profile below opens it for
-# developers; a production-like profile cannot expose implementation metadata by accident.
+# Tài liệu API được cố ý tắt theo mặc định. Profile local bên dưới sẽ mở nó cho
+# các nhà phát triển; một profile giống production không được phép rò rỉ metadata triển khai do vô tình.
 springdoc:
   api-docs:
     enabled: false
@@ -79,8 +79,8 @@ payflow:
     lease: ${PAYFLOW_OUTBOX_LEASE:120s}
     max-attempts: ${PAYFLOW_OUTBOX_MAX_ATTEMPTS:10}
     max-backoff: ${PAYFLOW_OUTBOX_MAX_BACKOFF:300s}
-    # Bound to the same environment value as Kafka's producer property. A single value prevents the
-    # lease guard and the actual network timeout from silently disagreeing.
+    # Ghim vào cùng một giá trị biến môi trường với thuộc tính producer của Kafka. Giá trị đơn lẻ này giúp ngăn chặn
+    # lease guard và network timeout thực tế không bị mâu thuẫn âm thầm với nhau.
     delivery-timeout: ${PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS:60000}ms
   saga-recovery:
     enabled: ${PAYFLOW_SAGA_RECOVERY_ENABLED:true}
@@ -104,8 +104,8 @@ management:
         enabled: true
       show-details: never
   health:
-    # Readiness must fail when the database is unreachable, otherwise the service would accept
-    # traffic it cannot serve. This is the Phase 0 gate on meaningful readiness.
+    # Readiness phải báo lỗi khi database không thể kết nối tới, nếu không service sẽ chấp nhận
+    # lưu lượng truy cập mà nó không thể xử lý. Đây là gate Phase 0 về tính sẵn sàng thực sự.
     db:
       enabled: true
     readiness-state:
@@ -119,14 +119,14 @@ logging:
     root: INFO
 
 ---
-# Local development only.
+# Dành riêng cho Local development.
 #
-# DATABASE_RULES.md section 15.3 allows seed data in the `local` and `test` profiles and nowhere else.
-# Making it a profile override rather than a default means a deployment loads the seed only if someone
-# explicitly asks for the `local` profile, instead of only if someone remembers to turn it off.
+# DATABASE_RULES.md phần 15.3 cho phép seed data trong các profile `local` và `test` và không ở đâu khác.
+# Việc biến nó thành một profile override thay vì mặc định có nghĩa là đợt deploy chỉ nạp seed khi ai đó
+# chủ động yêu cầu profile `local`, thay vì chỉ khi có ai đó nhớ việc tắt nó đi.
 #
-# The seed is a Flyway afterMigrate callback, not a versioned migration: it must not occupy a version
-# number that other environments would then be missing from their history.
+# Seed data là một Flyway afterMigrate callback, chứ không phải một migration có version: nó tuyệt đối không được chiếm một số version
+# mà các môi trường khác sau đó sẽ bị thiếu trong lịch sử của chúng.
 spring:
   config:
     activate:

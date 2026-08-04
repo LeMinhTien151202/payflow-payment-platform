@@ -6,15 +6,15 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          # Keycloak realm issuer. Overridden per environment; never hardcode a secret here.
+          # Keycloak realm issuer. Có thể ghi đè theo môi trường; tuyệt đối không hardcode secret ở đây.
           issuer-uri: ${PAYFLOW_OIDC_ISSUER_URI:http://localhost:8180/realms/payflow}
-          # Keeping the issuer and key endpoint separate lets a container validate the public
-          # localhost issuer while fetching signing keys over the private Compose network.
+          # Việc giữ issuer và key endpoint riêng biệt giúp cho container kiểm chứng public
+          # issuer localhost trong khi vẫn tải các signing key qua mạng Compose nội bộ.
           jwk-set-uri: ${PAYFLOW_OIDC_JWK_SET_URI:http://localhost:8180/realms/payflow/protocol/openid-connect/certs}
 
 server:
   port: ${PAYFLOW_GATEWAY_PORT:8080}
-  # Edge request-size limit. AGENTS.md section 8 requires the gateway to bound request size.
+  # Giới hạn dung lượng HTTP request header tại edge. AGENTS.md phần 8 yêu cầu gateway giới hạn dung lượng request.
   max-http-request-header-size: 16KB
 
 payflow:
@@ -26,7 +26,7 @@ management:
   endpoints:
     web:
       exposure:
-        # Only health is exposed. Widening this needs a security review, not a config tweak.
+        # Chỉ expose endpoint health. Việc mở rộng thêm cần được security review, không phải một tinh chỉnh config đơn thuần.
         include: health
   endpoint:
     health:
@@ -37,7 +37,7 @@ management:
 logging:
   structured:
     format:
-      # Machine-readable logs so correlationId is a queryable field rather than free text.
+      # Log định dạng đọc bởi máy (machine-readable) để correlationId là một field có thể query thay vì text tự do.
       console: ecs
   level:
     root: INFO

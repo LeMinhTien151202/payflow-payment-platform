@@ -1,12 +1,12 @@
--- Fake local-only fixtures for the Phase 1B portfolio scenarios.
+-- Các dữ liệu giả lập (fixtures) dành riêng cho local cho các kịch bản portfolio Phase 1B.
 --
--- This Flyway callback is loaded only by the `local` Spring profile. Every insert is idempotent and
--- deliberately uses ON CONFLICT DO NOTHING: restarting an application must never replenish money or
--- overwrite a balance that a developer changed. To return to the documented initial state, remove
--- the disposable Compose volumes explicitly and let migrations rebuild them.
+-- Callback này của Flyway chỉ được nạp duy nhất bởi Spring profile `local`. Mỗi câu lệnh insert đều có tính idempotent và
+-- cố ý sử dụng ON CONFLICT DO NOTHING: việc khởi động lại ứng dụng tuyệt đối không bao giờ được tự bổ sung tiền hoặc
+-- ghi đè lên số dư mà lập trình viên đã thay đổi. Để quay về trạng thái ban đầu như tài liệu, hãy xóa
+-- các volume Compose một cách thủ công và để migration tự dựng lại.
 
--- Source accounts are the operational balance source of truth. The happy-path account starts with
--- 1,000,000 VND; the second account makes the insufficient-funds scenario reproducible.
+-- Source account là nguồn sự thật (source of truth) cho số dư vận hành. Tài khoản cho kịch bản happy-path bắt đầu với
+-- 1.000.000 VND; tài khoản thứ hai phục vụ việc tái hiện kịch bản không đủ tiền (insufficient-funds).
 INSERT INTO account.accounts (
     id, currency, available_balance, reserved_balance, status, version)
 VALUES
@@ -14,9 +14,9 @@ VALUES
     ('55555555-5555-4555-8555-555555555555', 'VND',  100000.0000, 0.0000, 'ACTIVE', 0)
 ON CONFLICT (id) DO NOTHING;
 
--- Ledger mappings are intentionally separate from operational accounts. Payment posting currently
--- identifies the customer side by customerId, while refund posting identifies it by sourceAccountId;
--- both mappings are therefore required for the same local workflow to post and later refund safely.
+-- Các ánh xạ Ledger cố ý tách biệt với các tài khoản vận hành. Việc ghi nhận payment (payment posting) hiện tại
+-- xác định phía khách hàng bằng customerId, trong khi việc ghi nhận refund xác định nó bằng sourceAccountId;
+-- cả hai mapping do đó đều cần thiết để cùng một workflow local có thể post và refund an toàn sau đó.
 INSERT INTO ledger.ledger_accounts (id, owner_type, owner_id, currency)
 VALUES
     ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'MERCHANT',

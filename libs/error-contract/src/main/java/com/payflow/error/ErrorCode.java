@@ -1,19 +1,19 @@
 package com.payflow.error;
 
 /**
- * A stable error code that appears in the {@code code} member of a Problem Details body.
+ * Một mã lỗi ổn định xuất hiện trong trường {@code code} của body Problem Details.
  *
- * <p>This interface exists so that {@link ProblemDetails} can accept codes it does not know about.
- * {@link PayFlowErrorCode} holds the cross-cutting platform codes; a business code such as
- * {@code PAYMENT_DUPLICATE_REFERENCE} belongs to the service that owns the invariant, and the module map
- * forbids collecting those here. Without an abstraction, a service would have to choose between adding its
- * codes to this shared enum and not using the shared builder at all.
+ * <p>Interface này tồn tại để {@link ProblemDetails} có thể chấp nhận các mã lỗi mà nó chưa biết trước.
+ * {@link PayFlowErrorCode} chứa các mã lỗi chung cấp platform; một mã lỗi nghiệp vụ như
+ * {@code PAYMENT_DUPLICATE_REFERENCE} thuộc về service sở hữu invariant đó, và module map
+ * cấm việc tập trung các mã đó ở đây. Nếu không có lớp trừu tượng này, một service sẽ phải lựa chọn giữa việc
+ * thêm mã lỗi của nó vào enum dùng chung này hoặc không dùng builder chung nào cả.
  *
- * <p>Implementations are normally enums, whose constant names then double as the wire values. Renaming one is
- * a breaking API change, because clients branch on it.
+ * <p>Các lớp triển khai thường là enum, các tên hằng số của nó đồng thời đóng vai trò là giá trị truyền tải (wire values). Việc đổi tên là
+ * một breaking change đối với API, vì phía client sẽ rẽ nhánh (branch) dựa trên nó.
  */
 public interface ErrorCode {
 
-    /** The wire value placed in the {@code code} member. Stable; part of the public API contract. */
+    /** Giá trị dạng wire được đặt trong trường {@code code}. Ổn định; là một phần của hợp đồng public API. */
     String code();
 }

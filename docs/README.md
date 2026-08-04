@@ -23,6 +23,14 @@ Bắt đầu từ đâu:
   [architecture/code-flow-guide.md](architecture/code-flow-guide.md).
 - Muốn xem request đi qua chính xác file nào, Keycloak/phân quyền ra sao và từng handler xử lý gì:
   [architecture/payment-api-code-walkthrough.md](architecture/payment-api-code-walkthrough.md).
+- Muốn hiểu `libs`, event contract, correlation/error convention và luồng `.env` → Compose → `application.yml`:
+  [architecture/shared-libraries-and-runtime-configuration-guide.md](architecture/shared-libraries-and-runtime-configuration-guide.md).
+- Muốn tra toàn bộ package/file trong năm service và biết request/event đi qua chúng thế nào:
+  [architecture/services-folder-reference.md](architecture/services-folder-reference.md).
+- Muốn hiểu `infrastructure`, root config, CI, `docs/.docs` và agent/governance folders:
+  [architecture/infrastructure-and-repository-folder-reference.md](architecture/infrastructure-and-repository-folder-reference.md).
+- Muốn học từng công nghệ đang dùng và biết dependency/config/code của Kafka, Keycloak, PostgreSQL, Redis, Swagger, Docker, test:
+  [architecture/technology-stack-configuration-guide.md](architecture/technology-stack-configuration-guide.md).
 - Mới làm quen event-driven, muốn hiểu REST dùng ở đâu và Kafka xử lý bước nào:
   [architecture/rest-kafka-flow-guide.md](architecture/rest-kafka-flow-guide.md).
 - Muốn chạy app từ IDE/host: [runbooks/local-development.md](runbooks/local-development.md).
