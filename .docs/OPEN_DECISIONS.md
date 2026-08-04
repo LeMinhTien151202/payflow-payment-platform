@@ -22,7 +22,7 @@ File này ghi các điểm chưa đủ rõ trong spec hoặc đang mâu thuẫn 
 | OD-007 | RESOLVED | PostgreSQL inbox insert-if-new semantics | Mở khóa bằng ADR-017; runtime vẫn cần PostgreSQL/Kafka test |
 | OD-008 | RESOLVED | Outbox claim lease và stale recovery | Đã mở khoá bằng ADR-004 + ADR-014 |
 | OD-009 | RESOLVED | Risk score normalization/range | Đã mở khoá bằng ADR-015 |
-| OD-010 | OPEN | Audit snapshot allowlist, retention và access | Privileged audit logging |
+| OD-010 | RESOLVED | Audit snapshot allowlist, retention và access | Mở khóa bằng ADR-022 |
 | OD-011 | RESOLVED | Thứ tự Ledger reversal, Account credit và refund success | Mở khóa bằng ADR-021 |
 
 ## OD-001 — Financial finalization boundary
@@ -157,3 +157,8 @@ event Risk→Payment.
 ## OD-010 — Audit data safety
 
 `before_data`/`after_data` dạng JSONB không được trở thành đường vòng lưu API key, hash, token, webhook secret hoặc PII. Quyết định phải có field allowlist/redaction trước persistence, append-only protection, access control, retention và test chống secret leakage.
+
+**Đã chốt** bằng [`docs/adr/ADR-022`](../docs/adr/ADR-022-typed-allowlisted-audit-records.md):
+audit writer chỉ nhận typed change có field allowlist; không nhận map/JSON tùy ý. JWT/header/body,
+secret và PII bị cấm trước persistence. Bảng audit append-only; read yêu cầu scope riêng
+`operations:audit:read`; retention 365 ngày do maintenance task tách biệt, runtime không có API xóa.

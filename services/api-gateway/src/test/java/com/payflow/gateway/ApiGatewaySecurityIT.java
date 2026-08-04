@@ -44,6 +44,8 @@ class ApiGatewaySecurityIT extends GatewayTestSupport {
                 .willReturn(Mono.just(jwtWithScopes(TOKEN_FULL_SCOPE, "payment:read payment:write")));
         given(jwtDecoder.decode(TOKEN_READ_ONLY))
                 .willReturn(Mono.just(jwtWithScopes(TOKEN_READ_ONLY, "payment:read")));
+        given(jwtDecoder.decode(TOKEN_OPERATIONS))
+                .willReturn(Mono.just(jwtWithScopes(TOKEN_OPERATIONS, "operations:write")));
         given(jwtDecoder.decode(TOKEN_INVALID))
                 .willReturn(Mono.error(new BadJwtException("signature mismatch")));
 
@@ -62,6 +64,13 @@ class ApiGatewaySecurityIT extends GatewayTestSupport {
                                         .withStatus(201)
                                         .withHeader("Content-Type", "application/json")
                                         .withBody("{\"paymentId\":\"pay_2\"}")));
+        PAYMENT_SERVICE_STUB.stubFor(
+                post(urlPathMatching("/api/v1/operations/payments.*"))
+                        .willReturn(
+                                aResponse()
+                                        .withStatus(200)
+                                        .withHeader("Content-Type", "application/json")
+                                        .withBody("{\"status\":\"RUNNING\"}")));
     }
 
     @Test
@@ -150,6 +159,40 @@ class ApiGatewaySecurityIT extends GatewayTestSupport {
                 .exchange()
                 .expectStatus()
                 .isCreated();
+    }
+
+    @Test
+    @DisplayName("operations scope reaches operations route without merchant scopes")
+    void operationsScopeReachesOperationsRoute() {
+        webTestClient
+                .post()
+                .uri("/api/v1/operations/payments/pay_1/manual-review/resolve")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN_OPERATIONS)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{}")
+                .exchange()
+                .expectStatus()
+                .isOk();
+    }
+
+    @Test
+    @DisplayName("merchant payment scopes cannot reach operations route")
+    void merchantScopeCannotReachOperationsRoute() {
+        webTestClient
+                .post()
+                .uri("/api/v1/operations/payments/pay_1/manual-review/resolve")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN_FULL_SCOPE)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{}")
+                .exchange()
+                .expectStatus()
+                .isForbidden()
+                .expectBody()
+                .jsonPath("$.code")
+                .isEqualTo("AUTH_FORBIDDEN");
+
+        PAYMENT_SERVICE_STUB.verify(
+                0, postRequestedFor(urlPathMatching("/api/v1/operations/payments.*")));
     }
 
     /**

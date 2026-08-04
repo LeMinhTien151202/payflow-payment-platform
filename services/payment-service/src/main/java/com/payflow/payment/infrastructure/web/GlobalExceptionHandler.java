@@ -9,8 +9,11 @@ import com.payflow.payment.application.exception.ConcurrentIdempotentRequestExce
 import com.payflow.payment.application.exception.DuplicateMerchantReferenceException;
 import com.payflow.payment.application.exception.IdempotencyConflictException;
 import com.payflow.payment.application.exception.MerchantNotRegisteredException;
+import com.payflow.payment.application.exception.ManualReviewItemNotFoundException;
+import com.payflow.payment.application.exception.ManualReviewResolutionRejectedException;
 import com.payflow.payment.application.exception.PaymentApplicationException;
 import com.payflow.payment.application.exception.PaymentNotFoundException;
+import com.payflow.payment.application.exception.RefundNotFoundException;
 import com.payflow.payment.domain.exception.CurrencyNotAcceptedException;
 import com.payflow.payment.domain.exception.MerchantNotAcceptingPaymentsException;
 import com.payflow.payment.domain.exception.PaymentDomainException;
@@ -103,6 +106,27 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                     HttpStatus.NOT_FOUND,
                     PaymentErrorCode.PAYMENT_NOT_FOUND,
                     "The payment was not found.",
+                    request);
+        }
+        if (ex instanceof RefundNotFoundException) {
+            return problem(
+                    HttpStatus.NOT_FOUND,
+                    PaymentErrorCode.REFUND_NOT_FOUND,
+                    "The refund was not found.",
+                    request);
+        }
+        if (ex instanceof ManualReviewItemNotFoundException) {
+            return problem(
+                    HttpStatus.NOT_FOUND,
+                    PaymentErrorCode.MANUAL_REVIEW_NOT_FOUND,
+                    "The manual-review work item was not found.",
+                    request);
+        }
+        if (ex instanceof ManualReviewResolutionRejectedException) {
+            return problem(
+                    HttpStatus.CONFLICT,
+                    PaymentErrorCode.MANUAL_REVIEW_RESOLUTION_REJECTED,
+                    "The decision is not safe for the current Payment Saga state.",
                     request);
         }
         if (ex instanceof MerchantNotRegisteredException) {

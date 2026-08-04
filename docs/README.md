@@ -16,6 +16,9 @@ giai đoạn xây dựng nằm ở [`.docs/`](../.docs/README.md) và
 
 Bắt đầu từ đâu:
 
+- Mới vào dự án và thấy luồng rối, muốn hiểu nghiệp vụ thật + luồng code + dữ liệu truyền giữa các service
+  theo đúng code hiện tại:
+  [architecture/current-business-code-flow-guide.md](architecture/current-business-code-flow-guide.md).
 - Muốn chạy toàn bộ MVP bằng Docker: [runbooks/mvp-docker.md](runbooks/mvp-docker.md).
 - Muốn hiểu toàn bộ nghiệp vụ đang chạy, cấu hình và vì sao chọn từng phương pháp:
   [architecture/business-processing-reference.md](architecture/business-processing-reference.md).

@@ -27,8 +27,10 @@ kiểm soát.
 | API | Scope JWT | API làm gì | Kafka có chạy không? |
 | --- | --- | --- | --- |
 | `POST /api/v1/payments` | `payment:write` | Nhận payment, chống gửi trùng và tạo Saga | Có, bắt đầu từ `payment.created` |
+| `GET /api/v1/payments?status=&from=&to=&page=&size=` | `payment:read` | Tìm payment theo merchant trong JWT, có filter và phân trang giới hạn | Không, đây là truy vấn đồng bộ |
 | `GET /api/v1/payments/{paymentId}` | `payment:read` | Đọc trạng thái payment thuộc merchant trong JWT | Không, đây là truy vấn đồng bộ |
 | `POST /api/v1/payments/{paymentId}/refunds` | `payment:write` | Giữ hạn mức có thể hoàn và nhận refund | Có, bắt đầu từ `refund.requested` |
+| `GET /api/v1/payments/{paymentId}/refunds/{refundId}` | `payment:read` | Đọc refund khi payment, refund và merchant trong JWT cùng khớp | Không, đây là truy vấn đồng bộ |
 
 Hai API `POST` bắt buộc header `Idempotency-Key`. Cùng key + cùng request sẽ replay response cũ;
 cùng key + request khác trả `409`. Đây là lớp bảo vệ khi browser, gateway hoặc client retry.

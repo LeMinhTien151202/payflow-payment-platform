@@ -171,6 +171,47 @@ public final class PaymentSaga {
         updatedAt = changedAt;
     }
 
+    /** Operations approved a risk review, so the next durable command is Account reserve. */
+    public void approveRiskManualReview(Instant nextDeadline, Instant at) {
+        requireManualReviewStep(PaymentSagaStep.RISK_ASSESSMENT, "approve risk manual review");
+        requireFutureDeadline(nextDeadline, at);
+        Instant changedAt = requireChronological(at);
+        currentStep = PaymentSagaStep.RESERVE_FUNDS;
+        status = PaymentSagaStatus.RUNNING;
+        retryCount = 0;
+        lastErrorCode = null;
+        deadlineAt = nextDeadline;
+        updatedAt = changedAt;
+    }
+
+    /** Operations rejected a risk review before any financial command was issued. */
+    public void rejectRiskManualReview(Instant at) {
+        requireManualReviewStep(PaymentSagaStep.RISK_ASSESSMENT, "reject risk manual review");
+        Instant changedAt = requireChronological(at);
+        status = PaymentSagaStatus.FAILED;
+        retryCount = 0;
+        lastErrorCode = "MANUAL_REVIEW_RISK_REJECTED";
+        updatedAt = changedAt;
+    }
+
+    /** Re-enables only the exact persisted step; it never invents reservation or journal facts. */
+    public void retryCurrentStepAfterManualReview(Instant nextDeadline, Instant at) {
+        if (status != PaymentSagaStatus.MANUAL_REVIEW_REQUIRED
+                || currentStep == PaymentSagaStep.RISK_ASSESSMENT
+                || currentStep == PaymentSagaStep.COMPLETED) {
+            throw new SagaInvariantViolationException(
+                    "manual-review retry requires a resumable financial Saga step");
+        }
+        requireFutureDeadline(nextDeadline, at);
+        Instant changedAt = requireChronological(at);
+        status = currentStep == PaymentSagaStep.RELEASE_FUNDS
+                ? PaymentSagaStatus.COMPENSATING
+                : PaymentSagaStatus.RUNNING;
+        retryCount = 0;
+        deadlineAt = nextDeadline;
+        updatedAt = changedAt;
+    }
+
     /** A definitive pre-ledger rejection ends the automated Saga without compensation. */
     public void failBeforeLedger(String reasonCode, Instant at) {
         if (status != PaymentSagaStatus.RUNNING
@@ -217,6 +258,14 @@ public final class PaymentSaga {
         if (status != PaymentSagaStatus.RUNNING || currentStep != expected) {
             throw new SagaInvariantViolationException(
                     operation + " requires RUNNING/" + expected + " but was " + status + "/" + currentStep);
+        }
+    }
+
+    private void requireManualReviewStep(PaymentSagaStep expected, String operation) {
+        if (status != PaymentSagaStatus.MANUAL_REVIEW_REQUIRED || currentStep != expected) {
+            throw new SagaInvariantViolationException(
+                    operation + " requires MANUAL_REVIEW_REQUIRED/" + expected + " but was "
+                            + status + "/" + currentStep);
         }
     }
 

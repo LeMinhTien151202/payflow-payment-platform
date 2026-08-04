@@ -166,6 +166,7 @@ services:
       # file realm-payflow.json. Cả hai client đều cần thiết: payflow-readonly tồn tại để chứng minh 403, và một
       # client có secret chưa từng thay thế sẽ không thể lấy token để chứng minh điều đó.
       PAYFLOW_SERVICE_CLIENT_SECRET: ${PAYFLOW_SERVICE_CLIENT_SECRET}
+      PAYFLOW_OPERATIONS_CLIENT_SECRET: ${PAYFLOW_OPERATIONS_CLIENT_SECRET}
       PAYFLOW_READONLY_CLIENT_SECRET: ${PAYFLOW_READONLY_CLIENT_SECRET}
     ports:
       - "127.0.0.1:${KEYCLOAK_PORT}:8080"

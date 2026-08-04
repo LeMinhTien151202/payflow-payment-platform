@@ -111,6 +111,50 @@ class PaymentSagaTest {
     }
 
     @Test
+    void operationsCanApproveOrRejectOnlyRiskManualReview() {
+        PaymentSaga approved = start();
+        approved.requireManualReview("RISK_REVIEW_REQUIRED", CREATED.plusSeconds(1));
+        approved.approveRiskManualReview(CREATED.plusSeconds(30), CREATED.plusSeconds(2));
+
+        PaymentSaga rejected = start();
+        rejected.requireManualReview("RISK_REVIEW_REQUIRED", CREATED.plusSeconds(1));
+        rejected.rejectRiskManualReview(CREATED.plusSeconds(2));
+
+        assertThat(approved.status()).isEqualTo(PaymentSagaStatus.RUNNING);
+        assertThat(approved.currentStep()).isEqualTo(PaymentSagaStep.RESERVE_FUNDS);
+        assertThat(rejected.status()).isEqualTo(PaymentSagaStatus.FAILED);
+        assertThat(rejected.lastErrorCode()).isEqualTo("MANUAL_REVIEW_RISK_REJECTED");
+    }
+
+    @Test
+    void operationsRetryPreservesFinancialFactsAndCompensationDirection() {
+        PaymentSaga saga = sagaAtPostLedger();
+        saga.beginCompensation(
+                "LEDGER_RETRY_EXHAUSTED", CREATED.plusSeconds(50), CREATED.plusSeconds(20));
+        saga.requireManualReview("RELEASE_OUTCOME_AMBIGUOUS", CREATED.plusSeconds(21));
+
+        saga.retryCurrentStepAfterManualReview(
+                CREATED.plusSeconds(60), CREATED.plusSeconds(22));
+
+        assertThat(saga.status()).isEqualTo(PaymentSagaStatus.COMPENSATING);
+        assertThat(saga.currentStep()).isEqualTo(PaymentSagaStep.RELEASE_FUNDS);
+        assertThat(saga.reservationId()).isEqualTo(RESERVATION_ID);
+        assertThat(saga.journalId()).isNull();
+        assertThat(saga.lastErrorCode()).isEqualTo("RELEASE_OUTCOME_AMBIGUOUS");
+    }
+
+    @Test
+    void genericRetryCannotBypassRiskDecision() {
+        PaymentSaga saga = start();
+        saga.requireManualReview("RISK_REVIEW_REQUIRED", CREATED.plusSeconds(1));
+
+        assertThatThrownBy(() -> saga.retryCurrentStepAfterManualReview(
+                        CREATED.plusSeconds(30), CREATED.plusSeconds(2)))
+                .isInstanceOf(SagaInvariantViolationException.class)
+                .hasMessageContaining("resumable financial");
+    }
+
+    @Test
     void definitiveRiskOrReservationFailureEndsSagaBeforeFinancialSideEffects() {
         PaymentSaga riskSaga = start();
         riskSaga.failBeforeLedger("RISK_REJECTED", CREATED.plusSeconds(1));

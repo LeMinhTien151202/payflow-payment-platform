@@ -15,6 +15,45 @@ security:
   - bearerAuth: []
 paths:
   /api/v1/payments:
+    get:
+      operationId: searchPayments
+      summary: Search payments owned by the authenticated merchant
+      description: >-
+        Returns a bounded newest-first page. merchant_id is always taken from the JWT. The optional
+        time range is half-open: from is inclusive and to is exclusive. This read emits no Kafka event.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema: {$ref: '#/components/schemas/PaymentStatus'}
+        - name: from
+          in: query
+          required: false
+          description: Inclusive createdAt lower bound
+          schema: {type: string, format: date-time}
+        - name: to
+          in: query
+          required: false
+          description: Exclusive createdAt upper bound
+          schema: {type: string, format: date-time}
+        - name: page
+          in: query
+          required: false
+          schema: {type: integer, minimum: 0, default: 0}
+        - name: size
+          in: query
+          required: false
+          schema: {type: integer, minimum: 1, maximum: 100, default: 20}
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Merchant-scoped payment page
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PaymentSearchResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
     post:
       operationId: createPayment
       summary: Accept a payment for asynchronous processing
@@ -112,6 +151,71 @@ paths:
             application/problem+json:
               schema: {$ref: '#/components/schemas/ProblemDetails'}
         '409': {$ref: '#/components/responses/Conflict'}
+  /api/v1/payments/{paymentId}/refunds/{refundId}:
+    get:
+      operationId: getRefund
+      summary: Read one refund of a merchant-owned payment
+      description: >-
+        refundId, parent paymentId and merchant_id from the JWT must all match. Missing and
+        cross-merchant data return the same 404. This read emits no Kafka event.
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - name: refundId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - $ref: '#/components/parameters/CorrelationId'
+      responses:
+        '200':
+          description: Current merchant-owned refund state
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RefundDetailResponse'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404':
+          description: Refund absent or not visible to this merchant
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetails'}
+  /api/v1/operations/payments/{paymentId}/manual-review/resolve:
+    post:
+      operationId: resolvePaymentManualReview
+      summary: Resolve one stopped Payment Saga through an audited operations decision
+      description: >-
+        Requires operations:write and does not accept merchant credentials. Payment/Saga state,
+        the next outbox command and a typed append-only audit record commit atomically. Risk review
+        accepts APPROVE_RISK or REJECT_RISK; financial steps accept RETRY_CURRENT_STEP. This endpoint
+        never accepts a free-form note, JWT content, webhook secret or arbitrary audit JSON.
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+        - $ref: '#/components/parameters/CorrelationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ResolveManualReviewRequest'}
+      responses:
+        '200':
+          description: Resolution, next command and audit record committed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ManualReviewResolutionResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404':
+          description: Manual-review work item not found
+          content:
+            application/problem+json:
+              schema: {$ref: '#/components/schemas/ProblemDetails'}
+        '409': {$ref: '#/components/responses/Conflict'}
 components:
   securitySchemes:
     bearerAuth:
@@ -195,6 +299,48 @@ components:
         amount: {type: number}
         currency: {type: string, enum: [VND]}
         createdAt: {type: string, format: date-time}
+    RefundDetail:
+      type: object
+      required: [refundId, paymentId, amount, currency, status, createdAt, updatedAt]
+      properties:
+        refundId: {type: string, format: uuid}
+        paymentId: {type: string, format: uuid}
+        amount: {type: number}
+        currency: {type: string, enum: [VND]}
+        status: {type: string, enum: [CREATED, PROCESSING, SUCCEEDED, FAILED]}
+        reason: {type: [string, 'null']}
+        ledgerJournalId: {type: [string, 'null'], format: uuid}
+        accountCreditId: {type: [string, 'null'], format: uuid}
+        feeReversalAmount: {type: [number, 'null']}
+        failureCode: {type: [string, 'null']}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        completedAt: {type: [string, 'null'], format: date-time}
+    ResolveManualReviewRequest:
+      type: object
+      required: [decision, decisionCode]
+      properties:
+        decision:
+          type: string
+          enum: [APPROVE_RISK, REJECT_RISK, RETRY_CURRENT_STEP]
+        decisionCode:
+          type: string
+          pattern: '^[A-Z][A-Z0-9_]{0,99}$'
+          description: Stable allowlisted decision code, never a free-form note
+    ManualReviewResolutionResult:
+      type: object
+      required: [paymentId, paymentStatus, sagaStatus, sagaStep, commandEventId, resolvedAt]
+      properties:
+        paymentId: {type: string, format: uuid}
+        paymentStatus: {$ref: '#/components/schemas/PaymentStatus'}
+        sagaStatus:
+          type: string
+          enum: [RUNNING, COMPENSATING, COMPLETED, COMPENSATED, FAILED, MANUAL_REVIEW_REQUIRED]
+        sagaStep:
+          type: string
+          enum: [RISK_ASSESSMENT, RESERVE_FUNDS, POST_LEDGER, CAPTURE_FUNDS, RELEASE_FUNDS, COMPLETED]
+        commandEventId: {type: string, format: uuid}
+        resolvedAt: {type: string, format: date-time}
     PaymentDetail:
       type: object
       required:
@@ -218,6 +364,23 @@ components:
         metadata: {type: object, additionalProperties: {type: string}}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
+    PaymentStatus:
+      type: string
+      enum:
+        [CREATED, RISK_CHECKING, RISK_REJECTED, RESERVING_FUNDS, PROCESSING,
+         MANUAL_REVIEW_REQUIRED, SUCCEEDED, FAILED, CANCELLED,
+         PARTIALLY_REFUNDED, REFUNDED]
+    PaymentSearchResult:
+      type: object
+      required: [items, page, size, totalElements, totalPages]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/PaymentDetail'}
+        page: {type: integer, minimum: 0}
+        size: {type: integer, minimum: 1, maximum: 100}
+        totalElements: {type: integer, format: int64, minimum: 0}
+        totalPages: {type: integer, minimum: 0}
     ResponseMeta:
       type: object
       required: [correlationId, timestamp]
@@ -236,11 +399,29 @@ components:
       properties:
         data: {$ref: '#/components/schemas/PaymentDetail'}
         meta: {$ref: '#/components/schemas/ResponseMeta'}
+    PaymentSearchResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: {$ref: '#/components/schemas/PaymentSearchResult'}
+        meta: {$ref: '#/components/schemas/ResponseMeta'}
     RefundAcceptanceResponse:
       type: object
       required: [data, meta]
       properties:
         data: {$ref: '#/components/schemas/RefundAcceptance'}
+        meta: {$ref: '#/components/schemas/ResponseMeta'}
+    RefundDetailResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: {$ref: '#/components/schemas/RefundDetail'}
+        meta: {$ref: '#/components/schemas/ResponseMeta'}
+    ManualReviewResolutionResponse:
+      type: object
+      required: [data, meta]
+      properties:
+        data: {$ref: '#/components/schemas/ManualReviewResolutionResult'}
         meta: {$ref: '#/components/schemas/ResponseMeta'}
     FieldViolation:
       type: object

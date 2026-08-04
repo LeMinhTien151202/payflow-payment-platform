@@ -107,15 +107,16 @@ class PaymentServiceFoundationIT extends AbstractPostgresIT {
     /**
      * Locks the table set rather than checking that specific tables exist.
      *
-     * <p>Phase 1A deliberately omits columns and tables whose meaning depends on a decision still
-     * {@code OPEN} in OPEN_DECISIONS.md. A table appearing here that nobody listed is the visible
-     * symptom of that gate being bypassed, and {@code containsExactly} is what makes it visible.
+     * <p>Only tables backed by an accepted delivery decision may appear here. A table appearing
+     * without being listed is the visible symptom of a governance gate being bypassed, and
+     * {@code containsExactly} is what makes it visible.
      */
     @Test
     @DisplayName("the schema contains exactly the tables allowed through the recovery foundation")
     void schemaContainsOnlyTheAllowedTables() {
         assertThat(tableNamesIn("payment"))
                 .containsExactly(
+                        "audit_records",
                         "flyway_schema_history",
                         "idempotency_records",
                         "outbox_events",

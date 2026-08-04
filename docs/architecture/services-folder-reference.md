@@ -125,7 +125,7 @@ Base package: `com.payflow.payment`.
 | File | Chức năng |
 | --- | --- |
 | [`PaymentServiceApplication`](../../services/payment-service/src/main/java/com/payflow/payment/PaymentServiceApplication.java) | Spring Boot entry point |
-| [`PaymentController`](../../services/payment-service/src/main/java/com/payflow/payment/api/PaymentController.java) | `POST payment`, `GET payment`, `POST refund`; lấy `merchant_id/sub` từ JWT |
+| [`PaymentController`](../../services/payment-service/src/main/java/com/payflow/payment/api/PaymentController.java) | Tạo/đọc/tìm payment và tạo/đọc refund; lấy `merchant_id/sub` từ JWT |
 | [`PaymentOpenApiConfig`](../../services/payment-service/src/main/java/com/payflow/payment/api/PaymentOpenApiConfig.java) | Tiêu đề/security scheme/tag cho Swagger local |
 | [`PaymentErrorCode`](../../services/payment-service/src/main/java/com/payflow/payment/api/PaymentErrorCode.java) | Stable business error code của Payment API |
 | `api/exception/IdempotencyKeyRequiredException` | Báo thiếu/sai `Idempotency-Key` tại HTTP boundary |
@@ -144,7 +144,9 @@ API package không chứa JPA entity và không publish Kafka trực tiếp.
 | `CreateRefundCommand` | Input refund use case |
 | `PaymentAcceptance` | Snapshot trả cho create payment |
 | `PaymentDetail` | Read model trả cho GET |
+| `PaymentSearchQuery`, `PaymentSearchResult` | Filter/phân trang giới hạn và page trả về cho payment search |
 | `RefundAcceptance` | Snapshot trả cho refund intake |
+| `RefundDetail` | Trạng thái refund cùng journal/credit fact đã commit |
 | `CreatePaymentResult` | Phân biệt created/replayed result |
 | `CreateRefundResult` | Phân biệt accepted/replayed refund result |
 
@@ -158,7 +160,9 @@ Base path: `application/handler`.
 | --- | --- |
 | [`CreatePaymentHandler`](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/CreatePaymentHandler.java) | Idempotency + merchant + Payment + Saga + `payment.created` outbox |
 | [`GetPaymentHandler`](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/GetPaymentHandler.java) | Read-only query theo payment ID + merchant ID |
+| [`SearchPaymentsHandler`](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/SearchPaymentsHandler.java) | Read-only search theo merchant/status/[from,to), phân trang tối đa 100 |
 | [`CreateRefundHandler`](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/CreateRefundHandler.java) | Lock Payment, giữ refund capacity, tạo Refund + outbox |
+| [`GetRefundHandler`](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/GetRefundHandler.java) | Read-only lookup theo refund + parent payment + merchant |
 | [`HandlePaymentWorkflowEventHandler`](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/HandlePaymentWorkflowEventHandler.java) | Inbox + Payment/Saga transition + outgoing event |
 | [`HandleRefundWorkflowEventHandler`](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/HandleRefundWorkflowEventHandler.java) | Inbox + Payment/Refund financial facts + outgoing event |
 | [`PublishOutboxHandler`](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/PublishOutboxHandler.java) | Claim lease, publish ngoài DB transaction, conditional mark/retry |

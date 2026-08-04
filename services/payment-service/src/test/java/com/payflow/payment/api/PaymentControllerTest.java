@@ -17,14 +17,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.payflow.payment.application.CreatePaymentResult;
 import com.payflow.payment.application.PaymentAcceptance;
 import com.payflow.payment.application.PaymentDetail;
+import com.payflow.payment.application.PaymentSearchQuery;
+import com.payflow.payment.application.PaymentSearchResult;
 import com.payflow.payment.application.CreateRefundResult;
 import com.payflow.payment.application.RefundAcceptance;
+import com.payflow.payment.application.RefundDetail;
 import com.payflow.payment.application.command.CreatePaymentCommand;
 import com.payflow.payment.application.command.CreateRefundCommand;
 import com.payflow.payment.application.exception.IdempotencyConflictException;
 import com.payflow.payment.application.handler.CreatePaymentHandler;
 import com.payflow.payment.application.handler.CreateRefundHandler;
 import com.payflow.payment.application.handler.GetPaymentHandler;
+import com.payflow.payment.application.handler.GetRefundHandler;
+import com.payflow.payment.application.handler.SearchPaymentsHandler;
 import com.payflow.payment.domain.model.PaymentStatus;
 import com.payflow.payment.domain.model.RefundStatus;
 import com.payflow.payment.domain.exception.RefundCapacityExceededException;
@@ -94,6 +99,12 @@ class PaymentControllerTest {
 
     @MockitoBean
     private GetPaymentHandler getPayment;
+
+    @MockitoBean
+    private GetRefundHandler getRefund;
+
+    @MockitoBean
+    private SearchPaymentsHandler searchPayments;
 
     @MockitoBean
     private Clock clock;
@@ -233,6 +244,67 @@ class PaymentControllerTest {
     }
 
     @Test
+    @DisplayName("search scopes filters and pagination to the merchant from the JWT")
+    void searchesOnlyWithinAuthenticatedMerchant() throws Exception {
+        PaymentDetail detail =
+                new PaymentDetail(
+                        PAYMENT_ID,
+                        MERCHANT_ID,
+                        "ORDER-2026-00001",
+                        CUSTOMER_ID,
+                        ACCOUNT_ID,
+                        new BigDecimal("500000.0000"),
+                        "VND",
+                        PaymentStatus.SUCCEEDED,
+                        "Thanh toan don hang",
+                        Map.of(),
+                        NOW.minus(1, ChronoUnit.DAYS),
+                        NOW);
+        given(searchPayments.handle(any()))
+                .willReturn(new PaymentSearchResult(List.of(detail), 1, 10, 11, 2));
+
+        mockMvc.perform(
+                        get("/api/v1/payments")
+                                .queryParam("status", "SUCCEEDED")
+                                .queryParam("from", "2026-07-01T00:00:00Z")
+                                .queryParam("to", "2026-08-01T00:00:00Z")
+                                .queryParam("page", "1")
+                                .queryParam("size", "10")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + FULL_SCOPE)
+                                .header("X-Correlation-Id", "api-search-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.items[0].paymentId").value(PAYMENT_ID.toString()))
+                .andExpect(jsonPath("$.data.items[0].status").value("SUCCEEDED"))
+                .andExpect(jsonPath("$.data.page").value(1))
+                .andExpect(jsonPath("$.data.size").value(10))
+                .andExpect(jsonPath("$.data.totalElements").value(11))
+                .andExpect(jsonPath("$.data.totalPages").value(2))
+                .andExpect(jsonPath("$.meta.correlationId").value("api-search-1"));
+
+        ArgumentCaptor<PaymentSearchQuery> query =
+                ArgumentCaptor.forClass(PaymentSearchQuery.class);
+        verify(searchPayments).handle(query.capture());
+        assertThat(query.getValue().merchantId()).isEqualTo(MERCHANT_ID);
+        assertThat(query.getValue().status()).isEqualTo(PaymentStatus.SUCCEEDED);
+        assertThat(query.getValue().from()).isEqualTo(Instant.parse("2026-07-01T00:00:00Z"));
+        assertThat(query.getValue().to()).isEqualTo(Instant.parse("2026-08-01T00:00:00Z"));
+        assertThat(query.getValue().page()).isEqualTo(1);
+        assertThat(query.getValue().size()).isEqualTo(10);
+    }
+
+    @Test
+    @DisplayName("search rejects an invalid page shape before querying persistence")
+    void rejectsInvalidSearchPagination() throws Exception {
+        mockMvc.perform(
+                        get("/api/v1/payments")
+                                .queryParam("page", "-1")
+                                .queryParam("size", "101")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + FULL_SCOPE))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("REQUEST_VALIDATION_FAILED"));
+    }
+
+    @Test
     @DisplayName("refund returns 202 and derives merchant plus actor from JWT")
     void createsRefundForAuthenticatedMerchant() throws Exception {
         UUID refundId = UUID.fromString("73817fe8-219a-4136-921c-2473c1ea9e9b");
@@ -268,6 +340,41 @@ class PaymentControllerTest {
         assertThat(command.getValue().actorId()).isEqualTo("service-account-payflow-service");
         assertThat(command.getValue().paymentId()).isEqualTo(PAYMENT_ID);
         assertThat(command.getValue().idempotencyKey()).isEqualTo(KEY);
+    }
+
+    @Test
+    @DisplayName("get refund scopes both parent payment and refund to the JWT merchant")
+    void getsMerchantOwnedRefund() throws Exception {
+        UUID refundId = UUID.fromString("73817fe8-219a-4136-921c-2473c1ea9e9b");
+        UUID journalId = UUID.randomUUID();
+        RefundDetail detail = new RefundDetail(
+                refundId,
+                PAYMENT_ID,
+                new BigDecimal("200000.0000"),
+                "VND",
+                RefundStatus.PROCESSING,
+                "Customer returned order",
+                journalId,
+                null,
+                null,
+                null,
+                NOW,
+                NOW,
+                null);
+        given(getRefund.handle(refundId, PAYMENT_ID, MERCHANT_ID)).willReturn(detail);
+
+        mockMvc.perform(
+                        get("/api/v1/payments/" + PAYMENT_ID + "/refunds/" + refundId)
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + FULL_SCOPE)
+                                .header("X-Correlation-Id", "api-get-refund-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.refundId").value(refundId.toString()))
+                .andExpect(jsonPath("$.data.paymentId").value(PAYMENT_ID.toString()))
+                .andExpect(jsonPath("$.data.status").value("PROCESSING"))
+                .andExpect(jsonPath("$.data.ledgerJournalId").value(journalId.toString()))
+                .andExpect(jsonPath("$.meta.correlationId").value("api-get-refund-1"));
+
+        verify(getRefund).handle(refundId, PAYMENT_ID, MERCHANT_ID);
     }
 
     @Test

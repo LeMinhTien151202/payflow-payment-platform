@@ -6,8 +6,8 @@ Runbook này áp dụng khi Payment/Saga ở `MANUAL_REVIEW_REQUIRED` hoặc ale
 hạn. Contract nguồn là ADR-011, ADR-012 và ADR-018.
 
 > Trạng thái hiện tại: core policy, event contract, JPA persistence, optimistic scheduler, Payment
-> Kafka consumer và bounded retry/DLT đã có code; operations endpoint và dashboard chưa hoàn tất.
-> PostgreSQL/Kafka runtime vẫn chưa được kiểm chứng. Không thao tác trực tiếp database để giả lập resolution.
+> Kafka consumer, bounded retry/DLT và audited resolution endpoint đã có code. Dashboard/query queue
+> chờ review chưa hoàn tất. Không thao tác trực tiếp database để giả lập resolution.
 
 Scheduler được điều khiển bằng `PAYFLOW_SAGA_RECOVERY_ENABLED`, poll interval, step timeout, bounded
 max retries và batch size trong `payment-service/application.yml`. Khi migration hoặc recovery đang
@@ -22,6 +22,29 @@ max retries và batch size trong `payment-service/application.yml`. Khi migratio
 3. Kiểm tra inbox/outbox theo `eventId` và causation chain trước khi kết luận message bị mất.
 4. Hỏi đúng owner về fact đã commit: Account cho reservation/capture/release, Ledger cho journal.
 5. Chỉ chọn action mà recovery policy cho phép; giữ bằng chứng và audit actor/reason.
+
+## Resolution API
+
+Gọi `POST /api/v1/operations/payments/{paymentId}/manual-review/resolve` với token của
+`payflow-operations`; token merchant cố ý bị từ chối. Body chỉ có `decision` và `decisionCode`
+dạng stable code, không có free-form note:
+
+```json
+{
+  "decision": "RETRY_CURRENT_STEP",
+  "decisionCode": "OPS_VERIFIED_SAFE_RETRY"
+}
+```
+
+- `RISK_ASSESSMENT`: chỉ `APPROVE_RISK` hoặc `REJECT_RISK`.
+- `RESERVE_FUNDS`, `POST_LEDGER`, `CAPTURE_FUNDS`, `RELEASE_FUNDS`: chỉ
+  `RETRY_CURRENT_STEP`; command tạo mới dựa trên chính các fact ID đã lưu.
+- Không có action "force success" hay "force release". Sau journal `POSTED`, endpoint chỉ có thể
+  retry capture; nó không thể phát release.
+
+Payment, Saga, outbox command và `payment.audit_records` được commit trong một transaction. Nếu
+audit insert thất bại, toàn bộ resolution rollback. Audit chỉ lưu actor `sub`, decision code,
+correlation ID và typed state facts theo ADR-022; không lưu JWT/header/request body.
 
 ## Decision table
 

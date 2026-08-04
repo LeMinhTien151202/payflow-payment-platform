@@ -268,6 +268,26 @@ class PaymentTest {
         assertThat(payment.recordedStatusChanges()).isEmpty();
     }
 
+    @Test
+    void auditedManualReviewResolutionUsesOnlyExplicitSemanticTransitions() {
+        Payment approved = Payment.rehydrateLegacyNoFee(
+                PAYMENT_ID, MERCHANT_ID, intake("500000"),
+                PaymentStatus.MANUAL_REVIEW_REQUIRED, LATER);
+        approved.approveRiskManualReview(LATER.plusSeconds(1));
+
+        Payment retried = Payment.rehydrateLegacyNoFee(
+                PAYMENT_ID, MERCHANT_ID, intake("500000"),
+                PaymentStatus.MANUAL_REVIEW_REQUIRED, LATER);
+        retried.resumeProcessingAfterManualReview(LATER.plusSeconds(1));
+
+        assertThat(approved.status()).isEqualTo(PaymentStatus.RESERVING_FUNDS);
+        assertThat(retried.status()).isEqualTo(PaymentStatus.PROCESSING);
+        assertThat(approved.recordedStatusChanges().getFirst().reasonCode())
+                .isEqualTo("MANUAL_REVIEW_RISK_APPROVED");
+        assertThat(retried.recordedStatusChanges().getFirst().reasonCode())
+                .isEqualTo("MANUAL_REVIEW_RETRY");
+    }
+
     /**
      * Rehydration must not re-apply acceptance rules. A merchant suspended after the fact would
      * otherwise make its own historical payments unreadable, precisely when someone needs to read them.

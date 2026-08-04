@@ -25,6 +25,9 @@ public class GatewayRoutesConfig {
                 .route("payment-service", r -> r
                         .path("/api/v1/payments/**")
                         .uri(downstream.paymentService()))
+                .route("payment-operations", r -> r
+                        .path("/api/v1/operations/payments/**")
+                        .uri(downstream.paymentService()))
                 .build();
     }
 }

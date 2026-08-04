@@ -10,11 +10,17 @@ import com.payflow.payment.application.CreatePaymentResult;
 import com.payflow.payment.application.CreateRefundResult;
 import com.payflow.payment.application.PaymentAcceptance;
 import com.payflow.payment.application.PaymentDetail;
+import com.payflow.payment.application.PaymentSearchQuery;
+import com.payflow.payment.application.PaymentSearchResult;
 import com.payflow.payment.application.RefundAcceptance;
+import com.payflow.payment.application.RefundDetail;
 import com.payflow.payment.application.handler.CreatePaymentHandler;
 import com.payflow.payment.application.handler.CreateRefundHandler;
 import com.payflow.payment.application.handler.GetPaymentHandler;
+import com.payflow.payment.application.handler.GetRefundHandler;
+import com.payflow.payment.application.handler.SearchPaymentsHandler;
 import com.payflow.payment.domain.model.PaymentIntake;
+import com.payflow.payment.domain.model.PaymentStatus;
 import com.payflow.payment.domain.model.Refund;
 import com.payflow.payment.infrastructure.web.CorrelationIdFilter;
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,6 +33,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.time.Clock;
+import java.time.Instant;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -38,6 +45,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** Public payment API. Authentication context được chuyển đổi tại đây; công việc nghiệp vụ nằm trong các handler. */
@@ -57,17 +65,107 @@ public class PaymentController {
     private final CreatePaymentHandler createPayment;
     private final CreateRefundHandler createRefund;
     private final GetPaymentHandler getPayment;
+    private final GetRefundHandler getRefund;
+    private final SearchPaymentsHandler searchPayments;
     private final Clock clock;
 
     public PaymentController(
             CreatePaymentHandler createPayment,
             CreateRefundHandler createRefund,
             GetPaymentHandler getPayment,
+            GetRefundHandler getRefund,
+            SearchPaymentsHandler searchPayments,
             Clock clock) {
         this.createPayment = createPayment;
         this.createRefund = createRefund;
         this.getPayment = getPayment;
+        this.getRefund = getRefund;
+        this.searchPayments = searchPayments;
         this.clock = clock;
+    }
+
+    @Operation(
+            operationId = "getRefund",
+            summary = "Read one refund of a merchant-owned payment",
+            description =
+                    "Requires refundId, parent paymentId and merchant_id from the JWT to match. "
+                            + "Returns the same 404 for absent and cross-merchant data, and emits no Kafka event.")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "200",
+                description = "Current refund state and committed workflow references",
+                useReturnTypeSchema = true),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "401",
+                description = "Missing or invalid bearer token",
+                content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "403",
+                description = "Token lacks payment:read or merchant_id",
+                content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "404",
+                description = "Refund absent or not visible to this merchant",
+                content = @Content)
+    })
+    @GetMapping("/{paymentId}/refunds/{refundId}")
+    ApiResponse<RefundDetail> getRefund(
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID paymentId,
+            @PathVariable UUID refundId,
+            @Parameter(hidden = true) HttpServletRequest servletRequest) {
+
+        return envelope(getRefund.handle(refundId, paymentId, merchantId(jwt)), servletRequest);
+    }
+
+    @Operation(
+            operationId = "searchPayments",
+            summary = "Search payments owned by the authenticated merchant",
+            description =
+                    "Returns a bounded, newest-first page. merchant_id always comes from the JWT; "
+                            + "status and the half-open createdAt interval [from,to) are optional. "
+                            + "This read does not publish a Kafka event.")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "200",
+                description = "A merchant-scoped page of payments",
+                useReturnTypeSchema = true),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "400",
+                description = "Invalid status, time range, page, or size",
+                content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "401",
+                description = "Missing or invalid bearer token",
+                content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "403",
+                description = "Token lacks payment:read or merchant_id",
+                content = @Content)
+    })
+    @GetMapping
+    ApiResponse<PaymentSearchResult> search(
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            @Parameter(description = "Optional payment state")
+                    @RequestParam(required = false)
+                    PaymentStatus status,
+            @Parameter(description = "Inclusive createdAt lower bound", example = "2026-07-01T00:00:00Z")
+                    @RequestParam(required = false)
+                    Instant from,
+            @Parameter(description = "Exclusive createdAt upper bound", example = "2026-08-01T00:00:00Z")
+                    @RequestParam(required = false)
+                    Instant to,
+            @Parameter(description = "Zero-based page number", example = "0")
+                    @RequestParam(defaultValue = "0")
+                    int page,
+            @Parameter(description = "Page size from 1 through 100", example = "20")
+                    @RequestParam(defaultValue = "20")
+                    int size,
+            @Parameter(hidden = true) HttpServletRequest servletRequest) {
+
+        PaymentSearchQuery query =
+                new PaymentSearchQuery(merchantId(jwt), status, from, to, page, size);
+        return envelope(searchPayments.handle(query), servletRequest);
     }
 
     @Operation(

@@ -38,6 +38,22 @@ class JpaRefundRepository implements RefundRepository {
     }
 
     @Override
+    public Optional<Refund> find(UUID refundId, UUID paymentId, UUID merchantId) {
+        return entityManager
+                .createQuery(
+                        "select r from RefundEntity r where r.id = :id"
+                                + " and r.paymentId = :paymentId and r.merchantId = :merchantId",
+                        RefundEntity.class)
+                .setParameter("id", refundId)
+                .setParameter("paymentId", paymentId)
+                .setParameter("merchantId", merchantId)
+                .getResultList()
+                .stream()
+                .findFirst()
+                .map(RefundEntity::toRefund);
+    }
+
+    @Override
     public Optional<Refund> findForWorkflow(UUID refundId) {
         return entityManager
                 .createQuery(

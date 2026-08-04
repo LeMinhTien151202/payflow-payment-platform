@@ -22,6 +22,9 @@ import com.payflow.payment.application.exception.PaymentNotFoundException;
 import com.payflow.payment.application.handler.CreatePaymentHandler;
 import com.payflow.payment.application.handler.CreateRefundHandler;
 import com.payflow.payment.application.handler.GetPaymentHandler;
+import com.payflow.payment.application.handler.GetRefundHandler;
+import com.payflow.payment.application.handler.SearchPaymentsHandler;
+import com.payflow.payment.application.handler.ResolveManualReviewHandler;
 import com.payflow.payment.infrastructure.security.SecurityConfig;
 import java.time.Clock;
 import java.util.UUID;
@@ -71,6 +74,15 @@ class PaymentErrorContractTest {
 
     @MockitoBean
     private GetPaymentHandler getPaymentHandler;
+
+    @MockitoBean
+    private GetRefundHandler getRefundHandler;
+
+    @MockitoBean
+    private SearchPaymentsHandler searchPaymentsHandler;
+
+    @MockitoBean
+    private ResolveManualReviewHandler resolveManualReviewHandler;
 
     @MockitoBean
     private Clock clock;

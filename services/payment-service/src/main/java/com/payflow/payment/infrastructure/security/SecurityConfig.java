@@ -45,6 +45,7 @@ public class SecurityConfig {
 
     private static final String SCOPE_PAYMENT_READ = "SCOPE_payment:read";
     private static final String SCOPE_PAYMENT_WRITE = "SCOPE_payment:write";
+    private static final String SCOPE_OPERATIONS_WRITE = "SCOPE_operations:write";
 
     @Bean
     SecurityFilterChain filterChain(HttpSecurity http, ObjectMapper objectMapper) throws Exception {
@@ -59,6 +60,8 @@ public class SecurityConfig {
                         // require a JWT, so Swagger's Authorize button is not a security bypass.
                         .requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**")
                         .permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/operations/**")
+                        .hasAuthority(SCOPE_OPERATIONS_WRITE)
                         .requestMatchers(HttpMethod.GET, "/api/v1/payments/**")
                         .hasAuthority(SCOPE_PAYMENT_READ)
                         .requestMatchers(HttpMethod.POST, "/api/v1/payments/**")

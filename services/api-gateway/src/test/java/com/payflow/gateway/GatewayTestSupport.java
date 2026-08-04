@@ -31,6 +31,9 @@ abstract class GatewayTestSupport {
     /** Giá trị token phân giải thành principal chỉ chứa {@code payment:read}. */
     static final String TOKEN_READ_ONLY = "test-token-read-only";
 
+    /** Operations identity has no merchant payment scopes. */
+    static final String TOKEN_OPERATIONS = "test-token-operations";
+
     /** Giá trị token mà mocked decoder từ chối, thay thế cho token hết hạn hoặc giả mạo. */
     static final String TOKEN_INVALID = "test-token-invalid";
 

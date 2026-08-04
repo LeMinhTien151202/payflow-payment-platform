@@ -20,8 +20,8 @@ File này là bảng bằng chứng sống. Cập nhật sau mỗi milestone; kh
 | Parent Maven/platform lock | `VERIFIED_LOCAL` | `./mvnw -B -Pno-docker clean verify` → BUILD SUCCESS, 5 module, 2026-07-26 | Boot 4.0.7 + Cloud 2025.1.2 theo ADR-013; lệch nhãn spec §3.1 có chủ đích |
 | Correlation ID và Problem Details contract | `VERIFIED_LOCAL` | 20 unit test + 13 gateway IT + 10 slice test pass, 2026-07-26 | RFC 9457 + `code` + `correlationId`; unsafe correlation id bị thay, không phản chiếu |
 | Gateway/service authorization (deny-by-default) | `VERIFIED_LOCAL` | `ApiGatewaySecurityIT` 9 test + `PaymentErrorContractTest` 10 test pass, 2026-07-26 | `JwtDecoder` được mock; chưa có JWT thật do Keycloak phát hành |
-| Keycloak realm và OIDC token issuance | `IMPLEMENTED` | — | Chưa chạy Docker. Realm import dùng `${ENV}` placeholder cho client secret; việc Keycloak 26.7 có substitute hay không **chưa được xác minh** |
-| Docker Compose infrastructure | `IMPLEMENTED` | `docker compose --env-file .env.example config --quiet` → exit 0, 2026-07-26 | Chỉ validate client-side; chưa start container nào |
+| Keycloak realm và OIDC token issuance | `VERIFIED_LOCAL` | Clean Compose smoke issued a service token, 2026-08-04 | Secret không được in; Gateway và Payment xác minh token thật trong luồng MVP |
+| Docker Compose infrastructure | `VERIFIED_LOCAL` | Isolated `payflow-gate` stack healthy + `smoke-mvp.ps1` pass, 2026-08-04 | Volume gốc được giữ nguyên; gate dùng volume riêng và stack gốc được khôi phục sau test |
 | Payment schema và Flyway baseline | `IMPLEMENTED` | — | `PaymentServiceFoundationIT` (9 test) chưa chạy: cần Docker daemon. Không hạ xuống H2 để lấy badge |
 | CI pipeline | `IMPLEMENTED` | — | `.github/workflows/ci.yml` có 3 job; **chưa chạy lần nào** vì repo chưa có commit và chưa có remote. YAML cũng chưa được lint (không có `yq`/PyYAML trong môi trường) |
 | Event envelope v1 và topic contract | `VERIFIED_LOCAL` | 52/52 contract test pass; full `-Pno-docker verify` exit 0, 2026-07-28 | Thêm versioned Account reserve/outcome/capture, Ledger post-requested/posted và Payment success contracts theo ADR-011 |
@@ -38,9 +38,12 @@ File này là bảng bằng chứng sống. Cập nhật sau mỗi milestone; kh
 | Phase 1B Saga command/outcome orchestration core | `VERIFIED_LOCAL` | Event contracts 52/52, Payment 138/138, Account/Ledger 38/38; full `-Pno-docker verify` exit 0, 2026-07-28 | Correlation/causation và aggregate key được bảo toàn; đây là pure core, không phải Kafka/PostgreSQL E2E |
 | Payment consumer inbox foundation | `IMPLEMENTED` | ADR-017; 5/5 unit test pass; `PaymentInboxSchemaIT` compile nhưng chưa chạy | V3 tạo `(event_id, consumer_name)` PK; adapter dùng `ON CONFLICT DO NOTHING` + transaction `MANDATORY`; PostgreSQL/Kafka gate còn thiếu |
 | Payment Saga Kafka consumer runtime | `IMPLEMENTED` | Handler/router/listener/config unit test pass; `PaymentWorkflowConsumerIT` compile | Manual ack sau local commit; inbox + Payment/Saga + causation-aware outbox; bounded retry → DLT. Chưa chạy PostgreSQL/Kafka nên chưa nâng `VERIFIED_LOCAL` |
-| Happy-path Saga E2E | `PLANNED` | — | Phase 1B; OD-001/007 đã resolve nhưng consumer wiring và PostgreSQL/Kafka runtime chưa được kiểm chứng |
+| Happy-path Saga E2E | `VERIFIED_LOCAL` | Clean Compose smoke pass payment `6b407fbb-4b5f-49c4-9c9f-60e53ee5189e`, 2026-08-04 | Keycloak → Gateway → Payment → Risk → reserve → journal → capture → success → notification; replay chỉ có một payment row |
 | Failure recovery/compensation core | `VERIFIED_LOCAL` | ADR-012/018; Payment domain/application unit tests pass; full gate ghi bên dưới | Durable Saga/deadline, optimistic scheduler, consumer compensation, bounded listener retry/DLT và manual review đã có code; PostgreSQL/Kafka integration tests mới compile/chưa chạy |
-| Refund/webhook/reporting | `PLANNED` | — | Phase 2 |
+| Payment search và refund read API | `VERIFIED_LOCAL` | Payment 238 unit/slice + 62 PostgreSQL IT pass, 2026-08-04 | Merchant-scoped search/filter/page + nested refund lookup; Flyway V8/index và OpenAPI đã đồng bộ |
+| Refund financial runtime | `VERIFIED_LOCAL` | `RefundCapacityPersistenceIT` 8 test pass trong full Payment verify, 2026-08-04 | Concurrent capacity/rollback/journal-credit facts đã chứng minh trên PostgreSQL; broker-level refund E2E vẫn còn trong Phase 2 gate |
+| Audited manual-review operations | `VERIFIED_LOCAL` | Payment 250 unit/slice + 65 PostgreSQL IT; Gateway 11 security IT pass, 2026-08-04 | Scope `operations:write` tách khỏi merchant; state + outbox + typed append-only audit atomic; không có force-success/release |
+| Webhook/reporting | `PLANNED` | — | Phase 2; webhook HMAC/retry và rebuildable reporting projection chưa có code |
 | Settlement/reconciliation/Kubernetes/load | `PLANNED` | — | Phase 3 |
 
 ## Known deviations
@@ -584,6 +587,48 @@ Known limitations:
   - LocalSeedPersistenceIT đã chuẩn bị để kiểm tra fixture/mapping và non-replenishing callback trên PostgreSQL 17 khi Docker được bật.
   - Email vẫn là in-memory mock; full profile hiện là alias của MVP; observability/Kubernetes/Reporting/Settlement chưa nằm trong lát cắt này.
   - Lần clean verify đầu bị execution wrapper timeout ở 120 giây sau khi đã sinh report tới module cuối; rerun verify với timeout 300 giây hoàn tất exit 0. Không bỏ hoặc hạ test.
+```
+
+### 2026-08-04 — Runtime gate và Phase 2 payment/refund query slice
+
+```text
+Date/time (UTC): 2026-08-04T14:46:29Z
+Commit SHA: 9b9cb3e (working tree changes not committed)
+Environment: Windows; Java 21.0.7; Maven Wrapper 3.9.16; Docker Desktop 28.0.1; PostgreSQL 17.10 Testcontainers; Compose Kafka/Redis/Keycloak
+Capability/scenario: clean MVP runtime gate; merchant-scoped payment search; merchant/payment-scoped refund lookup
+Runtime command: COMPOSE_PROJECT_NAME=payflow-gate; .\infrastructure\scripts\smoke-mvp.ps1 -TimeoutSeconds 300
+Runtime result: MVP SMOKE PASSED; payment SUCCEEDED, risk APPROVED, balance/reservation/journal/notification correct, idempotent replay kept one payment row
+Test command: .\mvnw.cmd -B -ntp -pl services/payment-service -am verify
+Test result: BUILD SUCCESS; payment-service Surefire 238/238 and Failsafe 62/62 pass; Flyway applied V1..V8 on PostgreSQL 17.10
+Contract/schema: GET /api/v1/payments filters status/[from,to)/page/size; GET /api/v1/payments/{paymentId}/refunds/{refundId}; V8 merchant/status/created/id index; docs/api/payment-service-v1.yaml updated
+Known limitations:
+  - Phase 2 is not complete: Account/Ledger deployable split, merchant service, webhook HMAC/retry, reporting rebuild/replay and audited operations remain.
+  - OD-010 is still OPEN, so no privileged audit mutation/operations endpoint was implemented.
+  - Phase 3 remains gated on completion of Phase 2; settlement/reconciliation/Kubernetes/load evidence is still absent.
+```
+
+### 2026-08-04 — Audited manual-review operations endpoint
+
+```text
+Date/time (UTC): 2026-08-04T16:10:31Z
+Commit SHA: 9b9cb3e (working tree changes not committed)
+Environment: Windows; Java 21.0.7; Maven Wrapper 3.9.16; Docker Desktop 28.0.1; PostgreSQL 17.10 Testcontainers
+Capability/scenario: operations-only manual-review resolution; explicit risk approval/rejection or exact-step retry; Payment/Saga + command outbox + typed append-only audit local transaction; Gateway and service deny-by-default scope separation
+Targeted test command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/payment-service -am test '-Dtest=ResolveManualReviewHandlerTest,OperationsControllerTest,PaymentErrorContractTest,PaymentSagaTest,PaymentTest' '-Dsurefire.failIfNoSpecifiedTests=false'
+Targeted result: BUILD SUCCESS; 53/53 selected tests pass.
+PostgreSQL command: .\mvnw.cmd -B -ntp -pl services/payment-service -am verify '-Dit.test=ManualReviewResolutionPersistenceIT' '-Dfailsafe.failIfNoSpecifiedTests=false'
+PostgreSQL result: BUILD SUCCESS; 2/2 IT pass. Injected audit INSERT failure rolled back Payment, Saga, history and outbox; successful approval committed all four artifacts.
+Full Payment command: .\mvnw.cmd -B -ntp -pl services/payment-service -am verify
+Full Payment result: BUILD SUCCESS; Payment Surefire 250/250 and Failsafe 65/65 pass; Flyway V1..V9 applied on PostgreSQL 17.10.
+Gateway command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/api-gateway -am verify '-Dit.test=ApiGatewaySecurityIT' '-Dfailsafe.failIfNoSpecifiedTests=false'
+Gateway result: BUILD SUCCESS; 11/11 security/routing IT pass, including operations-only allow and merchant-token deny.
+Repository command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Repository result: BUILD SUCCESS in 01:12; all 9/9 modules SUCCESS.
+Schema/security: Flyway V9 typed audit allowlist + UPDATE/DELETE rejection trigger; Keycloak local operations:write client; Gateway and Payment Service enforce the same separate scope.
+Known limitations:
+  - Existing persisted Keycloak realm is not auto-reimported; local environment must recreate/migrate that realm before requesting a payflow-operations token.
+  - Queue/list endpoint for discovering manual-review work remains backlog; endpoint resolves a known paymentId.
+  - Webhook HMAC/retry, reporting projection/rebuild and Account/Ledger deployable split remain Phase 2 work; Phase 2 is not yet complete.
 ```
 
 Quy tắc cập nhật:

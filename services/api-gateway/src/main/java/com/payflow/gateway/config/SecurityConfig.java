@@ -30,6 +30,9 @@ public class SecurityConfig {
     /** Scope cần thiết để tạo hoặc thay đổi các tài nguyên payment. */
     private static final String SCOPE_PAYMENT_WRITE = "SCOPE_payment:write";
 
+    /** Privileged scope isolated from merchant credentials. */
+    private static final String SCOPE_OPERATIONS_WRITE = "SCOPE_operations:write";
+
     @Bean
     SecurityWebFilterChain springSecurityFilterChain(
             ServerHttpSecurity http, ProblemDetailErrorWriter errors) {
@@ -44,6 +47,8 @@ public class SecurityConfig {
                         // AGENTS.md phần 10.
                         .pathMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .pathMatchers(HttpMethod.OPTIONS).permitAll()
+                        .pathMatchers(HttpMethod.POST, "/api/v1/operations/payments/**")
+                        .hasAuthority(SCOPE_OPERATIONS_WRITE)
                         .pathMatchers(HttpMethod.GET, "/api/v1/payments/**")
                         .hasAuthority(SCOPE_PAYMENT_READ)
                         .pathMatchers(HttpMethod.POST, "/api/v1/payments/**")

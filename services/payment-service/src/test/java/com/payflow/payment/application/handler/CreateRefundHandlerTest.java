@@ -237,6 +237,15 @@ class CreateRefundHandlerTest {
         }
 
         @Override
+        public Optional<Refund> find(UUID refundId, UUID paymentId, UUID merchantId) {
+            return saved.stream()
+                    .filter(refund -> refund.id().equals(refundId))
+                    .filter(refund -> refund.paymentId().equals(paymentId))
+                    .filter(refund -> refund.merchantId().equals(merchantId))
+                    .findFirst();
+        }
+
+        @Override
         public Optional<Refund> findForWorkflow(UUID refundId) {
             return saved.stream().filter(refund -> refund.id().equals(refundId)).findFirst();
         }

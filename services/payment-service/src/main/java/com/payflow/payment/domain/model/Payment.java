@@ -387,6 +387,30 @@ public final class Payment {
         transitionTo(PaymentStatus.MANUAL_REVIEW_REQUIRED, reasonCode, at);
     }
 
+    /** Applies an audited operations approval to a risk review; no financial fact exists yet. */
+    public void approveRiskManualReview(Instant at) {
+        requireStatus(PaymentStatus.MANUAL_REVIEW_REQUIRED, "approve risk manual review");
+        transitionTo(PaymentStatus.RESERVING_FUNDS, "MANUAL_REVIEW_RISK_APPROVED", at);
+    }
+
+    /** Applies an audited operations rejection to a risk review; no financial fact exists yet. */
+    public void rejectRiskManualReview(Instant at) {
+        requireStatus(PaymentStatus.MANUAL_REVIEW_REQUIRED, "reject risk manual review");
+        transitionTo(PaymentStatus.RISK_REJECTED, "MANUAL_REVIEW_RISK_REJECTED", at);
+    }
+
+    /** Resumes an interrupted reserve command after operations has checked the persisted Saga facts. */
+    public void resumeFundsReservationAfterManualReview(Instant at) {
+        requireStatus(PaymentStatus.MANUAL_REVIEW_REQUIRED, "resume funds reservation");
+        transitionTo(PaymentStatus.RESERVING_FUNDS, "MANUAL_REVIEW_RETRY", at);
+    }
+
+    /** Resumes post-reservation processing without claiming that any missing fact already committed. */
+    public void resumeProcessingAfterManualReview(Instant at) {
+        requireStatus(PaymentStatus.MANUAL_REVIEW_REQUIRED, "resume payment processing");
+        transitionTo(PaymentStatus.PROCESSING, "MANUAL_REVIEW_RETRY", at);
+    }
+
     /** A committed pre-ledger release makes failure safe and final. */
     public void failAfterCompensation(String reasonCode, Instant at) {
         Objects.requireNonNull(reasonCode, "reasonCode");

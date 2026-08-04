@@ -22,6 +22,15 @@ public enum PaymentErrorCode implements ErrorCode {
     /** No such payment, or it belongs to another merchant. 404 either way. */
     PAYMENT_NOT_FOUND,
 
+    /** Refund absent, attached to another payment, or owned by another merchant. */
+    REFUND_NOT_FOUND,
+
+    /** No Payment/Saga pair exists for the requested operations work item. */
+    MANUAL_REVIEW_NOT_FOUND,
+
+    /** The decision does not match the current Saga step or durable facts. */
+    MANUAL_REVIEW_RESOLUTION_REJECTED,
+
     /** The merchant has already used this {@code merchantReference} for another payment. 409. */
     PAYMENT_DUPLICATE_REFERENCE,
 
