@@ -46,6 +46,16 @@ payflow:
     lease: ${PAYFLOW_NOTIFICATION_LEASE:30s}
     provider-timeout: ${PAYFLOW_NOTIFICATION_PROVIDER_TIMEOUT:5s}
     max-attempts: ${PAYFLOW_NOTIFICATION_MAX_ATTEMPTS:5}
+  webhook:
+    enabled: ${PAYFLOW_WEBHOOK_ENABLED:false}
+    poll-interval: ${PAYFLOW_WEBHOOK_POLL_INTERVAL:1s}
+    batch-size: ${PAYFLOW_WEBHOOK_BATCH_SIZE:25}
+    lease: ${PAYFLOW_WEBHOOK_LEASE:30s}
+    merchant-service-uri: ${PAYFLOW_MERCHANT_SERVICE_URI:http://localhost:8086}
+    token-uri: ${PAYFLOW_SERVICE_TOKEN_URI:http://localhost:8180/realms/payflow/protocol/openid-connect/token}
+    client-id: ${PAYFLOW_NOTIFICATION_CLIENT_ID:payflow-notification}
+    client-secret: ${PAYFLOW_NOTIFICATION_CLIENT_SECRET:local-disabled}
+    http-timeout: ${PAYFLOW_WEBHOOK_HTTP_TIMEOUT:5s}
 
 management:
   endpoints:
@@ -64,3 +74,19 @@ logging:
       console: ecs
   level:
     root: INFO
+
+springdoc:
+  api-docs.enabled: false
+  swagger-ui.enabled: false
+  paths-to-match: /api/v1/operations/webhooks/**
+---
+spring:
+  config.activate.on-profile: local
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    operations-sorter: method

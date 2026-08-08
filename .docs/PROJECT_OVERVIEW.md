@@ -24,8 +24,9 @@ PayFlow là nền tảng thanh toán giả lập dùng để chứng minh năng 
 - Payment, balance reservation/capture/release, double-entry ledger.
 - Rule-based risk assessment.
 - Refund toàn phần/một phần.
-- Notification và webhook mock có HMAC/retry.
-- Settlement, reconciliation và reporting read model ở phase sau.
+- Notification email mock và outbound webhook có HMAC/retry.
+- Reporting read model và rebuild/replay ở Phase 2.
+- Settlement và reconciliation ở Phase 3.
 - Metrics, logs, traces, CI/CD, Docker và Kubernetes theo roadmap.
 
 ### Ngoài phạm vi
@@ -39,6 +40,10 @@ PayFlow là nền tảng thanh toán giả lập dùng để chứng minh năng 
 ## MVP được phép
 
 MVP gồm `api-gateway`, `payment-service`, `account-ledger-service`, `risk-service` và `notification-service`. Account và Ledger được phép tạm gộp để hoàn thành vertical slice; ranh giới domain vẫn phải rõ để tách ở phase 2 mà không đổi contract nghiệp vụ.
+
+Profile `full` của Phase 2 thay deployable ghép bằng `account-service` và `ledger-service`, đồng thời thêm
+`merchant-service` và `reporting-service`. Mỗi service mới sở hữu database/credential riêng; Payment lấy
+merchant policy qua authenticated internal REST, không đọc database Merchant.
 
 Luồng demo tối thiểu:
 

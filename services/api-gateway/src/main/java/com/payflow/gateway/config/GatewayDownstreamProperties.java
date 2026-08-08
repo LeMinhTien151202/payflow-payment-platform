@@ -10,5 +10,8 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  */
 @ConfigurationProperties(prefix = "payflow.gateway.downstream")
 public record GatewayDownstreamProperties(
-        @DefaultValue("http://localhost:8081") String paymentService) {
+        @DefaultValue("http://localhost:8081") String paymentService,
+        @DefaultValue("http://localhost:8087") String merchantService,
+        @DefaultValue("http://localhost:8085") String notificationService,
+        @DefaultValue("http://localhost:8088") String reportingService) {
 }

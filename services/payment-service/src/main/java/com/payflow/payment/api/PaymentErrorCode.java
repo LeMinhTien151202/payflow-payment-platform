@@ -46,6 +46,9 @@ public enum PaymentErrorCode implements ErrorCode {
      */
     PAYMENT_LIMIT_EXCEEDED,
 
+    /** Merchant policy owner is unavailable; intake fails closed and may be retried. */
+    PAYMENT_MERCHANT_CATALOG_UNAVAILABLE,
+
     /** The platform does not support this currency at all. 400. */
     PAYMENT_CURRENCY_NOT_SUPPORTED,
 

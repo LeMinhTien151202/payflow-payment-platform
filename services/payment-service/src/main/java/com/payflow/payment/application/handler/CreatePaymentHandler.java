@@ -119,8 +119,14 @@ public class CreatePaymentHandler {
             return replay(stored.get(), fingerprint, scope, command.idempotencyKey());
         }
 
+        // Phase 2 remote Merchant lookup happens before the local write transaction. A slow network
+        // call must not occupy a PostgreSQL transaction/connection or extend lock lifetimes.
+        MerchantSnapshot merchant = merchants
+                .findById(command.merchantId())
+                .orElseThrow(() -> new MerchantNotRegisteredException(command.merchantId()));
+
         try {
-            return transactions.execute(status -> create(command, scope, fingerprint));
+            return transactions.execute(status -> create(command, scope, fingerprint, merchant));
         } catch (ConcurrentIdempotentRequestException lostTheRace) {
             // Request kia đã committed tại thời điểm constraint báo cáo xung đột, nên response
             // của nó có thể đọc được ngay bây giờ. Nếu vì lý do nào đó không đọc được, key đã tồn tại mà không có response đằng sau
@@ -133,14 +139,12 @@ public class CreatePaymentHandler {
     }
 
     private CreatePaymentResult create(
-            CreatePaymentCommand command, String scope, String fingerprint) {
+            CreatePaymentCommand command,
+            String scope,
+            String fingerprint,
+            MerchantSnapshot merchant) {
 
         Instant now = clock.instant();
-
-        MerchantSnapshot merchant =
-                merchants
-                        .findById(command.merchantId())
-                        .orElseThrow(() -> new MerchantNotRegisteredException(command.merchantId()));
 
         PaymentIntake intake =
                 new PaymentIntake(

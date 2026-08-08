@@ -26,15 +26,19 @@ phép triển khai quyết định; ADR không tự chứng minh runtime đã ch
 | Thành phần | Sở hữu nghiệp vụ/dữ liệu | Không sở hữu |
 | --- | --- | --- |
 | API Gateway | Xác thực JWT ở biên, kiểm tra scope, correlation ID, route Payment API | Payment state, số dư, journal |
-| Payment Service | Payment, refund, merchant catalog MVP, idempotency response, fee snapshot, Saga và điều phối workflow | Số dư account, journal kế toán, risk assessment |
-| Account-Ledger Service | Account/reservation và journal kép; là một tiến trình triển khai nhưng hai module/schema logic tách biệt | Payment state, merchant, user identity |
+| Payment Service | Payment, refund, idempotency response, immutable merchant-policy snapshot, Saga và điều phối workflow | Merchant master data, số dư account, journal kế toán, risk assessment |
+| Account Service | Account/reservation, available/reserved balance, inbox/outbox | Payment state, journal, merchant, user identity |
+| Ledger Service | Journal kép bất biến, payment/refund posting, inbox/outbox | Số dư khả dụng, Payment Saga, merchant policy hiện tại |
+| Merchant Service | Merchant profile/status/member, versioned fee/limit policy, API key và webhook config | Payment state, số dư, journal |
 | Risk Service | Risk assessment bền vững, policy `risk-v1`, velocity signal tạm thời trong Redis | Số dư, quyết định cuối cùng của Payment Saga |
-| Notification Service | Notification record và trạng thái gửi email | Kết luận thanh toán; service chỉ phản ứng với outcome đã công bố |
+| Notification Service | Notification record, email mock và durable signed webhook delivery/retry | Kết luận thanh toán; service chỉ phản ứng với outcome đã công bố |
+| Reporting Service | Event log idempotent, merchant daily read model, generation rebuild và audit | Business source of truth hoặc mutation Payment/Account/Ledger |
 | Keycloak | User/service identity, OAuth2/OIDC token, scope | Customer profile nghiệp vụ, account, payment |
 
 Mỗi database service dùng database/credential riêng. Không service nào được đọc bảng hoặc JPA entity
-của service khác. `account-ledger-service` đang được ghép để giảm chi phí vận hành MVP; ranh giới
-`account` và `ledger` vẫn được giữ để có thể tách sau này.
+của service khác. Profile `mvp` giữ `account-ledger-service` để demo tương thích; profile `full` thay nó
+bằng `account-service` và `ledger-service` với database riêng. Payment đọc Merchant policy qua internal
+REST có service token rồi lưu snapshot bất biến, không query chéo database.
 
 Kiến trúc bên trong mỗi service theo hướng:
 
@@ -407,18 +411,23 @@ Worker dùng claim/lease, gọi provider ngoài transaction rồi conditional fi
 typed policy nhưng chưa bọc lời gọi adapter; adapter hiện là in-memory mock, trả ngay và dedup theo
 `notificationId`.
 
-**Có code, chờ E2E hạ tầng:** Kafka consumer, PostgreSQL persistence và delivery worker.
+Với webhook, cùng transaction intake còn tạo durable intent nếu Merchant subscribe event đó. Worker ký
+`timestamp.rawBody` bằng HMAC SHA-256, gọi HTTP ngoài transaction với connect/read timeout, rồi cập nhật
+attempt bằng lease ownership. Retry giữ nguyên `eventId` và raw body; hết lịch chuyển `DEAD`. Operations
+API chỉ requeue bản ghi `DEAD`, dùng scope riêng và ghi append-only audit.
 
-**Chưa triển khai:** email provider thật, webhook HMAC/replay protection, API manual retry và audit
-cho thao tác đặc quyền. Direct-send ngay trong Kafka listener không được chọn vì provider chậm/down sẽ
-giữ consumer transaction và làm payment outcome bị coupling với email.
+**Có code, chờ E2E hạ tầng:** Kafka consumer, PostgreSQL persistence, email worker, signed webhook HTTP,
+retry/`DEAD` và audited manual requeue. Email provider thật vẫn chưa triển khai. Direct-send ngay trong
+Kafka listener không được chọn vì provider chậm/down sẽ giữ consumer transaction và làm payment outcome
+bị coupling với email.
 
 ## 11. Security và quản lý người dùng
 
 - Keycloak quản lý danh tính, client credentials và scope. PayFlow hiện không có `user-service` riêng.
 - `customerId` là tham chiếu nghiệp vụ trong payment/account flow, không phải hồ sơ đăng nhập.
 - Gateway và Payment Service đều validate JWT; downstream không tin identity header do client tự gửi.
-- Các service Account-Ledger, Risk và Notification chỉ public health endpoint; HTTP còn lại deny all.
+- Account, Ledger và Risk chỉ public health endpoint. Notification chỉ thêm operations webhook endpoint
+  có scope riêng; các HTTP path còn lại deny by default.
 - Error API dùng Problem Details với stable code/correlation ID, không trả stack trace/SQL/secret.
 - Secret chỉ đi qua environment; `.env.example` chứa placeholder cho local sandbox.
 
@@ -456,6 +465,10 @@ không chứa credential thật.
 | `PAYFLOW_NOTIFICATION_DELIVERY_ENABLED` | `true` | Bật email delivery worker. |
 | `PAYFLOW_NOTIFICATION_POLL_INTERVAL/BATCH_SIZE` | `500ms` / `50` | Nhịp và batch của worker. |
 | `PAYFLOW_NOTIFICATION_LEASE/PROVIDER_TIMEOUT/MAX_ATTEMPTS` | `30s` / `5s` / `5` | Lease phải lớn hơn timeout; `maxAttempts` hiện giới hạn claim/reclaim sau crash. Provider timeout/retry network đầy đủ chưa được wire. |
+| `PAYFLOW_WEBHOOK_*` | timeout/lease/retry worker cho Notification | Giữ HTTP call ngoài DB transaction, retry bounded và stable signed payload. |
+| `PAYFLOW_MERCHANT_DB_*`, `PAYFLOW_MERCHANT_CLIENT_*` | Merchant DB và internal OAuth client | Payment/Notification gọi Merchant qua authenticated REST; lỗi dependency fail closed, không đọc DB chéo. |
+| `PAYFLOW_MERCHANT_ENCRYPTION_KEY_BASE64` | secret local do script sinh | Mã hóa webhook signing secret at rest; không commit hoặc log giá trị. |
+| `PAYFLOW_REPORTING_DB_*`, `PAYFLOW_REPORTING_CONSUMER_ENABLED` | Reporting DB/consumer | Bật event-log projection và generation-based rebuild độc lập source service. |
 | `SPRING_PROFILES_ACTIVE=local` | Chỉ bật khi chạy local | Nạp deterministic merchant/account/ledger seed qua Flyway callback; không dùng ở môi trường thật. |
 
 Các switch consumer/publisher giúp cô lập service khi debug. Tắt một switch không phải chế độ E2E hợp
@@ -487,11 +500,12 @@ bộ ở nhiều môi trường, nên chuẩn hóa thành typed configuration �
 - Docker Compose mới được render/validate phía client; container chưa được start trong evidence hiện
   tại.
 - PostgreSQL/Kafka/Redis/Keycloak runtime và Testcontainers E2E vẫn cần chạy khi Docker được bật.
-- Email hiện là mock; webhook, settlement, reconciliation, reporting, Kubernetes, load test và full
-  observability stack chưa phải capability hoàn thành.
-- Chưa có public cancel API, search/list payment, manual-review resolution API hay user profile
-  service.
-- `account-ledger-service` không quản lý user; nó chỉ quản lý account balance/reservation và journal.
+- Email hiện là mock; settlement, reconciliation, Kubernetes, load test và full observability stack
+  chưa phải capability hoàn thành.
+- Payment search/refund lookup và manual-review resolution đã có; public merchant cancel, user profile
+  service và customer-facing login UI chưa có.
+- `account-service`/legacy `account-ledger-service` không quản lý user; chúng chỉ quản lý account
+  balance/reservation. `ledger-service` chỉ quản lý journal/posting.
 - Không được ghi “exactly once”. Mô hình là at-least-once delivery + idempotent consumer + database
   invariant.
 
@@ -513,9 +527,11 @@ bộ ở nhiều môi trường, nên chuẩn hóa thành typed configuration �
 - [Payment intake handler](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/CreatePaymentHandler.java)
 - [Refund intake handler](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/CreateRefundHandler.java)
 - [Fee snapshot](../../services/payment-service/src/main/java/com/payflow/payment/domain/model/PaymentFeeSnapshot.java)
-- [Account model](../../services/account-ledger-service/src/main/java/com/payflow/accountledger/account/domain/model/Account.java)
-- [Account row-lock adapter](../../services/account-ledger-service/src/main/java/com/payflow/accountledger/infrastructure/persistence/JpaAccountReservationStore.java)
-- [Immutable Journal model](../../services/account-ledger-service/src/main/java/com/payflow/accountledger/ledger/domain/model/Journal.java)
+- [Account model](../../services/account-service/src/main/java/com/payflow/account/domain/model/Account.java)
+- [Account row-lock adapter](../../services/account-service/src/main/java/com/payflow/account/infrastructure/persistence/JpaAccountReservationStore.java)
+- [Immutable Journal model](../../services/ledger-service/src/main/java/com/payflow/ledger/domain/model/Journal.java)
+- [Merchant application service](../../services/merchant-service/src/main/java/com/payflow/merchant/application/MerchantApplicationService.java)
+- [Reporting projection handler](../../services/reporting-service/src/main/java/com/payflow/reporting/application/ReportingProjectionHandler.java)
 - [Risk rule engine](../../services/risk-service/src/main/java/com/payflow/risk/domain/policy/RiskRuleEngine.java)
 - [Redis risk signals](../../services/risk-service/src/main/java/com/payflow/risk/infrastructure/redis/RedisRiskSignalProvider.java)
 - [Notification delivery policy](../../services/notification-service/src/main/java/com/payflow/notification/application/delivery/NotificationDeliveryPolicy.java)

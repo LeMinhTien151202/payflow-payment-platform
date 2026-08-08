@@ -9,6 +9,7 @@ import com.payflow.payment.application.exception.ConcurrentIdempotentRequestExce
 import com.payflow.payment.application.exception.DuplicateMerchantReferenceException;
 import com.payflow.payment.application.exception.IdempotencyConflictException;
 import com.payflow.payment.application.exception.MerchantNotRegisteredException;
+import com.payflow.payment.application.exception.MerchantCatalogUnavailableException;
 import com.payflow.payment.application.exception.ManualReviewItemNotFoundException;
 import com.payflow.payment.application.exception.ManualReviewResolutionRejectedException;
 import com.payflow.payment.application.exception.PaymentApplicationException;
@@ -134,6 +135,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                     HttpStatus.FORBIDDEN,
                     PayFlowErrorCode.AUTH_FORBIDDEN,
                     "Access to this resource is not permitted.",
+                    request);
+        }
+        if (ex instanceof MerchantCatalogUnavailableException) {
+            return problem(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    PaymentErrorCode.PAYMENT_MERCHANT_CATALOG_UNAVAILABLE,
+                    "Merchant policy is temporarily unavailable. Retry with the same idempotency key.",
                     request);
         }
         if (ex instanceof DuplicateMerchantReferenceException) {

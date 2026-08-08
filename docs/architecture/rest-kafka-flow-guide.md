@@ -4,6 +4,10 @@ Tài liệu này là điểm bắt đầu ngắn nhất cho người đã quen d
 thanh toán hướng sự kiện. Nếu cần lần source đến từng transaction và adapter, đọc tiếp
 [`code-flow-guide.md`](code-flow-guide.md).
 
+Nếu bạn chưa biết Kafka, hoặc cần hiểu sâu riêng phần Kafka — partition/offset/consumer group,
+envelope, outbox publisher, inbox chống trùng, retry và dead-letter — đọc
+[`kafka-concepts-and-flow-guide.md`](kafka-concepts-and-flow-guide.md).
+
 ## 1. Ý chính cần nhớ
 
 PayFlow không thay REST bằng Kafka. Hai cơ chế làm hai việc khác nhau:

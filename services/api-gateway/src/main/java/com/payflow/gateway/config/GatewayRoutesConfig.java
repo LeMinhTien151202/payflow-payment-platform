@@ -28,6 +28,15 @@ public class GatewayRoutesConfig {
                 .route("payment-operations", r -> r
                         .path("/api/v1/operations/payments/**")
                         .uri(downstream.paymentService()))
+                .route("merchant-service", r -> r
+                        .path("/api/v1/merchants/**")
+                        .uri(downstream.merchantService()))
+                .route("webhook-operations", r -> r
+                        .path("/api/v1/operations/webhooks/**")
+                        .uri(downstream.notificationService()))
+                .route("reporting-service", r -> r
+                        .path("/api/v1/reports/**", "/api/v1/operations/reporting/**")
+                        .uri(downstream.reportingService()))
                 .build();
     }
 }

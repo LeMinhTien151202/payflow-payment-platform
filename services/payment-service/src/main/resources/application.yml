@@ -92,6 +92,13 @@ payflow:
     enabled: ${PAYFLOW_WORKFLOW_CONSUMER_ENABLED:true}
     retry-backoff: ${PAYFLOW_WORKFLOW_CONSUMER_RETRY_BACKOFF:1s}
     max-retries: ${PAYFLOW_WORKFLOW_CONSUMER_MAX_RETRIES:3}
+  merchant-client:
+    mode: ${PAYFLOW_MERCHANT_CATALOG_MODE:local}
+    base-uri: ${PAYFLOW_MERCHANT_SERVICE_URI:http://localhost:8087}
+    token-uri: ${PAYFLOW_SERVICE_TOKEN_URI:http://localhost:8180/realms/payflow/protocol/openid-connect/token}
+    client-id: ${PAYFLOW_PAYMENT_INTERNAL_CLIENT_ID:payflow-payment-internal}
+    client-secret: ${PAYFLOW_PAYMENT_INTERNAL_CLIENT_SECRET:local-disabled}
+    timeout: ${PAYFLOW_MERCHANT_HTTP_TIMEOUT:3s}
 
 management:
   endpoints:

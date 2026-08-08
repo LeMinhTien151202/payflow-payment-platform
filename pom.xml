@@ -32,6 +32,10 @@
         <module>services/api-gateway</module>
         <module>services/payment-service</module>
         <module>services/account-ledger-service</module>
+        <module>services/account-service</module>
+        <module>services/ledger-service</module>
+        <module>services/merchant-service</module>
+        <module>services/reporting-service</module>
         <module>services/risk-service</module>
         <module>services/notification-service</module>
     </modules>

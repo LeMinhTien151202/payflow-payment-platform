@@ -43,7 +43,10 @@ File này là bảng bằng chứng sống. Cập nhật sau mỗi milestone; kh
 | Payment search và refund read API | `VERIFIED_LOCAL` | Payment 238 unit/slice + 62 PostgreSQL IT pass, 2026-08-04 | Merchant-scoped search/filter/page + nested refund lookup; Flyway V8/index và OpenAPI đã đồng bộ |
 | Refund financial runtime | `VERIFIED_LOCAL` | `RefundCapacityPersistenceIT` 8 test pass trong full Payment verify, 2026-08-04 | Concurrent capacity/rollback/journal-credit facts đã chứng minh trên PostgreSQL; broker-level refund E2E vẫn còn trong Phase 2 gate |
 | Audited manual-review operations | `VERIFIED_LOCAL` | Payment 250 unit/slice + 65 PostgreSQL IT; Gateway 11 security IT pass, 2026-08-04 | Scope `operations:write` tách khỏi merchant; state + outbox + typed append-only audit atomic; không có force-success/release |
-| Webhook/reporting | `PLANNED` | — | Phase 2; webhook HMAC/retry và rebuildable reporting projection chưa có code |
+| Phase 2 Account/Ledger deployable split | `IMPLEMENTED` | Account 53 unit test; Ledger 32 unit test; PostgreSQL IT đã compile | Database/role/schema/outbox/inbox riêng; immutable-journal và concurrent-reserve gate chờ Docker |
+| Merchant service và Payment policy boundary | `IMPLEMENTED` | Merchant unit test + Payment remote-adapter test; no-Docker reactor gate | Profile full dùng authenticated internal REST, timeout/fail-closed và immutable fee/limit snapshot; Flyway/Keycloak runtime chờ Docker |
+| Webhook HMAC/retry/operations | `IMPLEMENTED` | Signature/retry unit test; PostgreSQL persistence IT đã compile | Stable event id/raw body, lease/retry/DEAD, subscribed-event filter và audited manual requeue; network/PostgreSQL gate chờ Docker |
+| Reporting projection/rebuild | `IMPLEMENTED` | Parser unit test; rebuild-equivalence PostgreSQL IT đã compile | Event log idempotent, generation switch, fingerprint, version rejection/DLT và audited rebuild; PostgreSQL/Kafka gate chờ Docker |
 | Settlement/reconciliation/Kubernetes/load | `PLANNED` | — | Phase 3 |
 
 ## Known deviations
@@ -629,6 +632,24 @@ Known limitations:
   - Existing persisted Keycloak realm is not auto-reimported; local environment must recreate/migrate that realm before requesting a payflow-operations token.
   - Queue/list endpoint for discovering manual-review work remains backlog; endpoint resolves a known paymentId.
   - Webhook HMAC/retry, reporting projection/rebuild and Account/Ledger deployable split remain Phase 2 work; Phase 2 is not yet complete.
+```
+
+### 2026-08-07 — Phase 2 code-complete, Docker-free gate
+
+```text
+Date/time (UTC): 2026-08-07T06:24:02Z
+Commit SHA: 9b9cb3e (working tree changes not committed)
+Environment: Windows; Java 21; Maven Wrapper 3.9.16; Docker runtime intentionally deferred
+Capability/scenario: deployable Account/Ledger split; Merchant ownership and authenticated Payment policy lookup; durable signed webhook delivery; idempotent reporting projection and generation-based rebuild; Gateway/Keycloak/Compose wiring
+Command: .\mvnw.cmd -B -ntp -Pno-docker clean verify
+Result: BUILD SUCCESS in 02:10; all 13/13 reactor modules SUCCESS; 602 tests, 0 failures, 0 errors, 0 skipped across Surefire/Failsafe reports.
+Static infrastructure checks: Compose profiles mvp/full resolve; prepare-phase2-env.ps1 and smoke-mvp.ps1 parse; realm-payflow.json parses; governance validation passes 18 required paths/16 Markdown files; git diff --check exits 0.
+Code corrections found by the clean gate: Reporting and Webhook ProblemDetail handlers now adapt numeric application status to Spring 7 HttpStatusCode without changing the external status contract.
+Artifacts: services/account-service, services/ledger-service, services/merchant-service, services/reporting-service, notification webhook runtime, docs/runbooks/phase2-local.md, ADR-023, ADR-024.
+Known limitations:
+  - Docker-tagged Testcontainers tests are compiled but intentionally excluded; PostgreSQL locking/triggers, Flyway against fresh databases, network webhook delivery and reporting rebuild persistence remain IMPLEMENTED rather than VERIFIED_LOCAL.
+  - Kafka broker delivery/redelivery/DLT, real Keycloak client credentials and the full-profile Saga smoke have not run in this gate.
+  - Existing local .env and persisted Keycloak realm require the documented Phase 2 preparation/migration when Docker is enabled.
 ```
 
 Quy tắc cập nhật:

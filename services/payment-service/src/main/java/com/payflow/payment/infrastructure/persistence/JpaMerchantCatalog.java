@@ -6,6 +6,7 @@ import jakarta.persistence.EntityManager;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.transaction.annotation.Transactional;
 
 /**
@@ -15,6 +16,10 @@ import org.springframework.transaction.annotation.Transactional;
  * the payment transaction, where this annotation simply joins the existing one rather than opening a second.
  */
 @Component
+@ConditionalOnProperty(
+        name = "payflow.merchant-client.mode",
+        havingValue = "local",
+        matchIfMissing = true)
 class JpaMerchantCatalog implements MerchantCatalog {
 
     private final EntityManager entityManager;

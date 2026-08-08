@@ -47,6 +47,27 @@ create_service_database \
     "${PAYFLOW_ACCOUNT_LEDGER_DB_USERNAME}" \
     "${PAYFLOW_ACCOUNT_LEDGER_DB_PASSWORD}"
 
+# Phase 2 split owners. The legacy database remains for the reproducible MVP profile only.
+create_service_database \
+    "payflow_account" \
+    "${PAYFLOW_ACCOUNT_DB_USERNAME}" \
+    "${PAYFLOW_ACCOUNT_DB_PASSWORD}"
+
+create_service_database \
+    "payflow_ledger" \
+    "${PAYFLOW_LEDGER_DB_USERNAME}" \
+    "${PAYFLOW_LEDGER_DB_PASSWORD}"
+
+create_service_database \
+    "payflow_merchant" \
+    "${PAYFLOW_MERCHANT_DB_USERNAME}" \
+    "${PAYFLOW_MERCHANT_DB_PASSWORD}"
+
+create_service_database \
+    "payflow_reporting" \
+    "${PAYFLOW_REPORTING_DB_USERNAME}" \
+    "${PAYFLOW_REPORTING_DB_PASSWORD}"
+
 # risk-service. Redis đóng vai trò ephemeral signal cache; PostgreSQL sở hữu durable assessments/inbox.
 create_service_database \
     "payflow_risk" \

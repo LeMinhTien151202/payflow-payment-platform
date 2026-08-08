@@ -6,7 +6,7 @@
 | --- | --- | --- | --- | --- |
 | `api-gateway` | JWT validation, routing, rate limit, CORS, correlation, edge metrics | Redis cho rate-limit nếu cần | Public `/api/v1/**` | 0 |
 | `payment-service` | Payment/refund lifecycle, idempotency, status history, Saga orchestration | `payflow_payment` | Payment/refund REST; payment/Saga commands/events | 0–2 |
-| Merchant module -> `merchant-service` | Merchant, member, fee/limit, API key, webhook config | ban đầu payment DB namespace riêng; sau đó `payflow_merchant` | Merchant REST/event/query | 1 module, 2 service |
+| `merchant-service` (legacy module chỉ còn trong MVP migration) | Merchant, member, fee/limit, API key, webhook config | `payflow_merchant`; Payment không đọc database này | Merchant REST/internal policy query | 2 |
 | `account-ledger-service` | MVP deployable chứa Account và Ledger boundary riêng | schema/table namespace riêng | Account/ledger commands/events | 1 |
 | `account-service` | Balance, reservation, capture, release, refund credit | `payflow_account` | Account internal API/commands/events | 2 |
 | `ledger-service` | Immutable journal, double entry, reversal, audit query | `payflow_ledger` | Ledger internal API/commands/events | 2 |

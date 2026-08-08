@@ -1,0 +1,51 @@
+spring:
+  application.name: reporting-service
+  datasource:
+    url: ${PAYFLOW_REPORTING_DB_URL:jdbc:postgresql://localhost:5433/payflow_reporting}
+    username: ${PAYFLOW_REPORTING_DB_USERNAME}
+    password: ${PAYFLOW_REPORTING_DB_PASSWORD}
+  flyway:
+    enabled: true
+    schemas: reporting
+    default-schema: reporting
+    create-schemas: true
+  security.oauth2.resourceserver.jwt:
+    issuer-uri: ${PAYFLOW_OIDC_ISSUER_URI:http://localhost:8180/realms/payflow}
+    jwk-set-uri: ${PAYFLOW_OIDC_JWK_SET_URI:http://localhost:8180/realms/payflow/protocol/openid-connect/certs}
+  kafka:
+    bootstrap-servers: ${PAYFLOW_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+    consumer:
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener.ack-mode: manual_immediate
+server.port: ${PAYFLOW_REPORTING_PORT:8087}
+payflow.reporting-consumer.enabled: ${PAYFLOW_REPORTING_CONSUMER_ENABLED:true}
+management:
+  endpoints.web.exposure.include: health
+  endpoint.health:
+    probes.enabled: true
+    show-details: never
+logging:
+  structured.format.console: ecs
+  level.root: INFO
+springdoc:
+  api-docs.enabled: false
+  swagger-ui.enabled: false
+  paths-to-match: /api/v1/reports/**,/api/v1/operations/reporting/**
+---
+spring:
+  config.activate.on-profile: local
+springdoc:
+  api-docs:
+    enabled: true
+    path: /v3/api-docs
+  swagger-ui:
+    enabled: true
+    path: /swagger-ui.html
+    operations-sorter: method

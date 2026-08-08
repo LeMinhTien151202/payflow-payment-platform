@@ -430,7 +430,7 @@ class CreatePaymentHandlerTest {
                 .satisfies(failure -> assertThat(failure.merchantId()).isEqualTo(unknown));
 
         assertThat(journal).isEmpty();
-        assertThat(transactionManager.rolledBack()).isEqualTo(1);
+        assertThat(transactionManager.rolledBack()).isZero();
     }
 
     @Test

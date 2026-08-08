@@ -546,14 +546,54 @@ Test gồm rule/score/context unit tests, event factory/handler, router/listener
 | `RuntimeConfig` | Clock/ObjectMapper/transaction/scheduler bean wiring |
 | `SecurityConfig` | Deny-by-default HTTP |
 
+### 6.5 Webhook delivery Phase 2
+
+| File/nhóm | Chức năng |
+| --- | --- |
+| `WebhookIntentFactory`, `WebhookDeliveryStore` | Tạo durable delivery intent từ outcome trong cùng local transaction với inbox/notification |
+| `WebhookSignature` | Ký HMAC SHA-256 trên `timestamp.rawBody`; retry giữ nguyên event id và raw body |
+| `WebhookDeliveryJob`, `HttpWebhookTransport` | Claim lease, gọi endpoint ngoài transaction, timeout ngắn và cập nhật retry/`DEAD` có điều kiện |
+| `JdbcWebhookDeliveryStore` | Persistence intent, attempt, lease và append-only operations audit |
+| `WebhookOperationsController` | Requeue bản ghi `DEAD` bằng scope riêng; không tạo event business mới |
+| `ClientCredentialsTokenProvider` | Lấy service token để đọc webhook config/subscription từ Merchant internal API |
+
 Resources:
 
 - [`application.yml`](../../services/notification-service/src/main/resources/application.yml): DB/Kafka/JWT/consumer/delivery.
 - [`V1 migration`](../../services/notification-service/src/main/resources/db/migration/V1__notification_runtime.sql): notification/inbox/delivery state.
+- [`V2 migration`](../../services/notification-service/src/main/resources/db/migration/V2__webhook_delivery.sql): webhook intent/attempt/audit state.
 
-Test gồm Notification aggregate, factory/handler, delivery policy/adapter, listener/router và `NotificationWorkflowPersistenceIT` cho transaction/duplicate/lease ownership.
+Test gồm Notification aggregate, factory/handler, delivery policy/adapter, listener/router, HMAC/retry và
+hai PostgreSQL IT cho transaction/duplicate/lease ownership/webhook persistence.
 
-## 7. Cùng một pattern, khác nghiệp vụ
+## 7. Các deployable mới của Phase 2
+
+### 7.1 `account-service` và `ledger-service`
+
+- [`account-service`](../../services/account-service/) sở hữu account, balance reservation, inbox/outbox và
+  database `payflow_account`. Kafka command được route tới reserve/capture/release handler; row lock và
+  constraint bảo vệ `available/reserved`.
+- [`ledger-service`](../../services/ledger-service/) sở hữu journal kép, payment/refund posting, inbox/outbox
+  và database `payflow_ledger`. Trigger V2 từ chối update/delete journal đã post; refund luôn tạo journal
+  reversal mới.
+- `account-ledger-service` chỉ còn cho profile `mvp`; profile `full` chạy hai service tách mà giữ nguyên event
+  contract/external Saga behavior.
+
+### 7.2 `merchant-service`
+
+[`merchant-service`](../../services/merchant-service/) sở hữu profile/status, member, versioned fee/limit
+policy, API-key hash, webhook secret mã hóa/subscription và audit. Public API dùng merchant scope; internal
+policy/webhook lookup dùng service credential riêng. Payment lấy immutable policy snapshot trước khi mở
+local database transaction và fail closed nếu Merchant không sẵn sàng.
+
+### 7.3 `reporting-service`
+
+[`reporting-service`](../../services/reporting-service/) consume versioned Payment/Risk/Refund facts, ghi
+`event_log` idempotent và project daily merchant read model. Rebuild tạo generation mới, replay event log,
+so fingerprint với generation active rồi mới atomic switch; mismatch giữ generation cũ. Query lấy
+`merchant_id` từ JWT, còn rebuild dùng operations scope và append-only audit.
+
+## 8. Cùng một pattern, khác nghiệp vụ
 
 Các service lặp lại một số tên file có chủ đích:
 
@@ -568,7 +608,7 @@ Các service lặp lại một số tên file có chủ đích:
 
 Đây không phải code duplication vô nghĩa. Reliability protocol giống nhau, nhưng copy có kiểm soát giữ service độc lập. Chỉ contract/header/convention ổn định mới nằm trong `libs`.
 
-## 8. Luồng xuyên toàn bộ `services/`
+## 9. Luồng xuyên toàn bộ `services/`
 
 ```text
 Gateway
@@ -603,7 +643,7 @@ Notification
   → scheduled delivery handler → EmailDeliveryPort → in-memory adapter
 ```
 
-## 9. Cách tìm file khi debug
+## 10. Cách tìm file khi debug
 
 | Hiện tượng | Bắt đầu đọc |
 | --- | --- |
@@ -618,12 +658,12 @@ Notification
 | Outbox không drain | polling job → properties → publish handler → lease store → Kafka transport |
 | Notification không gửi | create handler/store → delivery store lease → delivery handler → email adapter |
 
-## 10. Phần không có trong `services/` hiện tại
+## 11. Phần không có trong `services/` hiện tại
 
-- Chưa có `user-service`, `merchant-service`, `reporting-service`, `settlement-service` deployable.
+- Chưa có `user-service` hoặc `settlement-service` deployable.
 - Chưa có public Account/Ledger/Risk/Notification business controller.
 - Chưa có browser-login application service; Keycloak hiện cấp service token.
-- Account và Ledger chưa tách container, dù boundary code đã tách.
+- Profile `mvp` vẫn dùng Account-Ledger ghép; profile `full` đã tách Account và Ledger thành container/database riêng.
 - Email adapter chưa gọi provider thật.
 
 Không suy ra service đã tồn tại chỉ vì spec/roadmap hoặc `PayFlowTopics` có tên dành cho phase sau.

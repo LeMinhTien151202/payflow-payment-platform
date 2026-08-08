@@ -5,6 +5,7 @@ import com.payflow.notification.application.inbox.IncomingEventIdentity;
 import com.payflow.notification.application.port.NotificationRecord;
 import com.payflow.notification.application.port.NotificationStore;
 import com.payflow.notification.application.port.ProcessedEventStore;
+import com.payflow.notification.application.port.WebhookDeliveryStore;
 import com.payflow.notification.domain.exception.NotificationInvariantViolationException;
 import java.time.Clock;
 import java.util.Objects;
@@ -21,14 +22,17 @@ public class CreateOutcomeNotificationHandler {
     private final NotificationStore notifications;
     private final TransactionTemplate transactions;
     private final Clock clock;
+    private final WebhookDeliveryStore webhooks;
 
     public CreateOutcomeNotificationHandler(
             ProcessedEventStore inbox,
             NotificationStore notifications,
+            WebhookDeliveryStore webhooks,
             TransactionTemplate transactions,
             Clock clock) {
         this.inbox = inbox;
         this.notifications = notifications;
+        this.webhooks = webhooks;
         this.transactions = transactions;
         this.clock = clock;
     }
@@ -55,6 +59,7 @@ public class CreateOutcomeNotificationHandler {
         }
 
         if (notifications.saveIfAbsent(new NotificationRecord(UUID.randomUUID(), intent))) {
+            webhooks.saveIfEligible(intent);
             return EventProcessingResult.PROCESSED;
         }
 

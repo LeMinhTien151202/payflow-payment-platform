@@ -1,0 +1,8 @@
+spring:
+  kafka:
+    admin:
+      auto-create: false
+
+payflow:
+  reporting-consumer:
+    enabled: false

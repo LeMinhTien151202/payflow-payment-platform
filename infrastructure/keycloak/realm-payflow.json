@@ -45,6 +45,48 @@
         "include.in.token.scope": "true",
         "display.on.consent.screen": "false"
       }
+    },
+    {
+      "name": "merchant:read",
+      "description": "Read merchant-owned configuration.",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "false"}
+    },
+    {
+      "name": "merchant:write",
+      "description": "Manage merchant-owned configuration, API keys and webhooks.",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "false"}
+    },
+    {
+      "name": "merchant:write:any",
+      "description": "Create and administer merchant records.",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "false"}
+    },
+    {
+      "name": "merchant:internal:read",
+      "description": "Read webhook signing configuration from private service routes.",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "false"}
+    },
+    {
+      "name": "reporting:read",
+      "description": "Read merchant-scoped reporting projections.",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "false"}
+    },
+    {
+      "name": "reporting:rebuild",
+      "description": "Run an audited reporting generation rebuild.",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "false"}
+    },
+    {
+      "name": "webhook:retry",
+      "description": "Requeue a terminal webhook delivery through the audited operations API.",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "false"}
     }
   ],
 
@@ -70,7 +112,10 @@
       "defaultClientScopes": [
         "basic",
         "payment:read",
-        "payment:write"
+        "payment:write",
+        "merchant:read",
+        "merchant:write",
+        "reporting:read"
       ],
       "optionalClientScopes": [],
 
@@ -156,12 +201,49 @@
       "secret": "${PAYFLOW_OPERATIONS_CLIENT_SECRET}",
       "defaultClientScopes": [
         "basic",
-        "operations:write"
+        "operations:write",
+        "merchant:write:any",
+        "reporting:rebuild",
+        "webhook:retry"
       ],
       "optionalClientScopes": [],
       "attributes": {
         "access.token.lifespan": "900"
       }
+    },
+    {
+      "clientId": "payflow-notification",
+      "name": "PayFlow notification service client (local)",
+      "description": "Least-privileged client for private merchant webhook configuration lookup.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "secret": "${PAYFLOW_NOTIFICATION_CLIENT_SECRET}",
+      "defaultClientScopes": ["basic", "merchant:internal:read"],
+      "optionalClientScopes": [],
+      "attributes": {"access.token.lifespan": "300"}
+    },
+    {
+      "clientId": "payflow-payment-internal",
+      "name": "PayFlow payment internal client (local)",
+      "description": "Least-privileged Payment client for reading the Merchant-owned intake policy.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "serviceAccountsEnabled": true,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "secret": "${PAYFLOW_PAYMENT_INTERNAL_CLIENT_SECRET}",
+      "defaultClientScopes": ["basic", "merchant:internal:read"],
+      "optionalClientScopes": [],
+      "attributes": {"access.token.lifespan": "300"}
     }
   ]
 }

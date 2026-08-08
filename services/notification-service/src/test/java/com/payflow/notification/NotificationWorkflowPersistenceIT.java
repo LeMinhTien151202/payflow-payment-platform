@@ -36,6 +36,8 @@ class NotificationWorkflowPersistenceIT extends AbstractNotificationRuntimeIT {
 
     @BeforeEach
     void cleanDatabase() {
+        jdbc.execute("delete from notification.webhook_audit");
+        jdbc.execute("delete from notification.webhook_deliveries");
         jdbc.execute("delete from notification.processed_events");
         jdbc.execute("delete from notification.notifications");
     }

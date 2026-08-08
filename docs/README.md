@@ -10,7 +10,7 @@ giai đoạn xây dựng nằm ở [`.docs/`](../.docs/README.md) và
 | [runbooks/](runbooks/mvp-docker.md) | Vận hành và chạy local | Docker MVP, local development, Saga manual review, outbox recovery, Payment workflow DLT và Notification delivery failure |
 | [api/](api/payment-service-v1.yaml) | OpenAPI contract | Payment create/get và refund intake v1 |
 | [events/](events/refund-workflow-v1.md) | Kafka event contract | Payment Saga, refund intake và refund financial workflow v1 |
-| [architecture/](architecture/business-processing-reference.md) | Nghiệp vụ, cấu hình, source layout và call flow | Có business reference và code-flow guide |
+| [architecture/](architecture/business-processing-reference.md) | Nghiệp vụ, cấu hình, source layout và call flow | Có business reference, code-flow guide và Kafka guide |
 | `diagrams/` | Sequence/state diagram | Chưa có |
 | `postman/` | Collection để thử API | Chưa có — Phase 1A |
 
@@ -36,6 +36,9 @@ Bắt đầu từ đâu:
   [architecture/technology-stack-configuration-guide.md](architecture/technology-stack-configuration-guide.md).
 - Mới làm quen event-driven, muốn hiểu REST dùng ở đâu và Kafka xử lý bước nào:
   [architecture/rest-kafka-flow-guide.md](architecture/rest-kafka-flow-guide.md).
+- Chưa biết Kafka, hoặc muốn hiểu tận gốc luồng Kafka của dự án — khái niệm nền (partition, offset,
+  consumer group, at-least-once) cộng với topic/envelope/outbox/inbox/DLT theo đúng code hiện tại:
+  [architecture/kafka-concepts-and-flow-guide.md](architecture/kafka-concepts-and-flow-guide.md).
 - Muốn chạy app từ IDE/host: [runbooks/local-development.md](runbooks/local-development.md).
 - Muốn xử lý Saga bị dừng: [runbooks/saga-manual-review.md](runbooks/saga-manual-review.md).
 - Muốn triage/replay poison event: [runbooks/payment-workflow-dlt.md](runbooks/payment-workflow-dlt.md).

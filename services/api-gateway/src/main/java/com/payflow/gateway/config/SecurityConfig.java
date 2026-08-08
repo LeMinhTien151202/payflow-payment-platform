@@ -32,6 +32,13 @@ public class SecurityConfig {
 
     /** Privileged scope isolated from merchant credentials. */
     private static final String SCOPE_OPERATIONS_WRITE = "SCOPE_operations:write";
+    private static final String SCOPE_MERCHANT_READ = "SCOPE_merchant:read";
+    private static final String SCOPE_MERCHANT_READ_ANY = "SCOPE_merchant:read:any";
+    private static final String SCOPE_MERCHANT_WRITE = "SCOPE_merchant:write";
+    private static final String SCOPE_MERCHANT_WRITE_ANY = "SCOPE_merchant:write:any";
+    private static final String SCOPE_REPORTING_READ = "SCOPE_reporting:read";
+    private static final String SCOPE_REPORTING_REBUILD = "SCOPE_reporting:rebuild";
+    private static final String SCOPE_WEBHOOK_RETRY = "SCOPE_webhook:retry";
 
     @Bean
     SecurityWebFilterChain springSecurityFilterChain(
@@ -49,6 +56,22 @@ public class SecurityConfig {
                         .pathMatchers(HttpMethod.OPTIONS).permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/v1/operations/payments/**")
                         .hasAuthority(SCOPE_OPERATIONS_WRITE)
+                        .pathMatchers(HttpMethod.POST, "/api/v1/operations/webhooks/**")
+                        .hasAuthority(SCOPE_WEBHOOK_RETRY)
+                        .pathMatchers(HttpMethod.POST, "/api/v1/operations/reporting/**")
+                        .hasAuthority(SCOPE_REPORTING_REBUILD)
+                        .pathMatchers(HttpMethod.GET, "/api/v1/reports/**")
+                        .hasAuthority(SCOPE_REPORTING_READ)
+                        .pathMatchers(HttpMethod.GET, "/api/v1/merchants/**")
+                        .hasAnyAuthority(
+                                SCOPE_MERCHANT_READ,
+                                SCOPE_MERCHANT_READ_ANY,
+                                SCOPE_MERCHANT_WRITE,
+                                SCOPE_MERCHANT_WRITE_ANY)
+                        .pathMatchers(HttpMethod.POST, "/api/v1/merchants")
+                        .hasAuthority(SCOPE_MERCHANT_WRITE_ANY)
+                        .pathMatchers("/api/v1/merchants/**")
+                        .hasAnyAuthority(SCOPE_MERCHANT_WRITE, SCOPE_MERCHANT_WRITE_ANY)
                         .pathMatchers(HttpMethod.GET, "/api/v1/payments/**")
                         .hasAuthority(SCOPE_PAYMENT_READ)
                         .pathMatchers(HttpMethod.POST, "/api/v1/payments/**")

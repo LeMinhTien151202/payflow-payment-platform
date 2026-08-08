@@ -12,6 +12,7 @@ import com.payflow.notification.application.inbox.EventProcessingResult;
 import com.payflow.notification.application.port.NotificationRecord;
 import com.payflow.notification.application.port.NotificationStore;
 import com.payflow.notification.application.port.ProcessedEventStore;
+import com.payflow.notification.application.port.WebhookDeliveryStore;
 import com.payflow.notification.domain.exception.NotificationInvariantViolationException;
 import java.time.Clock;
 import java.time.Instant;
@@ -31,6 +32,7 @@ class CreateOutcomeNotificationHandlerTest {
     private final ProcessedEventStore inbox = mock(ProcessedEventStore.class);
     private final NotificationStore notifications = mock(NotificationStore.class);
     private final TransactionTemplate transactions = mock(TransactionTemplate.class);
+    private final WebhookDeliveryStore webhooks = mock(WebhookDeliveryStore.class);
     private CreateOutcomeNotificationHandler handler;
 
     @BeforeEach
@@ -40,7 +42,7 @@ class CreateOutcomeNotificationHandlerTest {
             TransactionCallback<?> callback = invocation.getArgument(0);
             return callback.doInTransaction(mock(TransactionStatus.class));
         });
-        handler = new CreateOutcomeNotificationHandler(inbox, notifications, transactions,
+        handler = new CreateOutcomeNotificationHandler(inbox, notifications, webhooks, transactions,
                 Clock.fixed(NOW, ZoneOffset.UTC));
     }
 

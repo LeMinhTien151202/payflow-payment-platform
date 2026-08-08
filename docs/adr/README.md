@@ -24,6 +24,10 @@ quy tắc an toàn trong [`.agent/AGENTS.md`](../../.agent/AGENTS.md).
 | [ADR-020](ADR-020-pessimistic-refund-capacity-reservation.md) | Khóa hàng Payment để giữ refundable capacity — resolves OD-005 | ACCEPTED | 2026-07-29 |
 | [ADR-021](ADR-021-refund-ledger-credit-finalization-ordering.md) | Ledger reversal → Account credit → refund success — resolves OD-011 | ACCEPTED | 2026-07-29 |
 
+| [ADR-022](ADR-022-typed-allowlisted-audit-records.md) | Typed allowlisted append-only audit records | ACCEPTED | 2026-08-04 |
+| [ADR-023](ADR-023-phase2-service-ownership-split.md) | Phase 2 Account/Ledger/Merchant ownership split | ACCEPTED | 2026-08-07 |
+| [ADR-024](ADR-024-generation-based-reporting-rebuild.md) | Generation-based reporting rebuild | ACCEPTED | 2026-08-07 |
+
 Các ADR còn lại trong khoảng ADR-001…ADR-012 vẫn ở trạng thái `PROPOSED` và chưa có
 file: chúng thuộc phạm vi Phase 1B trở đi và sẽ được viết khi đúng lát cắt được triển
 khai. Không implement scope của một ADR chưa `ACCEPTED` nếu

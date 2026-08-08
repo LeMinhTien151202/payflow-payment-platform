@@ -1,0 +1,10 @@
+spring:
+  kafka:
+    admin:
+      auto-create: false
+
+payflow:
+  account-consumer:
+    enabled: false
+  outbox:
+    enabled: false
