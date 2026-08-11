@@ -47,7 +47,7 @@ File này là bảng bằng chứng sống. Cập nhật sau mỗi milestone; kh
 | Merchant service và Payment policy boundary | `IMPLEMENTED` | Merchant unit test + Payment remote-adapter test; no-Docker reactor gate | Profile full dùng authenticated internal REST, timeout/fail-closed và immutable fee/limit snapshot; Flyway/Keycloak runtime chờ Docker |
 | Webhook HMAC/retry/operations | `IMPLEMENTED` | Signature/retry unit test; PostgreSQL persistence IT đã compile | Stable event id/raw body, lease/retry/DEAD, subscribed-event filter và audited manual requeue; network/PostgreSQL gate chờ Docker |
 | Reporting projection/rebuild | `IMPLEMENTED` | Parser unit test; rebuild-equivalence PostgreSQL IT đã compile | Event log idempotent, generation switch, fingerprint, version rejection/DLT và audited rebuild; PostgreSQL/Kafka gate chờ Docker |
-| Settlement/reconciliation/Kubernetes/load | `PLANNED` | — | Phase 3 |
+| Settlement/reconciliation/Kubernetes/load | `IMPLEMENTED` | Final no-Docker reactor regression 622/622 pass; JSON/Kustomize/governance/diff static checks pass, 2026-08-08 | Manual SHA-tagged staging workflow and performance evidence template exist; settlement PostgreSQL/Kafka fixture, Compose/Kubernetes rollout, k6 and chaos evidence are intentionally deferred; do not promote to `VERIFIED_LOCAL` yet |
 
 ## Known deviations
 
@@ -650,6 +650,26 @@ Known limitations:
   - Docker-tagged Testcontainers tests are compiled but intentionally excluded; PostgreSQL locking/triggers, Flyway against fresh databases, network webhook delivery and reporting rebuild persistence remain IMPLEMENTED rather than VERIFIED_LOCAL.
   - Kafka broker delivery/redelivery/DLT, real Keycloak client credentials and the full-profile Saga smoke have not run in this gate.
   - Existing local .env and persisted Keycloak realm require the documented Phase 2 preparation/migration when Docker is enabled.
+```
+
+### 2026-08-08 — Phase 3 code-first, Docker-free gate
+
+```text
+Date/time (UTC): 2026-08-08T09:11:24Z
+Commit SHA: 860b3fa (working tree changes not committed)
+Environment: Windows; Java 21.0.7; Maven Wrapper 3.9.16; Docker/runtime intentionally not invoked
+Capability/scenario: payment.succeeded v2 fee snapshot; daily settlement/reconciliation service; merchant/operations API and scopes; transactional inbox/outbox; Kustomize/alerts/dashboard/k6/chaos/security-scan source artifacts
+Command: .\mvnw.cmd -B -ntp -Pno-docker clean verify
+Result: BUILD SUCCESS in 02:16; all 14/14 reactor modules SUCCESS; 615 tests, 0 failures, 0 errors, 0 skipped across generated Surefire/Failsafe XML reports.
+Static checks: realm-payflow.json and Grafana dashboard parse; kubectl kustomize infrastructure/k8s/overlays/local renders; git diff --check exits 0.
+Delivery source: manual-only staging workflow builds settlement-service with the shared non-root Dockerfile, tags it by commit SHA, renders the Kustomize base, validates the external runtime Secret, waits for rollout/readiness and attempts rollback. Workflow was not dispatched in this code-first gate.
+Post-change targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/api-gateway,services/reporting-service,services/notification-service,services/settlement-service -am verify
+Post-change targeted result: BUILD SUCCESS in 00:53; Gateway settlement scope/route IT 13/13, reporting parser 4/4 and notification unit 37/37 pass. Final settlement-only test rerun BUILD SUCCESS in 00:15 with 10/10 settlement tests after outbox validation was tightened.
+Final repository regression: `.\mvnw.cmd -B -ntp -Pno-docker verify` -> BUILD SUCCESS in 01:44; 14/14 reactor modules and 622/622 generated Surefire/Failsafe test cases pass with no failure, error or skip.
+Known limitations:
+  - SettlementPersistenceIT is compiled and tagged docker but not executed, so PostgreSQL constraints, triggers, locking, Flyway and transaction rollback are not yet runtime evidence.
+  - No Kafka broker delivery/redelivery, Keycloak token, Compose full-profile smoke, Kubernetes rollout/rollback, Prometheus alert, k6 threshold or chaos result was executed.
+  - The Kubernetes base proves the complete deployment pattern for settlement-service only. Rollout to every deployable is a later mechanical expansion after measured resource sizing.
 ```
 
 Quy tắc cập nhật:

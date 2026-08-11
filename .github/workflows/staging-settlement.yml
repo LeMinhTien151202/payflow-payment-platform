@@ -1,0 +1,119 @@
+name: Deploy settlement service to staging
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: settlement-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-image:
+    name: Build immutable image
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.image.outputs.reference }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Derive the immutable image reference
+        id: image
+        shell: bash
+        run: |
+          repository="${GITHUB_REPOSITORY,,}"
+          echo "reference=ghcr.io/${repository}/settlement-service:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to GitHub Container Registry
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+
+      - name: Build and push settlement service
+        shell: bash
+        env:
+          IMAGE: ${{ steps.image.outputs.reference }}
+        run: |
+          docker build \
+            --file infrastructure/docker/java-service.Dockerfile \
+            --build-arg SERVICE_MODULE=settlement-service \
+            --tag "$IMAGE" \
+            .
+          docker push "$IMAGE"
+
+  deploy-staging:
+    name: Roll out and smoke staging
+    needs: build-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: staging
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install staging kubeconfig
+        shell: bash
+        env:
+          KUBE_CONFIG_B64: ${{ secrets.KUBE_CONFIG_STAGING_B64 }}
+        run: |
+          test -n "$KUBE_CONFIG_B64"
+          printf '%s' "$KUBE_CONFIG_B64" | base64 --decode > "$RUNNER_TEMP/payflow-kubeconfig"
+          chmod 600 "$RUNNER_TEMP/payflow-kubeconfig"
+          echo "KUBECONFIG=$RUNNER_TEMP/payflow-kubeconfig" >> "$GITHUB_ENV"
+
+      - name: Validate deployment prerequisites
+        shell: bash
+        run: |
+          kubectl version --client
+          kubectl --namespace payflow get secret settlement-service-runtime
+
+      - name: Render the immutable release manifest
+        shell: bash
+        env:
+          IMAGE: ${{ needs.build-image.outputs.image }}
+        run: |
+          kubectl kustomize infrastructure/k8s/base \
+            | sed "s|ghcr.io/example/payflow/settlement-service:replace-with-git-sha|${IMAGE}|" \
+            > "$RUNNER_TEMP/settlement-staging.yaml"
+          grep -F "image: ${IMAGE}" "$RUNNER_TEMP/settlement-staging.yaml"
+
+      - name: Apply and wait for rollout
+        id: rollout
+        shell: bash
+        run: |
+          kubectl apply --server-side --field-manager=payflow-staging \
+            --filename "$RUNNER_TEMP/settlement-staging.yaml"
+          echo "applied=true" >> "$GITHUB_OUTPUT"
+          kubectl --namespace payflow rollout status deployment/settlement-service --timeout=8m
+
+      - name: Readiness smoke through a local port-forward
+        shell: bash
+        run: |
+          kubectl --namespace payflow port-forward service/settlement-service 18089:8089 \
+            > "$RUNNER_TEMP/settlement-port-forward.log" 2>&1 &
+          forward_pid=$!
+          trap 'kill "$forward_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:18089/actuator/health/readiness; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/settlement-port-forward.log"
+          exit 1
+
+      - name: Roll back a failed release
+        if: failure() && steps.rollout.outputs.applied == 'true'
+        shell: bash
+        run: |
+          kubectl --namespace payflow rollout undo deployment/settlement-service || true
+          kubectl --namespace payflow rollout status deployment/settlement-service --timeout=5m || true

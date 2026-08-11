@@ -39,6 +39,8 @@ services:
       PAYFLOW_MERCHANT_DB_PASSWORD: ${PAYFLOW_MERCHANT_DB_PASSWORD}
       PAYFLOW_REPORTING_DB_USERNAME: ${PAYFLOW_REPORTING_DB_USERNAME}
       PAYFLOW_REPORTING_DB_PASSWORD: ${PAYFLOW_REPORTING_DB_PASSWORD}
+      PAYFLOW_SETTLEMENT_DB_USERNAME: ${PAYFLOW_SETTLEMENT_DB_USERNAME}
+      PAYFLOW_SETTLEMENT_DB_PASSWORD: ${PAYFLOW_SETTLEMENT_DB_PASSWORD}
       PAYFLOW_RISK_DB_USERNAME: ${PAYFLOW_RISK_DB_USERNAME}
       PAYFLOW_RISK_DB_PASSWORD: ${PAYFLOW_RISK_DB_PASSWORD}
       PAYFLOW_NOTIFICATION_DB_USERNAME: ${PAYFLOW_NOTIFICATION_DB_USERNAME}
@@ -135,6 +137,7 @@ services:
           payflow.ledger.events.v1 \
           payflow.risk.events.v1 \
           payflow.refund.events.v1 \
+          payflow.settlement.events.v1 \
           payflow.dead-letter.v1
         do
           /opt/kafka/bin/kafka-topics.sh \
@@ -435,6 +438,44 @@ services:
       retries: 20
       start_period: 30s
 
+  settlement-service:
+    profiles: ["full"]
+    image: payflow/settlement-service:dev
+    build:
+      context: .
+      dockerfile: infrastructure/docker/java-service.Dockerfile
+      args:
+        SERVICE_MODULE: settlement-service
+    environment:
+      SPRING_PROFILES_ACTIVE: local
+      PAYFLOW_SETTLEMENT_PORT: 8089
+      PAYFLOW_SETTLEMENT_DB_URL: jdbc:postgresql://postgres:5432/payflow_settlement
+      PAYFLOW_SETTLEMENT_DB_USERNAME: ${PAYFLOW_SETTLEMENT_DB_USERNAME}
+      PAYFLOW_SETTLEMENT_DB_PASSWORD: ${PAYFLOW_SETTLEMENT_DB_PASSWORD}
+      PAYFLOW_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      PAYFLOW_OIDC_ISSUER_URI: ${PAYFLOW_OIDC_ISSUER_URI}
+      PAYFLOW_OIDC_JWK_SET_URI: http://keycloak:8080/realms/payflow/protocol/openid-connect/certs
+      PAYFLOW_SETTLEMENT_CONSUMER_ENABLED: ${PAYFLOW_SETTLEMENT_CONSUMER_ENABLED}
+      PAYFLOW_SETTLEMENT_BUSINESS_ZONE: ${PAYFLOW_SETTLEMENT_BUSINESS_ZONE}
+      PAYFLOW_OUTBOX_ENABLED: ${PAYFLOW_OUTBOX_ENABLED}
+      PAYFLOW_OUTBOX_POLL_INTERVAL: ${PAYFLOW_OUTBOX_POLL_INTERVAL}
+      PAYFLOW_OUTBOX_BATCH_SIZE: ${PAYFLOW_OUTBOX_BATCH_SIZE}
+      PAYFLOW_OUTBOX_LEASE: ${PAYFLOW_OUTBOX_LEASE}
+      PAYFLOW_OUTBOX_MAX_ATTEMPTS: ${PAYFLOW_OUTBOX_MAX_ATTEMPTS}
+      PAYFLOW_OUTBOX_MAX_BACKOFF: ${PAYFLOW_OUTBOX_MAX_BACKOFF}
+    ports:
+      - "127.0.0.1:${PAYFLOW_SETTLEMENT_PORT}:8089"
+    depends_on:
+      postgres: {condition: service_healthy}
+      kafka-init: {condition: service_completed_successfully}
+      keycloak: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD","java","-cp","/opt/payflow/healthcheck","HealthCheck","http://localhost:8089/actuator/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
   risk-service:
     profiles: ["mvp", "full"]
     image: payflow/risk-service:dev
@@ -545,6 +586,7 @@ services:
       PAYFLOW_MERCHANT_SERVICE_URI: http://merchant-service:8087
       PAYFLOW_NOTIFICATION_SERVICE_URI: http://notification-service:8085
       PAYFLOW_REPORTING_SERVICE_URI: http://reporting-service:8088
+      PAYFLOW_SETTLEMENT_SERVICE_URI: http://settlement-service:8089
       PAYFLOW_OIDC_ISSUER_URI: ${PAYFLOW_OIDC_ISSUER_URI}
       PAYFLOW_OIDC_JWK_SET_URI: http://keycloak:8080/realms/payflow/protocol/openid-connect/certs
     ports:

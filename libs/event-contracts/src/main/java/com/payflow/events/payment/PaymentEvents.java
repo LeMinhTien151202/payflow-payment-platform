@@ -24,9 +24,16 @@ public final class PaymentEvents {
     /** A payment reached an unsuccessful terminal outcome. Spec 8.4 and ADR-016. */
     public static final EventType PAYMENT_FAILED = new EventType("payment.failed", 1, AGGREGATE_TYPE);
 
-    /** Ledger and capture have both committed, per ADR-011. */
+    /** Ledger and capture have both committed, per ADR-011. Legacy payload without fee economics. */
     public static final EventType PAYMENT_SUCCEEDED =
             new EventType("payment.succeeded", 1, AGGREGATE_TYPE);
+
+    /**
+     * Fee-aware terminal fact for Settlement. V1 remains readable but must never be interpreted as
+     * carrying a zero fee; only this v2 contract contains complete settlement economics.
+     */
+    public static final EventType PAYMENT_SUCCEEDED_V2 =
+            new EventType("payment.succeeded", 2, AGGREGATE_TYPE);
 
     /** Automated processing stopped and an auditable operations decision is required. ADR-018. */
     public static final EventType MANUAL_REVIEW_REQUIRED =

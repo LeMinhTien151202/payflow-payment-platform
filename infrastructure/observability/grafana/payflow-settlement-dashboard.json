@@ -1,0 +1,13 @@
+{
+  "title": "PayFlow Settlement & Reconciliation",
+  "uid": "payflow-settlement",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": {"from": "now-6h", "to": "now"},
+  "panels": [
+    {"id": 1, "type": "stat", "title": "Completed batches", "targets": [{"expr": "sum(increase(payflow_settlement_batches_completed_total[$__range]))"}], "gridPos": {"x": 0, "y": 0, "w": 6, "h": 5}},
+    {"id": 2, "type": "stat", "title": "Reconciliation issues", "targets": [{"expr": "sum(increase(payflow_reconciliation_issues_detected_total[$__range]))"}], "gridPos": {"x": 6, "y": 0, "w": 6, "h": 5}},
+    {"id": 3, "type": "timeseries", "title": "Settlement consumer outcomes", "targets": [{"expr": "sum by (result) (rate(payflow_settlement_event_outcomes_total[5m]))", "legendFormat": "{{result}}"}], "gridPos": {"x": 0, "y": 5, "w": 12, "h": 8}},
+    {"id": 4, "type": "timeseries", "title": "Outbox pending age", "targets": [{"expr": "max(payflow_outbox_pending_age_seconds{application=\"settlement-service\"})"}], "gridPos": {"x": 12, "y": 0, "w": 12, "h": 13}}
+  ]
+}

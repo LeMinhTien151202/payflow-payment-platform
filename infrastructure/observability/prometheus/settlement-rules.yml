@@ -1,0 +1,24 @@
+groups:
+  - name: payflow-settlement
+    rules:
+      - alert: PayFlowSettlementReconciliationIssues
+        expr: increase(payflow_reconciliation_issues_detected_total[15m]) > 0
+        for: 5m
+        labels: {severity: warning, owner: payments-platform}
+        annotations:
+          summary: Settlement reconciliation found financial discrepancies
+          runbook_url: docs/runbooks/settlement-reconciliation.md
+      - alert: PayFlowSettlementLateEvents
+        expr: increase(payflow_settlement_event_outcomes_total{result="late_event"}[15m]) > 0
+        for: 5m
+        labels: {severity: warning, owner: payments-platform}
+        annotations:
+          summary: Financial facts arrived after a settlement batch was closed
+          runbook_url: docs/runbooks/settlement-reconciliation.md
+      - alert: PayFlowSettlementOutboxStalled
+        expr: payflow_outbox_pending_age_seconds{application="settlement-service"} > 300
+        for: 10m
+        labels: {severity: critical, owner: payments-platform}
+        annotations:
+          summary: Settlement outbox has not drained for ten minutes
+          runbook_url: docs/runbooks/settlement-reconciliation.md

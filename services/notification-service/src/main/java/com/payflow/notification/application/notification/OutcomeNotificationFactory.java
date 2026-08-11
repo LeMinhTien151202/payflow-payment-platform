@@ -5,6 +5,7 @@ import com.payflow.events.EventType;
 import com.payflow.events.payment.PaymentEvents;
 import com.payflow.events.payment.PaymentFailedData;
 import com.payflow.events.payment.PaymentSucceededData;
+import com.payflow.events.payment.PaymentSucceededV2Data;
 import com.payflow.events.refund.RefundEvents;
 import com.payflow.events.refund.RefundFailedData;
 import com.payflow.events.refund.RefundSucceededData;
@@ -15,8 +16,25 @@ import java.util.Objects;
 
 public final class OutcomeNotificationFactory {
 
+    /** Backward-compatible v1 entry point used by persisted-event tests and replay code. */
     public OutcomeNotificationIntent paymentSucceeded(EventEnvelope<PaymentSucceededData> event) {
+        return paymentSucceededV1(event);
+    }
+
+    public OutcomeNotificationIntent paymentSucceededV1(EventEnvelope<PaymentSucceededData> event) {
         requirePaymentContract(event, PaymentEvents.PAYMENT_SUCCEEDED, event.data().paymentId());
+        var data = event.data();
+        return intent(event, "PAYMENT_OUTCOME", data.paymentId(), "CUSTOMER",
+                data.customerId().toString(), "PAYMENT_SUCCEEDED", Map.of(
+                        "paymentId", data.paymentId().toString(),
+                        "merchantId", data.merchantId().toString(),
+                        "amount", money(data.amount()),
+                        "currency", data.currency(),
+                        "completedAt", data.completedAt().toString()));
+    }
+
+    public OutcomeNotificationIntent paymentSucceededV2(EventEnvelope<PaymentSucceededV2Data> event) {
+        requirePaymentContract(event, PaymentEvents.PAYMENT_SUCCEEDED_V2, event.data().paymentId());
         var data = event.data();
         return intent(event, "PAYMENT_OUTCOME", data.paymentId(), "CUSTOMER",
                 data.customerId().toString(), "PAYMENT_SUCCEEDED", Map.of(

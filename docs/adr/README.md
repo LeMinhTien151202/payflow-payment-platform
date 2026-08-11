@@ -27,6 +27,7 @@ quy tắc an toàn trong [`.agent/AGENTS.md`](../../.agent/AGENTS.md).
 | [ADR-022](ADR-022-typed-allowlisted-audit-records.md) | Typed allowlisted append-only audit records | ACCEPTED | 2026-08-04 |
 | [ADR-023](ADR-023-phase2-service-ownership-split.md) | Phase 2 Account/Ledger/Merchant ownership split | ACCEPTED | 2026-08-07 |
 | [ADR-024](ADR-024-generation-based-reporting-rebuild.md) | Generation-based reporting rebuild | ACCEPTED | 2026-08-07 |
+| [ADR-025](ADR-025-settlement-and-reconciliation-boundary.md) | Settlement economics và reconciliation từ immutable event facts | ACCEPTED | 2026-08-08 |
 
 Các ADR còn lại trong khoảng ADR-001…ADR-012 vẫn ở trạng thái `PROPOSED` và chưa có
 file: chúng thuộc phạm vi Phase 1B trở đi và sẽ được viết khi đúng lát cắt được triển

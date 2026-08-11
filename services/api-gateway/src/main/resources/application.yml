@@ -24,6 +24,7 @@ payflow:
       merchant-service: ${PAYFLOW_MERCHANT_SERVICE_URI:http://localhost:8087}
       notification-service: ${PAYFLOW_NOTIFICATION_SERVICE_URI:http://localhost:8085}
       reporting-service: ${PAYFLOW_REPORTING_SERVICE_URI:http://localhost:8088}
+      settlement-service: ${PAYFLOW_SETTLEMENT_SERVICE_URI:http://localhost:8089}
 
 management:
   endpoints:

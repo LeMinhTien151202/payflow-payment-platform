@@ -55,4 +55,9 @@ ensure_service_database \
     "${PAYFLOW_REPORTING_DB_USERNAME}" \
     "${PAYFLOW_REPORTING_DB_PASSWORD}"
 
+ensure_service_database \
+    "payflow_settlement" \
+    "${PAYFLOW_SETTLEMENT_DB_USERNAME}" \
+    "${PAYFLOW_SETTLEMENT_DB_PASSWORD}"
+
 echo "Phase 2 database provisioning complete"

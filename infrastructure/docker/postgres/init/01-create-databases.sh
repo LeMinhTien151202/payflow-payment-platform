@@ -68,6 +68,11 @@ create_service_database \
     "${PAYFLOW_REPORTING_DB_USERNAME}" \
     "${PAYFLOW_REPORTING_DB_PASSWORD}"
 
+create_service_database \
+    "payflow_settlement" \
+    "${PAYFLOW_SETTLEMENT_DB_USERNAME}" \
+    "${PAYFLOW_SETTLEMENT_DB_PASSWORD}"
+
 # risk-service. Redis đóng vai trò ephemeral signal cache; PostgreSQL sở hữu durable assessments/inbox.
 create_service_database \
     "payflow_risk" \

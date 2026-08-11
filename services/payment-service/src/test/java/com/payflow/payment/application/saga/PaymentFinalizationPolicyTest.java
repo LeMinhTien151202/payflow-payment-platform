@@ -7,7 +7,7 @@ import com.payflow.events.account.AccountCaptureRequestedData;
 import com.payflow.events.account.AccountFundsCapturedData;
 import com.payflow.events.account.AccountFundsReservedData;
 import com.payflow.events.ledger.LedgerPaymentPostedData;
-import com.payflow.events.payment.PaymentSucceededData;
+import com.payflow.events.payment.PaymentSucceededV2Data;
 import com.payflow.payment.application.exception.FinancialFinalizationMismatchException;
 import com.payflow.payment.domain.exception.UnexpectedPaymentStatusException;
 import com.payflow.payment.domain.model.Money;
@@ -61,7 +61,7 @@ class PaymentFinalizationPolicyTest {
     void completesOnlyAfterMatchingLedgerAndCaptureFacts() {
         Payment payment = processingPayment();
 
-        PaymentSucceededData outcome =
+        PaymentSucceededV2Data outcome =
                 policy.complete(payment, reservation(), ledger(), capture(RESERVATION_ID), PROCESSED_AT);
 
         assertThat(payment.status()).isEqualTo(PaymentStatus.SUCCEEDED);
@@ -71,12 +71,17 @@ class PaymentFinalizationPolicyTest {
             assertThat(change.to()).isEqualTo(PaymentStatus.SUCCEEDED);
             assertThat(change.reasonCode()).isEqualTo("FINANCIAL_FINALIZATION_CONFIRMED");
         });
-        assertThat(outcome).isEqualTo(new PaymentSucceededData(
+        assertThat(outcome).isEqualTo(new PaymentSucceededV2Data(
                 PAYMENT_ID,
                 MERCHANT_ID,
                 CUSTOMER_ID,
                 new BigDecimal("500000.0000"),
                 "VND",
+                "LEGACY_NO_FEE_V1",
+                new BigDecimal("0.000000"),
+                new BigDecimal("0.0000"),
+                "VND",
+                "HALF_UP",
                 PROCESSED_AT));
     }
 

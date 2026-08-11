@@ -39,6 +39,10 @@ public class SecurityConfig {
     private static final String SCOPE_REPORTING_READ = "SCOPE_reporting:read";
     private static final String SCOPE_REPORTING_REBUILD = "SCOPE_reporting:rebuild";
     private static final String SCOPE_WEBHOOK_RETRY = "SCOPE_webhook:retry";
+    private static final String SCOPE_SETTLEMENT_READ = "SCOPE_settlement:read";
+    private static final String SCOPE_SETTLEMENT_RUN = "SCOPE_settlement:run";
+    private static final String SCOPE_RECONCILIATION_READ = "SCOPE_reconciliation:read";
+    private static final String SCOPE_RECONCILIATION_RUN = "SCOPE_reconciliation:run";
 
     @Bean
     SecurityWebFilterChain springSecurityFilterChain(
@@ -62,6 +66,14 @@ public class SecurityConfig {
                         .hasAuthority(SCOPE_REPORTING_REBUILD)
                         .pathMatchers(HttpMethod.GET, "/api/v1/reports/**")
                         .hasAuthority(SCOPE_REPORTING_READ)
+                        .pathMatchers(HttpMethod.GET, "/api/v1/settlements/**")
+                        .hasAuthority(SCOPE_SETTLEMENT_READ)
+                        .pathMatchers(HttpMethod.POST, "/api/v1/operations/settlements/**")
+                        .hasAuthority(SCOPE_SETTLEMENT_RUN)
+                        .pathMatchers(HttpMethod.GET, "/api/v1/operations/reconciliation/**")
+                        .hasAuthority(SCOPE_RECONCILIATION_READ)
+                        .pathMatchers(HttpMethod.POST, "/api/v1/operations/reconciliation/**")
+                        .hasAuthority(SCOPE_RECONCILIATION_RUN)
                         .pathMatchers(HttpMethod.GET, "/api/v1/merchants/**")
                         .hasAnyAuthority(
                                 SCOPE_MERCHANT_READ,

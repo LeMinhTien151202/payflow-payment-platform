@@ -190,7 +190,7 @@ public class HandlePaymentWorkflowEventHandler {
             var ledger = ledgerFact(payment, saga);
             var outcome = finalizationPolicy.complete(payment, reservation, ledger, event.data(), now);
             saga.complete(now);
-            return WorkflowChange.both(PaymentEvents.PAYMENT_SUCCEEDED, outcome);
+            return WorkflowChange.both(PaymentEvents.PAYMENT_SUCCEEDED_V2, outcome);
         });
     }
 

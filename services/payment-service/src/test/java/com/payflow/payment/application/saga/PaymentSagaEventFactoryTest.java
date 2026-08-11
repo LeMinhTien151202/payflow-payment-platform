@@ -19,7 +19,7 @@ import com.payflow.events.ledger.LedgerPaymentPostingFailedData;
 import com.payflow.events.ledger.LedgerPostPaymentRequestedData;
 import com.payflow.events.payment.PaymentFailedData;
 import com.payflow.events.payment.PaymentManualReviewRequiredData;
-import com.payflow.events.payment.PaymentSucceededData;
+import com.payflow.events.payment.PaymentSucceededV2Data;
 import com.payflow.events.risk.RiskAssessmentCompletedData;
 import com.payflow.events.risk.RiskDecisionValue;
 import com.payflow.events.risk.RiskEvents;
@@ -72,19 +72,24 @@ class PaymentSagaEventFactoryTest {
         var succeeded = factory.paymentSucceeded(
                 UUID.randomUUID(),
                 captured(),
-                new PaymentSucceededData(
+                new PaymentSucceededV2Data(
                         PAYMENT_ID,
                         MERCHANT_ID,
                         CUSTOMER_ID,
                         AMOUNT,
                         "VND",
+                        "fee-v1",
+                        new BigDecimal("0.020000"),
+                        new BigDecimal("10000.0000"),
+                        "VND",
+                        "HALF_UP",
                         NOW.plusSeconds(7)),
                 NOW.plusSeconds(7));
 
         assertEnvelope(reserve, "account.reserve.requested", risk(RiskDecisionValue.APPROVED).eventId());
         assertEnvelope(ledger, "ledger.post-payment.requested", reserved().eventId());
         assertEnvelope(capture, "account.capture.requested", ledgerPosted().eventId());
-        assertEnvelope(succeeded, "payment.succeeded", captured().eventId());
+        assertEnvelope(succeeded, "payment.succeeded", 2, captured().eventId());
     }
 
     @Test
@@ -196,8 +201,13 @@ class PaymentSagaEventFactoryTest {
 
     private static void assertEnvelope(
             EventEnvelope<?> envelope, String eventType, UUID causationId) {
+        assertEnvelope(envelope, eventType, 1, causationId);
+    }
+
+    private static void assertEnvelope(
+            EventEnvelope<?> envelope, String eventType, int eventVersion, UUID causationId) {
         assertThat(envelope.eventType()).isEqualTo(eventType);
-        assertThat(envelope.eventVersion()).isEqualTo(1);
+        assertThat(envelope.eventVersion()).isEqualTo(eventVersion);
         assertThat(envelope.aggregateType()).isEqualTo("PAYMENT");
         assertThat(envelope.aggregateId()).isEqualTo(PAYMENT_ID.toString());
         assertThat(envelope.correlationId()).isEqualTo(CORRELATION_ID);

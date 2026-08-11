@@ -17,7 +17,7 @@ import com.payflow.events.ledger.LedgerPostPaymentRequestedData;
 import com.payflow.events.payment.PaymentEvents;
 import com.payflow.events.payment.PaymentFailedData;
 import com.payflow.events.payment.PaymentManualReviewRequiredData;
-import com.payflow.events.payment.PaymentSucceededData;
+import com.payflow.events.payment.PaymentSucceededV2Data;
 import com.payflow.events.risk.RiskAssessmentCompletedData;
 import com.payflow.events.risk.RiskDecisionValue;
 import com.payflow.events.risk.RiskEvents;
@@ -77,14 +77,14 @@ public final class PaymentSagaEventFactory {
         return causedBy(eventId, AccountEvents.CAPTURE_REQUESTED, cause, data.paymentId(), occurredAt, data);
     }
 
-    public EventEnvelope<PaymentSucceededData> paymentSucceeded(
+    public EventEnvelope<PaymentSucceededV2Data> paymentSucceeded(
             UUID eventId,
             EventEnvelope<AccountFundsCapturedData> cause,
-            PaymentSucceededData data,
+            PaymentSucceededV2Data data,
             Instant occurredAt) {
         requireCause(cause, AccountEvents.FUNDS_CAPTURED, data.paymentId());
         requireMoney(cause.data().amount(), cause.data().currency(), data.amount(), data.currency());
-        return causedBy(eventId, PaymentEvents.PAYMENT_SUCCEEDED, cause, data.paymentId(), occurredAt, data);
+        return causedBy(eventId, PaymentEvents.PAYMENT_SUCCEEDED_V2, cause, data.paymentId(), occurredAt, data);
     }
 
     public EventEnvelope<AccountReleaseRequestedData> releaseRequested(

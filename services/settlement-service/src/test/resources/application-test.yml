@@ -1,0 +1,5 @@
+spring:
+  kafka.admin.auto-create: false
+payflow:
+  settlement-consumer.enabled: false
+  outbox.enabled: false

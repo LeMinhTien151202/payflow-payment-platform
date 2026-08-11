@@ -33,6 +33,8 @@ abstract class GatewayTestSupport {
 
     /** Operations identity has no merchant payment scopes. */
     static final String TOKEN_OPERATIONS = "test-token-operations";
+    static final String TOKEN_SETTLEMENT_READ = "test-token-settlement-read";
+    static final String TOKEN_SETTLEMENT_OPERATIONS = "test-token-settlement-operations";
 
     /** Giá trị token mà mocked decoder từ chối, thay thế cho token hết hạn hoặc giả mạo. */
     static final String TOKEN_INVALID = "test-token-invalid";
@@ -73,6 +75,9 @@ abstract class GatewayTestSupport {
     static void downstreamUri(DynamicPropertyRegistry registry) {
         registry.add(
                 "payflow.gateway.downstream.payment-service",
+                () -> "http://localhost:" + PAYMENT_SERVICE_STUB.port());
+        registry.add(
+                "payflow.gateway.downstream.settlement-service",
                 () -> "http://localhost:" + PAYMENT_SERVICE_STUB.port());
     }
 

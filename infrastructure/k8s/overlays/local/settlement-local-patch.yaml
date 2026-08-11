@@ -1,0 +1,14 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: settlement-service
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: settlement-service
+          image: payflow/settlement-service:dev
+          resources:
+            requests: {cpu: 50m, memory: 192Mi}
+            limits: {cpu: 500m, memory: 512Mi}

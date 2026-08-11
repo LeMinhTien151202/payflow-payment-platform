@@ -87,6 +87,30 @@
       "description": "Requeue a terminal webhook delivery through the audited operations API.",
       "protocol": "openid-connect",
       "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "false"}
+    },
+    {
+      "name": "settlement:read",
+      "description": "Read merchant-owned settlement batches.",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "false"}
+    },
+    {
+      "name": "settlement:run",
+      "description": "Calculate and complete audited settlement batches.",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "false"}
+    },
+    {
+      "name": "reconciliation:read",
+      "description": "Read settlement reconciliation issues.",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "false"}
+    },
+    {
+      "name": "reconciliation:run",
+      "description": "Run an audited reconciliation without automatic financial correction.",
+      "protocol": "openid-connect",
+      "attributes": {"include.in.token.scope": "true", "display.on.consent.screen": "false"}
     }
   ],
 
@@ -115,7 +139,8 @@
         "payment:write",
         "merchant:read",
         "merchant:write",
-        "reporting:read"
+        "reporting:read",
+        "settlement:read"
       ],
       "optionalClientScopes": [],
 
@@ -204,7 +229,10 @@
         "operations:write",
         "merchant:write:any",
         "reporting:rebuild",
-        "webhook:retry"
+        "webhook:retry",
+        "settlement:run",
+        "reconciliation:read",
+        "reconciliation:run"
       ],
       "optionalClientScopes": [],
       "attributes": {

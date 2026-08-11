@@ -46,6 +46,11 @@ class ApiGatewaySecurityIT extends GatewayTestSupport {
                 .willReturn(Mono.just(jwtWithScopes(TOKEN_READ_ONLY, "payment:read")));
         given(jwtDecoder.decode(TOKEN_OPERATIONS))
                 .willReturn(Mono.just(jwtWithScopes(TOKEN_OPERATIONS, "operations:write")));
+        given(jwtDecoder.decode(TOKEN_SETTLEMENT_READ))
+                .willReturn(Mono.just(jwtWithScopes(TOKEN_SETTLEMENT_READ, "settlement:read")));
+        given(jwtDecoder.decode(TOKEN_SETTLEMENT_OPERATIONS))
+                .willReturn(Mono.just(jwtWithScopes(TOKEN_SETTLEMENT_OPERATIONS,
+                        "settlement:run reconciliation:read reconciliation:run")));
         given(jwtDecoder.decode(TOKEN_INVALID))
                 .willReturn(Mono.error(new BadJwtException("signature mismatch")));
 
@@ -71,6 +76,18 @@ class ApiGatewaySecurityIT extends GatewayTestSupport {
                                         .withStatus(200)
                                         .withHeader("Content-Type", "application/json")
                                         .withBody("{\"status\":\"RUNNING\"}")));
+        PAYMENT_SERVICE_STUB.stubFor(
+                get(urlPathMatching("/api/v1/settlements.*"))
+                        .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")
+                                .withBody("{\"content\":[]}")));
+        PAYMENT_SERVICE_STUB.stubFor(
+                post(urlPathMatching("/api/v1/operations/settlements.*"))
+                        .willReturn(aResponse().withStatus(202).withHeader("Content-Type", "application/json")
+                                .withBody("[]")));
+        PAYMENT_SERVICE_STUB.stubFor(
+                post(urlPathMatching("/api/v1/operations/reconciliation.*"))
+                        .willReturn(aResponse().withStatus(202).withHeader("Content-Type", "application/json")
+                                .withBody("{\"openIssueCount\":0}")));
     }
 
     @Test
@@ -193,6 +210,28 @@ class ApiGatewaySecurityIT extends GatewayTestSupport {
 
         PAYMENT_SERVICE_STUB.verify(
                 0, postRequestedFor(urlPathMatching("/api/v1/operations/payments.*")));
+    }
+
+    @Test
+    @DisplayName("settlement read scope reaches only merchant settlement reads")
+    void settlementReadScopeReachesSettlementRoute() {
+        webTestClient.get().uri("/api/v1/settlements?from=2026-08-01&to=2026-08-08")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN_SETTLEMENT_READ)
+                .exchange().expectStatus().isOk();
+        webTestClient.post().uri("/api/v1/operations/settlements/run?date=2026-08-08")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN_SETTLEMENT_READ)
+                .exchange().expectStatus().isForbidden();
+    }
+
+    @Test
+    @DisplayName("settlement operations scope is isolated from merchant read credentials")
+    void settlementOperationsScopeReachesRunAndReconciliation() {
+        webTestClient.post().uri("/api/v1/operations/settlements/run?date=2026-08-08")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN_SETTLEMENT_OPERATIONS)
+                .exchange().expectStatus().isAccepted();
+        webTestClient.post().uri("/api/v1/operations/reconciliation/run?date=2026-08-08")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN_SETTLEMENT_OPERATIONS)
+                .exchange().expectStatus().isAccepted();
     }
 
     /**
