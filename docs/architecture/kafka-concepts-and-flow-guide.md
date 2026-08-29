@@ -30,7 +30,7 @@ Khác biệt cốt lõi:
 | Nhiều nhóm consumer cùng đọc | Phải fanout/copy | Đọc chung một log, mỗi nhóm có offset riêng |
 | Đọc lại message cũ | Thường không được | Được, chỉ cần lùi offset |
 
-Điều này rất quan trọng với PayFlow: Notification Service và Risk Service đều đọc topic `payflow.payment.events.v1`, nhưng **không tranh nhau message**. Mỗi service là một consumer group riêng, mỗi group có offset riêng, cùng đọc cùng một log.
+Điều này rất quan trọng với PayFlow: Risk, Account, Notification và Reporting Service đều đọc topic `payflow.payment.events.v1`, nhưng **không tranh nhau message**. Mỗi service là một consumer group riêng, mỗi group có offset riêng, cùng đọc cùng một log.
 
 ## 2. Sáu khái niệm bắt buộc phải hiểu
 
@@ -112,7 +112,7 @@ Ba điều rút ra:
 2. **Một partition chỉ có một consumer trong group xử lý** tại một thời điểm → không có hai instance cùng xử lý một payment.
 3. Khi instance vào/ra, Kafka **rebalance** — chia lại partition. Trong lúc rebalance có thể có message được xử lý lại nếu offset chưa commit.
 
-Mỗi group có offset riêng. Đó là lý do Risk và Notification cùng đọc `payflow.payment.events.v1` mà không xung đột.
+Mỗi group có offset riêng. Đó là lý do Risk, Account, Notification và Reporting cùng đọc `payflow.payment.events.v1` mà không xung đột.
 
 ## 3. Delivery semantics: at-most-once, at-least-once, exactly-once
 
@@ -187,20 +187,42 @@ PayFlow dùng Kafka 4.x với KRaft. Nếu bạn đọc tutorial cũ và thắc 
 
 Tên topic bị khóa cứng trong [`PayFlowTopics.java`](../../libs/event-contracts/src/main/java/com/payflow/events/PayFlowTopics.java), không đọc từ config. Lý do được ghi trong javadoc: một tên topic khác nhau giữa các môi trường biến "consumer không nhận được event" thành lỗi không thể chứng minh.
 
+> **Phase 2 có hai topology, chọn bằng Docker profile.** Bảng dưới dùng cột "Ai produce/consume"
+> theo cả hai. Xem [mục 6.1](#61-hai-topology-mvp-gộp-và-full-tách) ngay sau bảng để hiểu vì sao
+> `account-ledger-service` và cặp `account-service`/`ledger-service` cùng xuất hiện.
+
 | Topic | Ai produce | Ai consume | Nội dung |
 | --- | --- | --- | --- |
-| `payflow.payment.events.v1` | payment-service | risk-service, account-ledger-service, notification-service | `payment.created`, các command Payment Saga phát ra (reserve/capture/release/ledger post/refund credit), và payment outcome |
+| `payflow.payment.events.v1` | payment-service | risk-service, account (account-ledger-service ở `mvp` / account-service ở `full`), ledger (ledger-service ở `full`), notification-service, reporting-service (`full`) | `payment.created`, các command Payment Saga phát ra (reserve/capture/release/ledger post/refund credit), và payment outcome |
 | `payflow.risk.events.v1` | risk-service | payment-service | `risk.assessment.completed` |
-| `payflow.account.events.v1` | account-ledger-service | payment-service | kết quả reserve/capture/release/refund-credit |
-| `payflow.ledger.events.v1` | account-ledger-service | payment-service | kết quả post journal payment/refund |
-| `payflow.refund.events.v1` | payment-service | account-ledger-service, notification-service | `refund.requested`, `refund.succeeded`, `refund.failed` |
+| `payflow.account.events.v1` | account-ledger-service (`mvp`) / account-service (`full`) | payment-service | kết quả reserve/capture/release/refund-credit |
+| `payflow.ledger.events.v1` | account-ledger-service (`mvp`) / ledger-service (`full`) | payment-service | kết quả post journal payment/refund |
+| `payflow.refund.events.v1` | payment-service | account-ledger-service (`mvp`) / ledger-service (`full`), notification-service, reporting-service (`full`) | `refund.requested`, `refund.succeeded`, `refund.failed` |
 | `payflow.dead-letter.v1` | mọi consumer khi hết retry | con người / runbook | message không xử lý được |
 | `payflow.notification.commands.v1` | — | — | **đã đặt tên nhưng chưa dùng** trong luồng hiện tại (Phase 2) |
 | `payflow.settlement.events.v1` | — | — | **đã đặt tên nhưng chưa có service** (Phase 3) |
 
+`merchant-service` (mới ở Phase 2) **không đụng Kafka** — Payment lấy policy merchant qua REST nội bộ, không qua event (xem ADR-023). Nên nó không có mặt trong bảng này.
+
+`reporting-service` (mới ở Phase 2, chỉ chạy ở profile `full`) là **consumer thuần**: nó nghe `payflow.payment.events.v1` và `payflow.refund.events.v1` để dựng projection báo cáo, không produce event nào.
+
+Một chi tiết dễ nhầm ở profile `full`: `account-service` **chỉ nghe `payflow.payment.events.v1`**, không nghe `payflow.refund.events.v1`. Nó vẫn xử lý phần refund của mình vì command `account.refund-credit.requested` được Payment phát trên topic payment (đúng quy tắc "command đi trên topic của người gửi"). Chỉ `ledger-service` cần nghe topic refund, cho event `refund.requested`. Bản gộp `account-ledger-service` nghe cả hai topic vì nó chứa cả hai bounded context.
+
+### 6.1. Hai topology: `mvp` (gộp) và `full` (tách)
+
+Phase 2 thực thi database-per-service (ADR-023) nhưng giữ lại bản gộp để chạy nhẹ. Docker profile quyết định service nào chạy:
+
+| | Profile `mvp` | Profile `full` |
+| --- | --- | --- |
+| Account + Ledger | **một** deployable `account-ledger-service` (group `account-ledger-workflow-v1`) | **hai** deployable tách: `account-service` (group `account-workflow-v1`) + `ledger-service` (group `ledger-workflow-v1`) |
+| Reporting | không chạy | `reporting-service` (group `reporting-projection-v1`) |
+| Merchant | `merchant-service` (REST) | `merchant-service` (REST) |
+
+Điểm mấu chốt của ADR-023: **Kafka contract v1, aggregate key và Payment Saga state machine KHÔNG đổi khi tách.** Bằng chứng trong code: `account-service` và `ledger-service` tách vẫn dùng đúng các `consumer_name` như bản gộp (`account-reserve-funds-v1`, `ledger-post-payment-v1`, …), vẫn produce vào đúng `ACCOUNT_EVENTS`/`LEDGER_EVENTS`. Từ góc nhìn của payment-service, hai topology hành xử giống hệt nhau trên Kafka — chỉ khác ở chỗ deployable nào đang cầm partition.
+
 Điểm dễ gây bối rối: `payflow.payment.events.v1` chứa **cả event lẫn command**.
 
-Cụ thể, khi Payment Saga muốn Account reserve tiền, nó không phát vào `payflow.account.events.v1`. Nó phát `account.reserve.requested` vào `payflow.payment.events.v1`. Lý do: quy tắc là **service nào sở hữu topic thì service đó produce**. `payflow.account.events.v1` thuộc account-ledger-service, nên chỉ account-ledger-service được ghi vào đó. Payment gửi command trên topic của chính nó.
+Cụ thể, khi Payment Saga muốn Account reserve tiền, nó không phát vào `payflow.account.events.v1`. Nó phát `account.reserve.requested` vào `payflow.payment.events.v1`. Lý do: quy tắc là **service nào sở hữu topic thì service đó produce**. `payflow.account.events.v1` thuộc về bên Account (account-ledger-service ở `mvp`, account-service ở `full`), nên chỉ bên đó được ghi vào. Payment gửi command trên topic của chính nó.
 
 Nhớ theo hướng này:
 
@@ -244,14 +266,22 @@ done
 
 **Lớp 2 — `NewTopic` bean trong service sở hữu topic**, để khai báo ownership ở tầng code:
 
-| Service | Config class | Khai báo topic |
-| --- | --- | --- |
-| payment-service | `OutboxMessagingConfig` | `PAYMENT_EVENTS`, `REFUND_EVENTS`, `DEAD_LETTER` |
-| risk-service | `KafkaConsumerConfig` | `RISK_EVENTS`, `DEAD_LETTER` |
-| account-ledger-service | `KafkaConsumerConfig` | `ACCOUNT_EVENTS`, `LEDGER_EVENTS`, `DEAD_LETTER` |
-| notification-service | `KafkaConsumerConfig` | `DEAD_LETTER` |
+| Service | Profile | Config class | Khai báo topic |
+| --- | --- | --- | --- |
+| payment-service | cả hai | `OutboxMessagingConfig` | `PAYMENT_EVENTS`, `REFUND_EVENTS`, `DEAD_LETTER` |
+| risk-service | cả hai | `KafkaConsumerConfig` | `RISK_EVENTS`, `DEAD_LETTER` |
+| notification-service | cả hai | `KafkaConsumerConfig` | `DEAD_LETTER` |
+| account-ledger-service | `mvp` | `KafkaConsumerConfig` | `ACCOUNT_EVENTS`, `LEDGER_EVENTS`, `DEAD_LETTER` |
+| account-service | `full` | `KafkaConsumerConfig` | `ACCOUNT_EVENTS`, `LEDGER_EVENTS`, `DEAD_LETTER` |
+| ledger-service | `full` | `KafkaConsumerConfig` | `ACCOUNT_EVENTS`, `LEDGER_EVENTS`, `DEAD_LETTER` |
+| reporting-service | `full` | `KafkaConsumerConfig` | **không khai báo topic nào** |
 
 Tất cả đều `partitions(3).replicas(1)`. Replica 1 vì local chỉ có 1 broker — nhiều hơn sẽ không khởi động được.
+
+Hai điểm cần đọc đúng ở bảng này:
+
+- Khi tách, `account-service` và `ledger-service` **mỗi bên vẫn khai báo cả `ACCOUNT_EVENTS` lẫn `LEDGER_EVENTS`**, tức là copy nguyên khối `NewTopic` của bản gộp. `NewTopic` là idempotent (`--if-not-exists` ở tầng AdminClient), nên khai báo trùng không gây lỗi — nhưng nó có nghĩa là bảng này **không còn là bản đồ ownership chính xác** ở profile `full`. Ownership thật nằm ở phía producer: chỉ `account-service` produce `ACCOUNT_EVENTS`, chỉ `ledger-service` produce `LEDGER_EVENTS`.
+- `reporting-service` không có `NewTopic` bean nào vì nó là consumer thuần và không sở hữu topic nào. Nó vẫn cần `payflow.dead-letter.v1` tồn tại (để `DeadLetterPublishingRecoverer` đẩy message hỏng vào), nhưng dựa vào `kafka-init` và các service khác đã tạo topic đó.
 
 ## 8. Envelope: mỗi message trên wire trông như thế nào
 
@@ -526,7 +556,7 @@ payflow.outbox.pending.age.seconds (gauge)  <- cái này quan trọng nhất
 
 ## 11. Consumer side: từ Kafka record đến DB
 
-Mọi consumer PayFlow đều theo cùng kiến trúc ba lớp:
+Mọi consumer nghiệp vụ của PayFlow đều theo cùng kiến trúc ba lớp:
 
 ```text
 KafkaListener      <- biên Kafka, mỏng, chỉ route + ack
@@ -535,6 +565,8 @@ EventRouter        <- parse eventType, deserialize đúng payload, validate key
    |
 Handler            <- transaction: inbox marker + business change + outbox mới
 ```
+
+**Ngoại lệ duy nhất: `reporting-service`.** Nó là projection read-model, không có bước "business change + outbox mới", nên chỉ có hai lớp: listener → `ReportingProjectionHandler` → `JdbcProjectionStore.appendAndProject(...)`. Chống trùng của nó cũng khác: không dùng bảng `processed_events` với khóa `(event_id, consumer_name)`, mà dùng `insert into reporting.event_log ... on conflict(event_id) do nothing` — nếu insert trả 0 dòng thì event đã được ghi nhận trước đó và projection không được apply lần hai. Chi tiết đầy đủ ở [mục 11.6](#116-reporting-service-projection-thay-vì-inbox).
 
 ### 11.1. Listener: ack chỉ sau khi transaction xong
 
@@ -584,18 +616,42 @@ spring:
 
 ### 11.2. Bảng consumer group đầy đủ
 
-| Service | `group.id` | Listener id | Topic nghe |
-| --- | --- | --- | --- |
-| payment-service | `payment-saga-orchestrator-v1` | `payment-risk-events` | `payflow.risk.events.v1` |
-| payment-service | `payment-saga-orchestrator-v1` | `payment-account-events` | `payflow.account.events.v1` |
-| payment-service | `payment-saga-orchestrator-v1` | `payment-ledger-events` | `payflow.ledger.events.v1` |
-| risk-service | `risk-payment-created-v1` | `risk-payment-events` | `payflow.payment.events.v1` |
-| account-ledger-service | `account-ledger-workflow-v1` | `account-ledger-payment-commands` | `payflow.payment.events.v1` |
-| account-ledger-service | `account-ledger-workflow-v1` | `account-ledger-refund-requests` | `payflow.refund.events.v1` |
-| notification-service | `notification-outcome-v1` | `notification-payment-outcomes` | `payflow.payment.events.v1` |
-| notification-service | `notification-outcome-v1` | `notification-refund-outcomes` | `payflow.refund.events.v1` |
+Cột "Profile" cho biết listener đó chạy ở topology nào (mục 6.1).
 
-Ba group cùng đọc `payflow.payment.events.v1`: `risk-payment-created-v1`, `account-ledger-workflow-v1`, `notification-outcome-v1`. Mỗi group có offset riêng nên cả ba đều nhận đủ mọi message — không ai "lấy mất" của ai.
+| Service | Profile | `group.id` | Listener id | Topic nghe |
+| --- | --- | --- | --- | --- |
+| payment-service | cả hai | `payment-saga-orchestrator-v1` | `payment-risk-events` | `payflow.risk.events.v1` |
+| payment-service | cả hai | `payment-saga-orchestrator-v1` | `payment-account-events` | `payflow.account.events.v1` |
+| payment-service | cả hai | `payment-saga-orchestrator-v1` | `payment-ledger-events` | `payflow.ledger.events.v1` |
+| risk-service | cả hai | `risk-payment-created-v1` | `risk-payment-events` | `payflow.payment.events.v1` |
+| notification-service | cả hai | `notification-outcome-v1` | `notification-payment-outcomes` | `payflow.payment.events.v1` |
+| notification-service | cả hai | `notification-outcome-v1` | `notification-refund-outcomes` | `payflow.refund.events.v1` |
+| account-ledger-service | `mvp` | `account-ledger-workflow-v1` | `account-ledger-payment-commands` | `payflow.payment.events.v1` |
+| account-ledger-service | `mvp` | `account-ledger-workflow-v1` | `account-ledger-refund-requests` | `payflow.refund.events.v1` |
+| account-service | `full` | `account-workflow-v1` | `account-payment-commands` | `payflow.payment.events.v1` |
+| ledger-service | `full` | `ledger-workflow-v1` | `ledger-payment-commands` | `payflow.payment.events.v1` |
+| ledger-service | `full` | `ledger-workflow-v1` | `ledger-refund-commands` | `payflow.refund.events.v1` |
+| reporting-service | `full` | `reporting-projection-v1` | `reporting-payment` | `payflow.payment.events.v1` |
+| reporting-service | `full` | `reporting-projection-v1` | `reporting-refund` | `payflow.refund.events.v1` |
+
+Số group cùng đọc `payflow.payment.events.v1` phụ thuộc profile:
+
+- Ở `mvp`: **ba** group — `risk-payment-created-v1`, `account-ledger-workflow-v1`, `notification-outcome-v1`.
+- Ở `full`: **năm** group — `risk-payment-created-v1`, `account-workflow-v1`, `ledger-workflow-v1`, `notification-outcome-v1`, `reporting-projection-v1`.
+
+Mỗi group có offset riêng nên tất cả đều nhận đủ mọi message — không ai "lấy mất" của ai. Đây chính là lý do việc tách service ở ADR-023 không cần đổi gì phía producer: thêm một consumer group mới là thêm một người đọc log, producer không biết và không cần biết.
+
+Mỗi listener đều bật/tắt được bằng property riêng, mặc định `true` (`matchIfMissing = true`). Test tích hợp dùng cờ này để chạy handler mà không cần broker:
+
+| Service | Property |
+| --- | --- |
+| payment-service | `payflow.workflow-consumer.enabled` |
+| risk-service | `payflow.risk-consumer.enabled` |
+| notification-service | `payflow.notification-consumer.enabled` |
+| account-ledger-service | `payflow.payment-consumer.enabled` (listener payment) + `payflow.refund-consumer.enabled` (listener refund) |
+| account-service | `payflow.account-consumer.enabled` |
+| ledger-service | `payflow.ledger-consumer.enabled` |
+| reporting-service | `payflow.reporting-consumer.enabled` |
 
 Hậu quả kèm theo: mỗi group cũng nhận **mọi** message trên topic đó, kể cả loại nó không quan tâm. Đó là việc của router.
 
@@ -646,8 +702,14 @@ Router của các service khác cùng pattern:
 | --- | --- |
 | `PaymentWorkflowEventRouter` | `risk.assessment.completed`, `account.funds-reserved`, `account.funds-reservation-failed`, `account.funds-captured`, `account.funds-released`, `ledger.payment-posted`, `ledger.payment-posting-failed`, `ledger.refund-posted`, `ledger.refund-posting-failed`, `account.refund-credited` |
 | `RiskPaymentEventRouter` | chỉ `payment.created` |
-| `AccountLedgerWorkflowEventRouter` | `account.reserve.requested`, `account.capture.requested`, `account.release.requested`, `ledger.post-payment.requested`, `refund.requested`, `account.refund-credit.requested` |
+| `AccountLedgerWorkflowEventRouter` (`mvp`) | `account.reserve.requested`, `account.capture.requested`, `account.release.requested`, `ledger.post-payment.requested`, `refund.requested`, `account.refund-credit.requested` |
+| `AccountWorkflowEventRouter` (`full`) | `account.reserve.requested`, `account.capture.requested`, `account.release.requested`, `account.refund-credit.requested` |
+| `LedgerWorkflowEventRouter` (`full`) | `ledger.post-payment.requested`, `refund.requested` |
 | `NotificationOutcomeEventRouter` | `payment.succeeded`, `payment.failed`, `refund.succeeded`, `refund.failed` |
+
+Hai router tách ở profile `full` là **đúng bằng** router gộp cắt làm đôi theo bounded context: 4 case account + 2 case ledger = 6 case của `AccountLedgerWorkflowEventRouter`. Không có event type nào bị thêm hay mất khi tách — đó là điều ADR-023 hứa và đây là bằng chứng kiểm tra được.
+
+`reporting-service` không có router theo pattern này. `ProjectionEventParser` parse envelope, còn việc "event type nào thì làm gì" nằm trong `switch` của `JdbcProjectionStore.project(...)`: `payment.created`, `payment.succeeded`, `payment.failed`, `refund.succeeded`, và `default -> { }` cho mọi loại khác. Khác biệt quan trọng: event không thuộc mình **vẫn được ghi vào `reporting.event_log`** rồi mới bị bỏ qua ở bước project, vì event log là nguồn để rebuild projection sau này.
 
 ### 11.4. Handler: inbox marker + business change trong một transaction
 
@@ -709,13 +771,20 @@ Consumer name trong payment-service:
 
 Ở các service khác, `consumer_name` được đặt **theo từng handler**, không theo group:
 
-| Service | `consumer_name` |
-| --- | --- |
-| risk-service | `risk-payment-created-v1` |
-| notification-service | `notification-outcome-v1` |
-| account-ledger-service | `account-reserve-funds-v1`, `account-capture-funds-v1`, `account-release-funds-v1`, `account-refund-credit-v1`, `ledger-post-payment-v1`, `ledger-refund-requested-v1` |
+| Service | Profile | `consumer_name` |
+| --- | --- | --- |
+| risk-service | cả hai | `risk-payment-created-v1` |
+| notification-service | cả hai | `notification-outcome-v1` |
+| account-ledger-service | `mvp` | `account-reserve-funds-v1`, `account-capture-funds-v1`, `account-release-funds-v1`, `account-refund-credit-v1`, `ledger-post-payment-v1`, `ledger-refund-requested-v1` |
+| account-service | `full` | `account-reserve-funds-v1`, `account-capture-funds-v1`, `account-release-funds-v1`, `account-refund-credit-v1` |
+| ledger-service | `full` | `ledger-post-payment-v1`, `ledger-refund-requested-v1` |
+| reporting-service | `full` | **không có** — dùng `reporting.event_log` khóa theo `event_id`, xem mục 11.6 |
 
-Account/Ledger chia nhỏ tới mức handler vì đây là một deployable chứa **hai bounded context**: Account và Ledger có thể cùng nhìn thấy một event, và mỗi bên phải chống trùng độc lập với bên kia.
+Account/Ledger chia nhỏ tới mức handler vì ở bản gộp `mvp`, đây là một deployable chứa **hai bounded context**: Account và Ledger có thể cùng nhìn thấy một event, và mỗi bên phải chống trùng độc lập với bên kia.
+
+Chi tiết đáng chú ý khi tách ở profile `full`: **`consumer_name` giữ nguyên y hệt**, chỉ được chia về hai deployable theo đúng đường ranh bounded context. Đây không phải trùng hợp — nó là hệ quả của việc chia nhỏ tới mức handler ngay từ đầu. Nếu ngày xưa đặt `consumer_name = account-ledger-workflow-v1` cho cả sáu handler, thì lúc tách sẽ phải đổi tên consumer, và đổi tên consumer nghĩa là **mọi marker chống trùng cũ trở nên vô nghĩa** — event đã xử lý sẽ bị xử lý lại một lần nữa dưới tên mới.
+
+Lưu ý về dữ liệu khi chuyển profile: bảng `processed_events` nằm trong database riêng của từng service (database-per-service, ADR-023) — `payflow_account_ledger` ở `mvp`, còn `payflow_account` và `payflow_ledger` ở `full`. Chuyển từ `mvp` sang `full` **không** mang theo inbox marker cũ, nên hai topology không dùng chung lịch sử chống trùng. Đây là lý do không được vừa chạy `mvp` vừa chạy `full` trên cùng một cluster Kafka: `account-ledger-workflow-v1` và `account-workflow-v1` là hai group khác nhau, cả hai đều nhận cùng một `account.reserve.requested`, và mỗi bên giữ tiền một lần trong database của riêng mình. Inbox không cứu được, vì chúng không nhìn thấy marker của nhau.
 
 ### 11.5. Hai loại duplicate
 
@@ -725,9 +794,11 @@ Kết quả xử lý là enum `EventProcessingResult` — và **enum này không
 | --- | --- | --- |
 | `PROCESSED` | Event mới, đã apply | tất cả |
 | `DUPLICATE` | **Transport duplicate** — cùng `eventId`, Kafka giao lại | tất cả |
-| `BUSINESS_DUPLICATE` | **Business duplicate** — `eventId` khác nhưng sự thật nghiệp vụ đã có (ví dụ: đã có risk assessment cho `paymentId` này, hoặc đã có notification cho business reference này) | risk, account-ledger, notification — **không có ở payment-service** |
+| `BUSINESS_DUPLICATE` | **Business duplicate** — `eventId` khác nhưng sự thật nghiệp vụ đã có (ví dụ: đã có risk assessment cho `paymentId` này, hoặc đã có notification cho business reference này) | risk, notification, account-ledger (`mvp`), account + ledger (`full`) — **không có ở payment-service và reporting-service** |
 
 Payment Service chỉ có `PROCESSED` và `DUPLICATE`, vì nó là orchestrator: nó không "nhận một sự thật nghiệp vụ mới" mà chỉ chuyển trạng thái Saga. Việc chống áp dụng hai lần đã nằm trong chính state machine của Saga (một bước đã qua thì không nhận lại kết quả của bước đó), nên không cần thêm một hạng mục duplicate riêng.
+
+`reporting-service` không dùng enum này chút nào — `appendAndProject(...)` trả về `boolean`: `true` là đã project, `false` là đã thấy `event_id` này rồi. Nó cũng không có khái niệm business duplicate, vì projection là phép chiếu thuần từ event log chứ không phải một sự thật nghiệp vụ mới.
 
 Phân biệt hai loại này quan trọng: `DUPLICATE` là chuyện bình thường của Kafka. `BUSINESS_DUPLICATE` nghĩa là có ai đó republish một sự thật nghiệp vụ với eventId mới — thường là do `RecoverOverdueSagasHandler` phát lại command (xem mục 13) — vẫn phải chặn, nhưng đáng để cảnh giác nếu tăng bất thường.
 
@@ -744,6 +815,38 @@ assertThat(handler.handle(factory.paymentSucceeded(republishedBusinessFact)))
 // vẫn chỉ đúng 1 notification
 assertThat(count("where business_reference_id = ?", event.data().paymentId())).isEqualTo(1);
 ```
+
+### 11.6. `reporting-service`: projection thay vì inbox
+
+`reporting-service` (profile `full`) là consumer duy nhất không theo mô hình inbox + outbox. Nó dựng read-model để phục vụ API báo cáo, nên chống trùng nằm ngay trong chính bảng event log.
+
+[`JdbcProjectionStore.appendAndProject(...)`](../../services/reporting-service/src/main/java/com/payflow/reporting/infrastructure/persistence/JdbcProjectionStore.java):
+
+```java
+int inserted = jdbc.sql("""
+   insert into reporting.event_log(event_id, event_type, event_version, aggregate_id,
+                                   occurred_at, payload, received_at)
+   values(:id, :type, :version, :aggregate, :occurred, cast(:payload as jsonb), clock_timestamp())
+   on conflict(event_id) do nothing
+   """)...update();
+if (inserted == 0) return false;    // <- transport duplicate, không project lần hai
+project(activeGeneration(), event);
+return true;
+```
+
+So sánh với consumer nghiệp vụ:
+
+| | Consumer nghiệp vụ (payment, account, ledger, risk, notification) | reporting-service |
+| --- | --- | --- |
+| Bảng chống trùng | `processed_events`, khóa `(event_id, consumer_name)` | `reporting.event_log`, khóa `event_id` |
+| Vì sao đủ | Nhiều consumer khác nhau cùng xử lý một event → cần `consumer_name` | Chỉ một consumer duy nhất trong service này → `event_id` là đủ |
+| Sau khi ghi | business change + append outbox | apply vào `payment_projection` của generation đang active |
+| Produce event | có | **không** |
+| Lưu payload gốc | không (chỉ marker) | **có** — cột `payload` jsonb, để rebuild |
+
+Điểm thiết kế đáng chú ý: vì `event_log` giữ nguyên payload, projection có thể **dựng lại từ đầu** mà không cần đọc lại Kafka (Kafka có retention giới hạn, mục 4). `rebuild(...)` tạo một `generation_id` mới, replay toàn bộ event log theo `order by occurred_at, event_id`, rồi so `md5` fingerprint với generation đang active. Nếu khác → `REJECTED` và throw, không đổi generation. Nếu giống → chuyển active sang generation mới và ghi `audit_records`. Nói cách khác rebuild là một thao tác **có kiểm chứng**, không phải "xóa và tính lại rồi hy vọng".
+
+Đánh đổi phải biết: listener của reporting `ack.acknowledge()` **ngay sau khi `handler.handle(...)` trả về**, và toàn bộ ghi DB nằm trong `@Transactional` của `appendAndProject`. Nếu transaction lỗi thì exception bay lên listener, không ack, Kafka giao lại — đúng at-least-once. Nhưng khác consumer nghiệp vụ ở chỗ: reporting **không** có bước "outbox mới", nên không có chuỗi nhân quả nào phụ thuộc vào nó. Projection trễ hoặc lệch không làm hỏng tiền, chỉ làm sai báo cáo — và luôn sửa được bằng rebuild.
 
 ## 12. Khi consumer xử lý không được: retry và dead-letter
 
@@ -776,12 +879,17 @@ Giữ nguyên partition khi sang DLT là để khi replay, các message của c�
 
 Cấu hình theo service:
 
-| Service | Backoff | Max retries |
-| --- | --- | --- |
-| payment-service | `payflow.workflow-consumer.retry-backoff` (default 1s) | `payflow.workflow-consumer.max-retries` (default 3) |
-| risk-service | `FixedBackOff(1_000L, 3L)` hardcoded | 3 |
-| account-ledger-service | `FixedBackOff(1_000L, 3L)` hardcoded | 3 |
-| notification-service | `FixedBackOff(1_000L, 3L)` hardcoded | 3 |
+| Service | Profile | Backoff | Max retries |
+| --- | --- | --- | --- |
+| payment-service | cả hai | `payflow.workflow-consumer.retry-backoff` (default 1s) | `payflow.workflow-consumer.max-retries` (default 3) |
+| risk-service | cả hai | `FixedBackOff(1_000L, 3L)` hardcoded | 3 |
+| notification-service | cả hai | `FixedBackOff(1_000L, 3L)` hardcoded | 3 |
+| account-ledger-service | `mvp` | `FixedBackOff(1_000L, 3L)` hardcoded | 3 |
+| account-service | `full` | `FixedBackOff(1_000L, 3L)` hardcoded | 3 |
+| ledger-service | `full` | `FixedBackOff(1_000L, 3L)` hardcoded | 3 |
+| reporting-service | `full` | `FixedBackOff(1000, 3)` hardcoded | 3 |
+
+Chỉ payment-service cấu hình được qua property; các service còn lại hardcode cùng một giá trị 1s × 3 lần. Đây là chủ ý: payment-service là orchestrator nên cần chỉnh được khi vận hành, còn các consumer nghiệp vụ khác chỉ cần một mặc định nhất quán, chưa có nhu cầu tách riêng.
 
 Có message trong `payflow.dead-letter.v1` nghĩa là **cần con người xem**. Quy trình xử lý ở [`runbooks/payment-workflow-dlt.md`](../runbooks/payment-workflow-dlt.md).
 
@@ -813,31 +921,33 @@ Command phát lại là một dòng outbox **mới** với `eventId` mới. Nên
 
 ## 14. Trace một payment qua Kafka
 
-Với `paymentId = 3b7e...`, đây là toàn bộ traffic Kafka, theo thứ tự:
+Với `paymentId = 3b7e...`, đây là toàn bộ traffic Kafka, theo thứ tự. Cột "Producer" và "Consumer group" ghi cả hai topology: bên trái dấu `/` là `mvp`, bên phải là `full` (mục 6.1).
 
-| # | Topic | Key | eventType | Producer | Consumer group nhận và xử lý |
+| # | Topic | Key | eventType | Producer | Consumer group xử lý |
 | --- | --- | --- | --- | --- | --- |
 | 1 | `payment.events.v1` | `3b7e...` | `payment.created` | payment | `risk-payment-created-v1` |
 | 2 | `risk.events.v1` | `3b7e...` | `risk.assessment.completed` | risk | `payment-saga-orchestrator-v1` |
-| 3 | `payment.events.v1` | `3b7e...` | `account.reserve.requested` | payment | `account-ledger-workflow-v1` |
-| 4 | `account.events.v1` | `3b7e...` | `account.funds-reserved` | account-ledger | `payment-saga-orchestrator-v1` |
-| 5 | `payment.events.v1` | `3b7e...` | `ledger.post-payment.requested` | payment | `account-ledger-workflow-v1` |
-| 6 | `ledger.events.v1` | `3b7e...` | `ledger.payment-posted` | account-ledger | `payment-saga-orchestrator-v1` |
-| 7 | `payment.events.v1` | `3b7e...` | `account.capture.requested` | payment | `account-ledger-workflow-v1` |
-| 8 | `account.events.v1` | `3b7e...` | `account.funds-captured` | account-ledger | `payment-saga-orchestrator-v1` |
+| 3 | `payment.events.v1` | `3b7e...` | `account.reserve.requested` | payment | `account-ledger-workflow-v1` / `account-workflow-v1` |
+| 4 | `account.events.v1` | `3b7e...` | `account.funds-reserved` | account-ledger / account | `payment-saga-orchestrator-v1` |
+| 5 | `payment.events.v1` | `3b7e...` | `ledger.post-payment.requested` | payment | `account-ledger-workflow-v1` / `ledger-workflow-v1` |
+| 6 | `ledger.events.v1` | `3b7e...` | `ledger.payment-posted` | account-ledger / ledger | `payment-saga-orchestrator-v1` |
+| 7 | `payment.events.v1` | `3b7e...` | `account.capture.requested` | payment | `account-ledger-workflow-v1` / `account-workflow-v1` |
+| 8 | `account.events.v1` | `3b7e...` | `account.funds-captured` | account-ledger / account | `payment-saga-orchestrator-v1` |
 | 9 | `payment.events.v1` | `3b7e...` | `payment.succeeded` | payment | `notification-outcome-v1` |
 
-Chín message Kafka cho một payment thành công. Cùng key nên **cả 9 đều cùng partition trên topic của chúng**.
+Chín message Kafka cho một payment thành công — **con số này giống nhau ở cả hai topology**. Tách service không thêm một message Kafka nào; nó chỉ đổi việc deployable nào đang cầm partition. Cùng key nên cả 9 đều cùng partition trên topic của chúng.
 
 Chuỗi `causationId` nối chúng lại: message #2 có `causationId` = `eventId` của #1, #3 trỏ về #2, và cứ thế. `correlationId` thì **giống nhau ở cả 9** vì cùng một HTTP request sinh ra.
 
 Chú ý các group nhận nhưng bỏ qua:
 
 - `risk-payment-created-v1` nhận cả #3, #5, #7, #9 (cùng topic) nhưng router trả `IGNORED`.
-- `account-ledger-workflow-v1` nhận #1, #9 nhưng `IGNORED`.
+- `account-ledger-workflow-v1` (`mvp`) nhận #1, #9 nhưng `IGNORED`.
+- Ở `full`: `account-workflow-v1` nhận #1, #5, #9 nhưng `IGNORED`; `ledger-workflow-v1` nhận #1, #3, #7, #9 nhưng `IGNORED`. Tách bounded context làm tăng lượng message bị bỏ qua — mỗi bên giờ phải bỏ qua cả phần việc của bên kia.
 - `notification-outcome-v1` nhận #1, #3, #5, #7 nhưng `IGNORED`.
+- `reporting-projection-v1` (`full`) nhận cả 5 message trên `payment.events.v1` (#1, #3, #5, #7, #9) và **ghi hết vào `reporting.event_log`**, nhưng chỉ #1 và #9 làm thay đổi `payment_projection`. Đây là khác biệt so với các group trên: chúng bỏ qua hẳn, còn reporting vẫn lưu lại để rebuild được (mục 11.6).
 
-Traffic bị "lãng phí" này là cái giá của việc gom event theo bounded context thay vì một topic cho mỗi event type. Đổi lại: ít topic hơn, ownership rõ ràng, và thêm consumer mới không cần producer thay đổi gì.
+Traffic bị "lãng phí" này là cái giá của việc gom event theo bounded context thay vì một topic cho mỗi event type. Đổi lại: ít topic hơn, ownership rõ ràng, và thêm consumer mới không cần producer thay đổi gì — chính điều đó cho phép ADR-023 tách Account/Ledger và thêm Reporting mà không đụng một dòng nào ở phía payment-service.
 
 ## 15. Kafka trong Docker Compose
 
@@ -867,6 +977,16 @@ Khai báo cả hai listener giải quyết cả hai hướng.
 **Port bind `127.0.0.1:`** — chỉ localhost, không mở ra mạng ngoài.
 
 Mọi service đều `depends_on: kafka-init: condition: service_completed_successfully`, nên không listener nào start trước khi topic tồn tại.
+
+**Kafka nằm ở cả ba profile** (`profiles: ["infra", "mvp", "full"]`), giống `postgres`. Nghĩa là hạ tầng dùng chung, chỉ tầng service là đổi theo topology:
+
+```bash
+docker compose --profile infra up -d          # chỉ postgres + kafka + kafka-init
+docker compose --profile mvp up -d --build    # + account-ledger-service gộp
+docker compose --profile full up -d --build   # + account/ledger tách + reporting
+```
+
+Vì hạ tầng dùng chung, chuyển profile **không** xóa topic hay offset. Consumer group của profile cũ vẫn còn nguyên trong Kafka với offset cuối cùng của nó — chỉ là không còn member nào. Đó là lý do `kafka-consumer-groups.sh --list` vẫn thấy `account-ledger-workflow-v1` sau khi bạn đã chuyển sang `full`. Muốn dọn thì `--delete --group <tên>`, nhưng chỉ làm khi chắc chắn sẽ không quay lại profile đó, vì xóa group là xóa offset và lần chạy sau sẽ đọc lại từ `earliest`.
 
 ## 16. Debug Kafka
 
@@ -917,6 +1037,22 @@ docker exec payflow-kafka /opt/kafka/bin/kafka-console-consumer.sh \
 | `payflow.payment.workflow.consumer{outcome=duplicate}` | Số dương nhỏ là bình thường (đúng như thiết kế). Tăng vọt → nghi vấn rebalance liên tục hoặc consumer crash lặp. |
 | `payflow.payment.workflow.consumer{outcome=ignored}` | Cao là bình thường: mỗi group nhận cả event không thuộc mình. |
 
+Mỗi consumer service có counter riêng, cùng tag `outcome` (`processed` / `duplicate` / `business_duplicate` / `ignored` / `failed`):
+
+| Service | Tên metric |
+| --- | --- |
+| payment-service | `payflow.payment.workflow.consumer` |
+| risk-service | `payflow.risk.payment.consumer` |
+| notification-service | `payflow.notification.consumer` |
+| account-ledger-service (`mvp`) | `payflow.account_ledger.workflow.consumer` |
+| account-service (`full`) | `payflow.account.workflow.consumer` |
+| ledger-service (`full`) | `payflow.ledger.workflow.consumer` |
+| reporting-service (`full`) | **không có** — listener không phát metric nào |
+
+Đổi tên metric khi tách là một điểm cần biết khi vận hành: dashboard/alert viết cho `payflow.account_ledger.workflow.consumer` sẽ **im lặng** ở profile `full` chứ không báo lỗi. Không có metric không có nghĩa là không có traffic.
+
+Với `reporting-service`, vì không có counter, cách quan sát duy nhất là LAG của group `reporting-projection-v1` và số dòng trong `reporting.event_log`.
+
 ### 16.3. Truy vấn database
 
 ```sql
@@ -936,6 +1072,24 @@ select consumer_name, event_type, processed_at
 
 Bảng `processed_events` chính là **audit log của Kafka consumer**. Nếu bạn mong đợi một event đã đến mà không có dòng nào ở đây, event chưa bao giờ được xử lý thành công.
 
+Lưu ý mỗi service có database riêng, nên phải query đúng database của consumer đang nghi ngờ: `payflow_payment`, `payflow_risk`, `payflow_notification`, và tùy profile là `payflow_account_ledger` (`mvp`) hay `payflow_account` + `payflow_ledger` (`full`). Không có bảng `processed_events` dùng chung.
+
+`reporting-service` không có `processed_events`. Kiểm tra nó bằng event log và projection:
+
+```sql
+-- Reporting đã nhận event nào cho một payment
+select event_id, event_type, occurred_at, received_at
+  from reporting.event_log where aggregate_id = '3b7e...' order by occurred_at;
+
+-- Trạng thái trong projection đang active
+select p.status, p.amount, p.refunded_amount, p.updated_at
+  from reporting.payment_projection p
+  join reporting.active_generation a on a.generation_id = p.generation_id
+ where p.payment_id = '3b7e...';
+```
+
+Có dòng trong `event_log` nhưng projection sai → lỗi ở bước `project(...)`, sửa bằng rebuild. Không có dòng nào trong `event_log` → event chưa bao giờ tới consumer, quay lại các bước ở mục 16.4.
+
 `last_error` chỉ chứa tên class exception và message bị cắt còn 500 ký tự — không có payload, không có stack trace, không có cause chain. Ràng buộc bảo mật, xem `PublishOutboxHandler.safeError(...)`.
 
 ### 16.4. Thứ tự kiểm tra khi "event không đến"
@@ -944,9 +1098,11 @@ Bảng `processed_events` chính là **audit log của Kafka consumer**. Nếu b
 2. Event có ra khỏi producer không? → `select status from outbox_events where aggregate_id = ...`
 3. Message có trên topic không? → `kafka-console-consumer` từ đầu, tìm `paymentId`
 4. Consumer group có đang chạy không? → `kafka-consumer-groups.sh --describe`, xem có member và LAG
-5. Consumer có xử lý không? → `select * from processed_events where aggregate_id = ...`
+5. Consumer có xử lý không? → `select * from processed_events where aggregate_id = ...` trong **database của chính consumer đó** (với reporting thì là `reporting.event_log`)
 6. Có vào DLT không? → đọc `payflow.dead-letter.v1`
 7. Router có bỏ qua không? → xem metric `outcome=ignored` và log debug
+
+Thêm một bước 0 cho Phase 2: **đang chạy profile nào?** → `docker compose ps`. Nếu bạn đang tìm `account-ledger-service` mà cluster đang chạy profile `full`, service đó không tồn tại và group `account-ledger-workflow-v1` sẽ không có member nào — triệu chứng giống hệt "consumer chết", nhưng nguyên nhân hoàn toàn khác.
 
 ## 17. Những kết luận sai thường gặp
 
@@ -961,6 +1117,12 @@ Bảng `processed_events` chính là **audit log của Kafka consumer**. Nếu b
 **"Kafka là nơi lưu dữ liệu payment."** Không. Kafka là đường truyền, có retention giới hạn. Nguồn sự thật là database từng service.
 
 **"`payflow.notification.commands.v1` đang được dùng."** Không. Topic đã có tên trong `PayFlowTopics` nhưng luồng hiện tại không produce/consume nó. Notification Service nghe trực tiếp `payment.events.v1` và `refund.events.v1`. Tương tự `payflow.settlement.events.v1` — chưa có settlement-service.
+
+**"Tách `account-ledger-service` thành hai service thì contract Kafka phải đổi."** Không. Đây là điểm chính của ADR-023 và code chứng minh: topic, aggregate key, event type, `consumer_name` đều giữ nguyên; chỉ `group.id` và tên metric là mới. Payment Saga không biết mình đang nói chuyện với một hay hai deployable.
+
+**"Chạy cả `mvp` lẫn `full` cùng lúc cho chắc."** Sai và nguy hiểm. Hai bên là hai consumer group độc lập trên cùng topic, mỗi bên nhận đủ mọi command và ghi vào database riêng của mình. Kết quả là **giữ tiền hai lần, ghi sổ hai lần**, và inbox không chặn được vì marker của hai bên nằm ở hai database khác nhau (mục 11.4). Chọn đúng một profile.
+
+**"`reporting-service` chậm thì payment bị ảnh hưởng."** Không. Nó là consumer thuần, không produce event nào và không nằm trong Saga. LAG của `reporting-projection-v1` tăng chỉ làm báo cáo trễ. Ngược lại cũng đúng: projection sai **không** sửa được bằng cách chạy lại payment — sửa bằng rebuild từ `reporting.event_log` (mục 11.6).
 
 **"Không ack thì cứ để nó retry, an toàn hơn."** Sai và nguy hiểm. Không ack một message không xử lý được sẽ chặn **cả partition**, tức là chặn mọi payment cùng partition đó. Đây là lý do phải có DLT và `setCommitRecovered(true)`.
 

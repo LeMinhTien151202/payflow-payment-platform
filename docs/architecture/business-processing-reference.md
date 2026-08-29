@@ -457,8 +457,11 @@ không chứa credential thật.
 | `PAYFLOW_SAGA_RECOVERY_ENABLED` | `true` | Bật scheduler xử lý Saga quá hạn. |
 | `PAYFLOW_SAGA_RECOVERY_POLL_INTERVAL` | `1s` | Chu kỳ quét deadline. |
 | `PAYFLOW_SAGA_STEP_TIMEOUT/MAX_RETRIES/BATCH_SIZE` | `30s` / `3` / `50` | Timeout, retry và giới hạn mỗi vòng recovery. |
-| `PAYFLOW_PAYMENT_CONSUMER_ENABLED` | `true` | Account-Ledger consume payment commands. |
-| `PAYFLOW_REFUND_CONSUMER_ENABLED` | `true` | Account-Ledger consume refund commands. |
+| `PAYFLOW_PAYMENT_CONSUMER_ENABLED` | `true` | Account-Ledger (profile `mvp`) consume payment commands. |
+| `PAYFLOW_REFUND_CONSUMER_ENABLED` | `true` | Account-Ledger (profile `mvp`) consume refund commands. |
+| `PAYFLOW_ACCOUNT_CONSUMER_ENABLED` | `true` | Account Service (profile `full`) consume payment topic; account không nghe refund topic. |
+| `PAYFLOW_LEDGER_CONSUMER_ENABLED` | `true` | Ledger Service (profile `full`) consume cả payment và refund topic. |
+| `PAYFLOW_MERCHANT_CATALOG_MODE` | `remote` | `remote` = Payment gọi REST nội bộ sang Merchant Service; `local` = đọc bảng snapshot `merchant` trong DB Payment. Không có fallback từ `remote` sang `local`. |
 | `PAYFLOW_RISK_CONSUMER_ENABLED` | `true` | Risk consume `payment.created`. |
 | `PAYFLOW_RISK_VELOCITY_RETENTION` | `2h` | Thời gian giữ signal velocity Redis. |
 | `PAYFLOW_NOTIFICATION_CONSUMER_ENABLED` | `true` | Consume payment/refund outcomes. |
@@ -475,8 +478,8 @@ Các switch consumer/publisher giúp cô lập service khi debug. Tắt một sw
 lệ: workflow sẽ dừng ở pending outbox hoặc một trạng thái trung gian cho tới khi thành phần được bật
 lại.
 
-Risk, Account-Ledger và Notification listener hiện dùng retry cố định `1s`, 3 lần trước shared DLT
-trong code; chỉ Payment workflow đã expose backoff/max retry qua environment. Nếu cần điều chỉnh đồng
+Risk, Account-Ledger, Account, Ledger, Reporting và Notification listener hiện dùng retry cố định `1s`,
+3 lần trước shared DLT trong code; chỉ Payment workflow đã expose backoff/max retry qua environment. Nếu cần điều chỉnh đồng
 bộ ở nhiều môi trường, nên chuẩn hóa thành typed configuration ở một change riêng kèm test.
 
 ## 13. Bảng quyết định phương pháp tổng hợp

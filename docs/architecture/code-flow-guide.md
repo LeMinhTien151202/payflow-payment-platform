@@ -58,7 +58,11 @@ payflow-payment-platform/
 ├── services/
 │   ├── api-gateway/              # WebFlux edge, không chứa business state
 │   ├── payment-service/          # REST, Payment/Refund aggregate, Saga orchestrator
-│   ├── account-ledger-service/   # Account và Ledger trong một deployable MVP
+│   ├── account-ledger-service/   # Account + Ledger gộp, chạy ở Docker profile `mvp`
+│   ├── account-service/          # Account tách riêng, chạy ở Docker profile `full`
+│   ├── ledger-service/           # Ledger tách riêng, chạy ở Docker profile `full`
+│   ├── merchant-service/         # hồ sơ merchant, API key, webhook config (REST, không Kafka)
+│   ├── reporting-service/        # projection đọc từ event, chạy ở Docker profile `full`
 │   ├── risk-service/             # rule engine + Redis velocity + assessment
 │   └── notification-service/     # outcome projection + email mock worker
 ├── infrastructure/               # Docker, Keycloak, PostgreSQL init, smoke script
@@ -68,6 +72,10 @@ payflow-payment-platform/
 
 Root [`pom.xml`](../../pom.xml) chỉ quản lý module, version/dependency và test profile. Business code
 không nằm ở root hoặc shared library.
+
+`account-ledger-service` và cặp `account-service`/`ledger-service` là **hai cách đóng gói cùng một
+nghiệp vụ**, chọn bằng Docker profile (`mvp` hoặc `full`) chứ không chạy cùng lúc. Cả ba module đều
+được build; nếu sửa logic account/ledger thì phải sửa ở cả bản gộp lẫn bản tách.
 
 `event-contracts` chỉ chứa contract ổn định như
 [`EventEnvelope`](../../libs/event-contracts/src/main/java/com/payflow/events/EventEnvelope.java),
@@ -110,7 +118,11 @@ Mỗi deployable có một `*Application` với `@SpringBootApplication`, làm c
 
 - [`ApiGatewayApplication`](../../services/api-gateway/src/main/java/com/payflow/gateway/ApiGatewayApplication.java)
 - [`PaymentServiceApplication`](../../services/payment-service/src/main/java/com/payflow/payment/PaymentServiceApplication.java)
-- [`AccountLedgerServiceApplication`](../../services/account-ledger-service/src/main/java/com/payflow/accountledger/AccountLedgerServiceApplication.java)
+- [`AccountLedgerServiceApplication`](../../services/account-ledger-service/src/main/java/com/payflow/accountledger/AccountLedgerServiceApplication.java) (profile `mvp`)
+- [`AccountServiceApplication`](../../services/account-service/src/main/java/com/payflow/account/AccountServiceApplication.java) (profile `full`)
+- [`LedgerServiceApplication`](../../services/ledger-service/src/main/java/com/payflow/ledger/LedgerServiceApplication.java) (profile `full`)
+- [`MerchantServiceApplication`](../../services/merchant-service/src/main/java/com/payflow/merchant/MerchantServiceApplication.java)
+- [`ReportingServiceApplication`](../../services/reporting-service/src/main/java/com/payflow/reporting/ReportingServiceApplication.java) (profile `full`)
 - [`RiskServiceApplication`](../../services/risk-service/src/main/java/com/payflow/risk/RiskServiceApplication.java)
 - [`NotificationServiceApplication`](../../services/notification-service/src/main/java/com/payflow/notification/NotificationServiceApplication.java)
 
@@ -121,7 +133,11 @@ wire tường minh:
 | --- | --- | --- |
 | Payment | [`SagaRecoveryConfig`](../../services/payment-service/src/main/java/com/payflow/payment/infrastructure/recovery/SagaRecoveryConfig.java) | Risk/reservation/finalization/refund/recovery policies và typed Saga settings |
 | Payment | [`OutboxMessagingConfig`](../../services/payment-service/src/main/java/com/payflow/payment/infrastructure/messaging/OutboxMessagingConfig.java) | Outbox policy, publisher owner, topic declaration, scheduling |
-| Account-Ledger | [`RuntimeConfig`](../../services/account-ledger-service/src/main/java/com/payflow/accountledger/infrastructure/config/RuntimeConfig.java) | Reserve/capture/release/refund policies và journal factories |
+| Account-Ledger (`mvp`) | [`RuntimeConfig`](../../services/account-ledger-service/src/main/java/com/payflow/accountledger/infrastructure/config/RuntimeConfig.java) | Reserve/capture/release/refund policies và journal factories |
+| Account (`full`) | [`RuntimeConfig`](../../services/account-service/src/main/java/com/payflow/account/infrastructure/config/RuntimeConfig.java) | `ReserveFundsPolicy`, `CaptureFundsPolicy`, `ReleaseFundsPolicy`, `RefundCreditPolicy`, UTC clock |
+| Ledger (`full`) | [`RuntimeConfig`](../../services/ledger-service/src/main/java/com/payflow/ledger/infrastructure/config/RuntimeConfig.java) | `PaymentJournalFactory`, `RefundJournalFactory`, UTC clock |
+| Merchant | [`RuntimeConfig`](../../services/merchant-service/src/main/java/com/payflow/merchant/infrastructure/config/RuntimeConfig.java) | UTC clock (phần còn lại là bean có annotation) |
+| Reporting (`full`) | [`RuntimeConfig`](../../services/reporting-service/src/main/java/com/payflow/reporting/infrastructure/config/RuntimeConfig.java) | UTC clock; projection logic nằm trong `JdbcProjectionStore` |
 | Risk | [`RuntimeConfig`](../../services/risk-service/src/main/java/com/payflow/risk/infrastructure/config/RuntimeConfig.java) | `RiskRuleEngine`, event factory, UTC clock |
 | Notification | [`RuntimeConfig`](../../services/notification-service/src/main/java/com/payflow/notification/infrastructure/config/RuntimeConfig.java) | Outcome factory, delivery policy, in-memory email adapter |
 
@@ -143,9 +159,14 @@ HTTP request
 1. [`CorrelationIdWebFilter`](../../services/api-gateway/src/main/java/com/payflow/gateway/web/CorrelationIdWebFilter.java)
    nhận hoặc tạo `X-Correlation-Id`, đưa vào request chuyển tiếp và response.
 2. [`SecurityConfig`](../../services/api-gateway/src/main/java/com/payflow/gateway/config/SecurityConfig.java)
-   validate JWT; GET cần `payment:read`, POST cần `payment:write`, route khác deny.
+   validate JWT; với payment thì GET cần `payment:read`, POST cần `payment:write`. Mỗi nhóm path khác
+   có scope riêng (`operations:write`, `merchant:*`, `reporting:read`/`reporting:rebuild`,
+   `webhook:retry`) và quy tắc cuối là `anyExchange().denyAll()`.
 3. [`GatewayRoutesConfig`](../../services/api-gateway/src/main/java/com/payflow/gateway/config/GatewayRoutesConfig.java)
-   chỉ route `/api/v1/payments/**`; `/internal/v1/**` không đi qua public edge.
+   route `/api/v1/payments/**` và `/api/v1/operations/payments/**` sang payment-service,
+   `/api/v1/merchants/**` sang merchant-service, `/api/v1/operations/webhooks/**` sang
+   notification-service, `/api/v1/reports/**` + `/api/v1/operations/reporting/**` sang
+   reporting-service. `/internal/v1/**` không đi qua public edge.
 
 Payment Service lại validate JWT trong
 [`SecurityConfig`](../../services/payment-service/src/main/java/com/payflow/payment/infrastructure/security/SecurityConfig.java).
@@ -178,9 +199,9 @@ CreatePaymentHandler.handle(command)
  ├─ IdempotencyScope.createPayment(merchantId)
  ├─ RequestFingerprint.of(command)
  ├─ IdempotencyStore.find(scope, key)            # fast replay, ngoài write transaction
+ ├─ MerchantCatalog.findById()                   # Phase 2: cũng nằm NGOÀI write transaction
  └─ TransactionTemplate.execute(...)
-     └─ create(command, scope, fingerprint)
-        ├─ MerchantCatalog.findById()
+     └─ create(command, scope, fingerprint, merchant)
         ├─ new PaymentIntake(...)
         ├─ Payment.create(merchant, intake)
         │   └─ PaymentFeeSnapshot.calculate(...)
@@ -221,11 +242,16 @@ Handler dùng `TransactionTemplate`, không đặt `@Transactional` trên `handl
 constraint race nó phải ra khỏi transaction đã rollback rồi mới đọc response của winner. Đây là lựa
 chọn có chủ đích, không phải thiếu annotation.
 
+Từ Phase 2, `MerchantCatalog.findById()` được gọi **trước** `transactions.execute(...)`, không còn nằm
+trong transaction. Lý do ghi thẳng trong code: ở chế độ `remote` đây là một lời gọi HTTP sang
+merchant-service, và một network call chậm không được giữ connection PostgreSQL hay kéo dài thời gian
+sống của lock.
+
 ### 5.4 Adapter được gọi
 
 | Port | Adapter runtime | Chức năng |
 | --- | --- | --- |
-| `MerchantCatalog` | [`JpaMerchantCatalog`](../../services/payment-service/src/main/java/com/payflow/payment/infrastructure/persistence/JpaMerchantCatalog.java) | Đọc merchant snapshot/fee policy |
+| `MerchantCatalog` | [`JpaMerchantCatalog`](../../services/payment-service/src/main/java/com/payflow/payment/infrastructure/persistence/JpaMerchantCatalog.java) (mode `local`) hoặc [`HttpMerchantCatalog`](../../services/payment-service/src/main/java/com/payflow/payment/infrastructure/merchant/HttpMerchantCatalog.java) (mode `remote`) | Đọc merchant snapshot/fee policy; chọn bằng `payflow.merchant-client.mode` |
 | `IdempotencyStore` | [`JpaIdempotencyStore`](../../services/payment-service/src/main/java/com/payflow/payment/infrastructure/persistence/JpaIdempotencyStore.java) | Replay/record response create payment |
 | `PaymentRepository` | [`JpaPaymentRepository`](../../services/payment-service/src/main/java/com/payflow/payment/infrastructure/persistence/JpaPaymentRepository.java) | Lưu aggregate + status history; translate named constraint |
 | `PaymentSagaStore` | [`JpaPaymentSagaStore`](../../services/payment-service/src/main/java/com/payflow/payment/infrastructure/persistence/JpaPaymentSagaStore.java) | Lưu Saga và version |
@@ -399,13 +425,38 @@ nghe Payment topic và Refund topic. Router đưa command về đúng module:
 - Account: reserve, capture, release, refund credit.
 - Ledger: payment journal, refund reversal journal.
 
-Hai module dùng chung datasource/deployable ở MVP, nhưng không gọi domain object của nhau để hoàn
-thành workflow. Chúng vẫn trao đổi qua versioned event contract, chuẩn bị cho việc tách service sau.
+Hai module dùng chung datasource/deployable ở profile `mvp`, nhưng không gọi domain object của nhau để
+hoàn thành workflow. Chúng vẫn trao đổi qua versioned event contract — đó chính là thứ khiến việc tách
+service ở Phase 2 không phải đổi contract.
 
 Reserve/capture/release lấy account/reservation qua
 [`JpaAccountReservationStore`](../../services/account-ledger-service/src/main/java/com/payflow/accountledger/infrastructure/persistence/JpaAccountReservationStore.java)
 với `PESSIMISTIC_WRITE`. Ledger dùng JDBC store vì việc ghi journal + nhiều entry rõ ràng hơn bằng SQL
 batch và unique business reference.
+
+### 9.4 Bản tách: account-service và ledger-service (profile `full`)
+
+Ở profile `full`, cùng nghiệp vụ đó nằm ở hai deployable với database riêng:
+
+| | account-service | ledger-service |
+| --- | --- | --- |
+| Listener | [`AccountWorkflowKafkaListener`](../../services/account-service/src/main/java/com/payflow/account/infrastructure/messaging/AccountWorkflowKafkaListener.java) | [`LedgerWorkflowKafkaListener`](../../services/ledger-service/src/main/java/com/payflow/ledger/infrastructure/messaging/LedgerWorkflowKafkaListener.java) |
+| Topic nghe | `payflow.payment.events.v1` | `payflow.payment.events.v1` + `payflow.refund.events.v1` |
+| `group.id` | `account-workflow-v1` | `ledger-workflow-v1` |
+| Command xử lý | reserve, capture, release, refund credit | payment journal, refund reversal journal |
+| Database | `payflow_account` | `payflow_ledger` |
+
+Hai chi tiết dễ bỏ sót:
+
+- `account-service` **không** nghe Refund topic. Command `account.refund-credit.requested` do Saga phát
+  trên Payment topic, nên account chỉ cần một listener.
+- `consumer_name` ghi vào `processed_events` **giữ nguyên** như bản gộp. Nhờ vậy inbox không bị coi mọi
+  event cũ là chưa xử lý khi đổi topology — nhưng cũng vì thế mà chạy đồng thời `mvp` và `full` sẽ xử
+  lý cùng một command hai lần ở hai database khác nhau.
+
+`reporting-service` (cũng chỉ có ở `full`) không dùng inbox: nó insert vào `reporting.event_log` với
+`on conflict(event_id) do nothing` rồi mới chiếu vào projection — xem
+[`JdbcProjectionStore`](../../services/reporting-service/src/main/java/com/payflow/reporting/infrastructure/persistence/JdbcProjectionStore.java).
 
 ## 10. Failure, timeout và compensation
 
@@ -591,11 +642,29 @@ Giới hạn hiện tại cần hiểu đúng:
 | `risk.risk_assessments` | Risk assessment | `JdbcRiskAssessmentStore` | Risk `V1` |
 | `risk.processed_events`, `outbox_events` | Risk messaging | JDBC inbox/outbox stores | Risk `V1` |
 | `notification.notifications`, `processed_events` | Notification | JDBC notification/inbox/delivery stores | Notification `V1` |
+| `merchant.merchants`, `members`, `api_keys`, `webhooks`, `audit_records` | Merchant service (nguồn sự thật của merchant) | JPA/JDBC merchant stores | Merchant `V1`–`V3` |
+
+Ba nhóm bảng dưới đây chỉ tồn tại ở profile `full`, trong database riêng của từng service:
+
+| Schema/table | Database | Owner | Migration |
+| --- | --- | --- | --- |
+| `account.accounts`, `balance_reservations`, `refund_credits` + `account_runtime.processed_events`, `outbox_events` | `payflow_account` | account-service | Account `V1` |
+| `ledger.ledger_accounts`, `journals`, `entries`, `payment_postings`, `refund_postings` + `ledger_runtime.processed_events`, `outbox_events` | `payflow_ledger` | ledger-service | Ledger `V1`, `V2` (journal đã post là immutable) |
+| `reporting.event_log`, `payment_projection`, `projection_generations`, `active_generation`, `audit_records` | `payflow_reporting` | reporting-service | Reporting `V1` |
+
+Bảng business giữ nguyên tên schema (`account.*`, `ledger.*`) khi tách; chỉ inbox/outbox đổi schema
+(`account_ledger.*` → `account_runtime.*` / `ledger_runtime.*`) vì mỗi service giờ có outbox riêng.
+Reporting không có bảng `processed_events`: `reporting.event_log` với unique `event_id` đóng luôn vai
+trò chống trùng.
 
 Migration roots:
 
 - [Payment migrations](../../services/payment-service/src/main/resources/db/migration)
-- [Account-Ledger migration](../../services/account-ledger-service/src/main/resources/db/migration/V1__account_ledger_refund_runtime.sql)
+- [Account-Ledger migration](../../services/account-ledger-service/src/main/resources/db/migration/V1__account_ledger_refund_runtime.sql) (profile `mvp`)
+- [Account migration](../../services/account-service/src/main/resources/db/migration/V1__account_runtime.sql) (profile `full`)
+- [Ledger migrations](../../services/ledger-service/src/main/resources/db/migration) (profile `full`)
+- [Merchant migrations](../../services/merchant-service/src/main/resources/db/migration)
+- [Reporting migration](../../services/reporting-service/src/main/resources/db/migration/V1__rebuildable_projection.sql) (profile `full`)
 - [Risk migration](../../services/risk-service/src/main/resources/db/migration/V1__risk_assessment_runtime.sql)
 - [Notification migration](../../services/notification-service/src/main/resources/db/migration/V1__notification_runtime.sql)
 
@@ -675,8 +744,12 @@ Quy trình cho feature mới:
 | Payment Kafka + PostgreSQL behavior | [`PaymentWorkflowConsumerIT`](../../services/payment-service/src/test/java/com/payflow/payment/PaymentWorkflowConsumerIT.java) |
 | Saga mapping/version/deadline persistence | [`PaymentSagaPersistenceIT`](../../services/payment-service/src/test/java/com/payflow/payment/PaymentSagaPersistenceIT.java) |
 | Refund intake/capacity | [`CreateRefundHandlerTest`](../../services/payment-service/src/test/java/com/payflow/payment/application/handler/CreateRefundHandlerTest.java), [`RefundCapacityPersistenceIT`](../../services/payment-service/src/test/java/com/payflow/payment/RefundCapacityPersistenceIT.java) |
-| Account/Ledger payment workflow | [`PaymentWorkflowPersistenceIT`](../../services/account-ledger-service/src/test/java/com/payflow/accountledger/PaymentWorkflowPersistenceIT.java) |
-| Account/Ledger refund workflow | [`RefundWorkflowPersistenceIT`](../../services/account-ledger-service/src/test/java/com/payflow/accountledger/RefundWorkflowPersistenceIT.java) |
+| Account/Ledger payment workflow (`mvp`) | [`PaymentWorkflowPersistenceIT`](../../services/account-ledger-service/src/test/java/com/payflow/accountledger/PaymentWorkflowPersistenceIT.java) |
+| Account/Ledger refund workflow (`mvp`) | [`RefundWorkflowPersistenceIT`](../../services/account-ledger-service/src/test/java/com/payflow/accountledger/RefundWorkflowPersistenceIT.java) |
+| Account tách riêng: lock, reservation, outbox (`full`) | [`AccountPersistenceIT`](../../services/account-service/src/test/java/com/payflow/account/AccountPersistenceIT.java) |
+| Ledger tách riêng: journal đã post là immutable (`full`) | [`ImmutableRefundJournalIT`](../../services/ledger-service/src/test/java/com/payflow/ledger/ImmutableRefundJournalIT.java) |
+| Reporting: dựng lại projection và so fingerprint (`full`) | [`ProjectionRebuildIT`](../../services/reporting-service/src/test/java/com/payflow/reporting/ProjectionRebuildIT.java) |
+| Merchant: policy, member, API key hash, webhook secret | [`MerchantApplicationServiceTest`](../../services/merchant-service/src/test/java/com/payflow/merchant/application/MerchantApplicationServiceTest.java), [`SecretCipherTest`](../../services/merchant-service/src/test/java/com/payflow/merchant/application/SecretCipherTest.java) |
 | Redis + Risk inbox/assessment/outbox | [`RiskWorkflowPersistenceIT`](../../services/risk-service/src/test/java/com/payflow/risk/RiskWorkflowPersistenceIT.java) |
 | Notification inbox + worker lease | [`NotificationWorkflowPersistenceIT`](../../services/notification-service/src/test/java/com/payflow/notification/NotificationWorkflowPersistenceIT.java) |
 
@@ -718,6 +791,8 @@ Nếu mới vào dự án, không đọc 296 class theo alphabet. Đọc theo m�
 8. Account-Ledger router rồi lần lượt reserve → journal → capture.
 9. Saga recovery và compensation.
 10. Refund intake → reversal → credit → finalization.
+11. Chỉ khi đã nắm bản gộp mới đọc `account-service`/`ledger-service`: cùng logic đó nhưng nằm ở hai
+    deployable, và `reporting-service` để thấy một read model được dựng từ chính event stream.
 11. Notification projection → delivery worker.
 12. Test cạnh mỗi lớp ngay sau khi đọc implementation.
 

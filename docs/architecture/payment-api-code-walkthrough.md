@@ -18,8 +18,16 @@ Nội dung dưới đây mô tả **code đang tồn tại**. Contract chính th
 | `api-gateway` | HTTP từ client | JWT, scope, correlation ID, route | Không có dữ liệu nghiệp vụ |
 | `payment-service` | REST và Kafka | Payment/refund intake, trạng thái, Saga | Payment, refund, saga, idempotency, inbox, outbox |
 | `risk-service` | Kafka | Chấm risk bằng rule và velocity | Assessment, inbox, outbox; Redis giữ velocity |
-| `account-ledger-service` | Kafka | Giữ/trừ/hoàn tiền và ghi sổ kép | Account, reservation, refund credit, journal, inbox, outbox |
-| `notification-service` | Kafka | Tạo và phát notification kết quả cuối | Notification, inbox, delivery state |
+| `account-ledger-service` (profile `mvp`) | Kafka | Giữ/trừ/hoàn tiền và ghi sổ kép | Account, reservation, refund credit, journal, inbox, outbox |
+| `account-service` (profile `full`) | Kafka | Giữ/trừ/hoàn tiền | Account, reservation, refund credit, inbox, outbox |
+| `ledger-service` (profile `full`) | Kafka | Ghi sổ kép bất biến | Journal, entry, posting, inbox, outbox |
+| `merchant-service` | REST | Hồ sơ merchant, fee/limit policy, API key, webhook config | Merchant, member, api key, webhook, audit |
+| `reporting-service` (profile `full`) | Kafka + REST | Chiếu event thành read model theo ngày | Event log, payment projection, generation, audit |
+| `notification-service` | Kafka | Tạo và phát notification kết quả cuối | Notification, inbox, delivery state, webhook delivery |
+
+`account-ledger-service` và cặp `account-service`/`ledger-service` không chạy cùng lúc: chúng là hai
+cách đóng gói cùng một nghiệp vụ, chọn bằng Docker profile. Contract event giống hệt nhau nên phần
+walkthrough dưới đây (viết theo bản gộp) đúng cho cả hai; chỉ tên service và database là khác.
 
 ```text
 Client
@@ -163,10 +171,17 @@ Content-Type: application/json
    - cùng key, cùng fingerprint: replay kết quả cũ;
    - cùng key, khác fingerprint: ném conflict;
    - chưa có: tiếp tục.
-4. Mở local transaction bằng `TransactionTemplate`.
-5. Đọc merchant qua
-   [`MerchantCatalog`](../../services/payment-service/src/main/java/com/payflow/payment/application/port/MerchantCatalog.java); adapter thật là
-   [`JpaMerchantCatalog`](../../services/payment-service/src/main/java/com/payflow/payment/infrastructure/persistence/JpaMerchantCatalog.java).
+4. Đọc merchant qua
+   [`MerchantCatalog`](../../services/payment-service/src/main/java/com/payflow/payment/application/port/MerchantCatalog.java) —
+   **trước khi mở transaction**. Adapter tùy `payflow.merchant-client.mode`:
+   [`JpaMerchantCatalog`](../../services/payment-service/src/main/java/com/payflow/payment/infrastructure/persistence/JpaMerchantCatalog.java)
+   đọc bảng snapshot ở mode `local`, còn
+   [`HttpMerchantCatalog`](../../services/payment-service/src/main/java/com/payflow/payment/infrastructure/merchant/HttpMerchantCatalog.java)
+   gọi REST nội bộ sang merchant-service ở mode `remote` (mặc định trong `.env`). Merchant không có →
+   `MerchantNotRegisteredException`; merchant-service lỗi/timeout → `MerchantCatalogUnavailableException`
+   → HTTP 503, không fallback về bảng snapshot cũ.
+5. Mở local transaction bằng `TransactionTemplate`. Một network call chậm không được giữ connection
+   PostgreSQL, nên bước 4 cố ý nằm ngoài ranh giới này.
 6. Tạo `PaymentIntake`, `Money`, merchant/fee snapshot rồi gọi `Payment.create(...)`. Domain kiểm tra merchant, currency, amount và fee.
 7. Tạo acceptance snapshot, sau đó gọi `payment.submitForRisk(...)`. Do đó phản hồi intake có thể ghi `CREATED`, còn aggregate lưu ở bước `RISK_CHECKING`.
 8. Lưu idempotent response với replay window 24 giờ.
@@ -404,6 +419,31 @@ Notification fail không rollback payment thành công.
 | Operational adapters | Inbox/outbox reliability state |
 | [`V1 migration`](../../services/account-ledger-service/src/main/resources/db/migration/V1__account_ledger_refund_runtime.sql) | Account/ledger/operational schema |
 
+Ở profile `full`, cùng các nhóm class đó nằm ở hai module: `services/account-service`
+(`AccountWorkflowKafkaListener` + `AccountWorkflowEventRouter`, migration `V1__account_runtime.sql`) và
+`services/ledger-service` (`LedgerWorkflowKafkaListener` + `LedgerWorkflowEventRouter`, migration
+`V1__ledger_runtime.sql` và `V2__immutable_posted_journals.sql`).
+
+### Merchant Service
+
+| Nhóm | Chức năng |
+| --- | --- |
+| `MerchantController` | REST public: profile, status, member, API key, webhook config |
+| `InternalMerchantController` | `/internal/v1/...` trả payment policy và webhook config cho service khác |
+| `MerchantApplicationService` | Use case + optimistic version + audit append-only |
+| `SecretCipher`/`SecretMaterial` | Hash API key (BCrypt) và mã hóa webhook signing secret at rest |
+| [`V1`–`V3` migrations](../../services/merchant-service/src/main/resources/db/migration) | Merchant catalog, member constraint, versioned fee policy |
+
+### Reporting Service (profile `full`)
+
+| Nhóm | Chức năng |
+| --- | --- |
+| `ReportingKafkaListener` | Nghe payment + refund topic, group `reporting-projection-v1` |
+| `ReportingProjectionHandler` | Parse envelope rồi gọi `appendAndProject` |
+| `JdbcProjectionStore` | `event_log` idempotent, chiếu `payment_projection`, rebuild + fingerprint |
+| `ReportingController`/`ReportingOperationsController` | Daily report theo `merchant_id` trong JWT; rebuild projection |
+| [`V1 migration`](../../services/reporting-service/src/main/resources/db/migration/V1__rebuildable_projection.sql) | Event log, projection, generation, audit |
+
 ### Notification Service
 
 | Nhóm | Chức năng |
@@ -423,10 +463,12 @@ Mỗi service chỉ đọc/ghi database của mình:
 
 | Owner | Dữ liệu |
 | --- | --- |
-| Payment | Payment, refund, history, saga, idempotency, inbox, outbox, local merchant catalog |
+| Payment | Payment, refund, history, saga, idempotency, inbox, outbox, local merchant snapshot (chỉ dùng ở mode `local`) |
+| Merchant | Merchant/member/api key/webhook config/audit — nguồn sự thật của merchant |
 | Risk | Assessment, inbox, outbox |
-| Account/Ledger | Account/reservation/refund credit; journal/entry/mapping; inbox/outbox |
-| Notification | Notification, inbox, delivery state |
+| Account/Ledger | Account/reservation/refund credit; journal/entry/mapping; inbox/outbox. Ở profile `full` tách thành `payflow_account` và `payflow_ledger` |
+| Reporting (profile `full`) | Event log, payment projection, generation, audit — read model, không phải nguồn sự thật |
+| Notification | Notification, inbox, delivery state, webhook delivery |
 
 Hai ranh giới phải nhớ:
 
@@ -434,6 +476,8 @@ Hai ranh giới phải nhớ:
 - **Kafka consume transaction**: inbox + state change + outgoing outbox commit cùng nhau; sau commit mới ack.
 
 Không service nào join/query database của service khác. REST không giữ transaction mở để chờ Kafka.
+Payment cần policy của Merchant thì gọi REST nội bộ (`/internal/v1/merchants/{id}/payment-policy`) —
+gọi **trước** khi mở transaction — chứ không đọc database của Merchant.
 
 ## 13. Cấu hình runtime nằm ở đâu
 
@@ -445,7 +489,8 @@ Không service nào join/query database của service khác. REST không giữ t
 | `services/*/src/main/resources/application.yml` | Datasource, Kafka, Redis, OAuth, outbox/recovery, actuator |
 | [`smoke-mvp.ps1`](../../infrastructure/scripts/smoke-mvp.ps1) | Lấy token, tạo payment, test idempotency, theo dõi happy path |
 
-Gateway không route `/internal/v1/**`; workflow nội bộ hiện trao đổi bằng Kafka. Swagger UI mô tả/test REST, nên không hiển thị Kafka consumer như API endpoint. Kafka contract nằm trong `docs/events` và `libs/event-contracts`.
+Gateway không route `/internal/v1/**`; workflow nghiệp vụ trao đổi bằng Kafka, riêng tra cứu policy
+merchant là REST nội bộ giữa Payment/Notification và Merchant với service credential riêng. Swagger UI mô tả/test REST, nên không hiển thị Kafka consumer như API endpoint. Kafka contract nằm trong `docs/events` và `libs/event-contracts`.
 
 ## 14. Cách debug một payment
 
@@ -488,7 +533,9 @@ Không replay mù event tài chính. Xác nhận inbox, outbox, reservation, jou
 - Chưa có user-service hay bảng người dùng ứng dụng.
 - Chưa có browser login/Authorization Code + PKCE cho merchant/operator.
 - Chưa dùng realm roles làm RBAC cho Payment API.
-- Public REST hiện là create/get payment và create refund; Kafka không thay thế query/admin API tương lai.
+- Public REST hiện gồm payment (create/search/get/refund), operations manual review, merchant CRUD,
+  reporting daily/rebuild và webhook retry; Kafka không thay thế query/admin API tương lai.
+- Chưa có settlement-service; `payflow.settlement.events.v1` mới chỉ là tên trong `PayFlowTopics`.
 - Notification email đang in-memory, chưa nối provider thật.
 - Kafka không exactly-once end-to-end; an toàn đến từ outbox, inbox, idempotency, locking và invariant.
 

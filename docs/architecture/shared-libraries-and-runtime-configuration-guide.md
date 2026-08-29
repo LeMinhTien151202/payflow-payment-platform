@@ -66,10 +66,20 @@ payflow-parent
 ├── libs/event-contracts ──────> observability-support
 ├── services/api-gateway ──────> observability-support + error-contract
 ├── services/payment-service ──> cả 3 libs
-├── services/account-ledger ───> observability-support + event-contracts
+├── services/account-ledger ───> observability-support + event-contracts   (profile mvp)
+├── services/account-service ──> observability-support + event-contracts   (profile full)
+├── services/ledger-service ───> observability-support + event-contracts   (profile full)
+├── services/merchant-service ─> observability-support + error-contract
+├── services/reporting-service > observability-support + event-contracts   (profile full)
 ├── services/risk-service ─────> observability-support + event-contracts
 └── services/notification ─────> observability-support + event-contracts
 ```
+
+Phase 2 thêm bốn module service vào `<modules>`; reactor hiện có 12 module (3 libs + 9 service).
+`merchant-service` là service duy nhất dùng `error-contract` mà không dùng `event-contracts`: nó chỉ
+phục vụ REST, chưa publish event nào. `account-ledger-service` (gộp) và cặp
+`account-service`/`ledger-service` (tách) đều nằm trong reactor và đều được build ở mọi lệnh
+`mvnw verify`, dù runtime chỉ chạy một trong hai theo profile Compose.
 
 `dependencyManagement` ở parent chỉ khóa version; module service vẫn phải khai báo `<dependency>` thì mới dùng được.
 
@@ -274,16 +284,31 @@ Factory:
 
 ### 5.3 Topic đang định nghĩa
 
-| Constant | Topic | Producer hiện tại | Consumer hiện tại |
-| --- | --- | --- | --- |
-| `PAYMENT_EVENTS` | `payflow.payment.events.v1` | Payment | Risk, Account-Ledger, Notification, Payment workflow tùy event |
-| `ACCOUNT_EVENTS` | `payflow.account.events.v1` | Account boundary | Payment Saga |
-| `LEDGER_EVENTS` | `payflow.ledger.events.v1` | Ledger boundary | Payment Saga |
-| `RISK_EVENTS` | `payflow.risk.events.v1` | Risk | Payment Saga |
-| `REFUND_EVENTS` | `payflow.refund.events.v1` | Payment | Account-Ledger, Notification |
-| `NOTIFICATION_COMMANDS` | `payflow.notification.commands.v1` | Dành cho phase sau | Chưa có flow runtime chính |
-| `SETTLEMENT_EVENTS` | `payflow.settlement.events.v1` | Dành cho Phase 3 | Chưa có service runtime |
-| `DEAD_LETTER` | `payflow.dead-letter.v1` | Kafka recoverer của consumer | Operator/runbook |
+| Constant | Topic | Producer hiện tại | Consumer ở profile `mvp` | Consumer ở profile `full` |
+| --- | --- | --- | --- | --- |
+| `PAYMENT_EVENTS` | `payflow.payment.events.v1` | Payment (cả fact `payment.*` lẫn command `account.*.requested`/`ledger.post-payment.requested`) | Risk, Account-Ledger, Notification, Payment workflow | Risk, Account, Ledger, Notification, Reporting, Payment workflow |
+| `ACCOUNT_EVENTS` | `payflow.account.events.v1` | Account-Ledger (`mvp`) / Account (`full`) | Payment Saga | Payment Saga |
+| `LEDGER_EVENTS` | `payflow.ledger.events.v1` | Account-Ledger (`mvp`) / Ledger (`full`) | Payment Saga | Payment Saga |
+| `RISK_EVENTS` | `payflow.risk.events.v1` | Risk | Payment Saga | Payment Saga |
+| `REFUND_EVENTS` | `payflow.refund.events.v1` | Payment | Account-Ledger, Notification | Ledger, Notification, Reporting |
+| `NOTIFICATION_COMMANDS` | `payflow.notification.commands.v1` | Chưa có | Chưa có | Chưa có |
+| `SETTLEMENT_EVENTS` | `payflow.settlement.events.v1` | Dành cho Phase 3 | Chưa có service runtime | Chưa có service runtime |
+| `DEAD_LETTER` | `payflow.dead-letter.v1` | Kafka recoverer của consumer | Operator/runbook | Operator/runbook |
+
+Constant, topic name, event type và payload **không đổi giữa hai profile** — chỉ deployable nào
+subscribe là khác. Ở `mvp` một service phát cả `account.*` lẫn `ledger.*`; ở `full`,
+`account-service` phát `account.*` còn `ledger-service` phát `ledger.*`.
+
+Hai chỗ dễ đọc nhầm ở bảng trên:
+
+- Command gửi cho Account và Ledger (`account.reserve.requested`, `account.capture.requested`,
+  `account.release.requested`, `account.refund-credit.requested`, `ledger.post-payment.requested`)
+  đi trên **payment topic**, không phải trên `account.events`/`ledger.events`. Vì thế cả
+  `account-service` lẫn `ledger-service` chỉ subscribe `PAYMENT_EVENTS` (và `ledger-service` thêm
+  `REFUND_EVENTS` cho `refund.requested`). `account-service` không nghe refund topic — credit hoàn tiền
+  đến với nó dưới dạng `account.refund-credit.requested` trên payment topic.
+- `NOTIFICATION_COMMANDS` hiện được khai báo nhưng không có producer/consumer nào trong code;
+  Notification nghe trực tiếp `PAYMENT_EVENTS` và `REFUND_EVENTS`.
 
 Topic name cố ý không cấu hình bằng `.env`: topic khác nhau giữa môi trường dễ che giấu typo. Kafka local tắt auto-create, nên tên sai phải fail rõ.
 
@@ -489,7 +514,7 @@ Nhóm biến:
 - Swagger tắt mặc định, chỉ bật trong profile `local`;
 - profile `local` thêm `db/seed` vào Flyway locations.
 
-### 7.3 Account-Ledger
+### 7.3 Account-Ledger (profile `mvp`)
 
 [`account-ledger/application.yml`](../../services/account-ledger-service/src/main/resources/application.yml):
 
@@ -498,7 +523,50 @@ Nhóm biến:
 - outbox publisher;
 - profile `local` nạp fixture account/ledger giả.
 
-### 7.4 Risk
+### 7.4 Account và Ledger tách rời (profile `full`)
+
+Hai file gần như đối xứng với nhau và với bản gộp — khác nhau ở database, schema, cờ consumer và port:
+
+| Khóa | [`account-service`](../../services/account-service/src/main/resources/application.yml) | [`ledger-service`](../../services/ledger-service/src/main/resources/application.yml) |
+| --- | --- | --- |
+| `spring.datasource.url` | `PAYFLOW_ACCOUNT_DB_URL` → `payflow_account` | `PAYFLOW_LEDGER_DB_URL` → `payflow_ledger` |
+| `spring.flyway.schemas` | `account_runtime,account` | `ledger_runtime,ledger` |
+| `spring.flyway.default-schema` | `account_runtime` | `ledger_runtime` |
+| Cờ consumer | `payflow.account-consumer.enabled` (`PAYFLOW_ACCOUNT_CONSUMER_ENABLED`) | `payflow.ledger-consumer.enabled` (`PAYFLOW_LEDGER_CONSUMER_ENABLED`) |
+| `server.port` mặc định khi chạy trên host | `8082` | `8084` |
+
+Cả hai giữ nguyên `payflow.outbox.*` (poll interval, batch, lease, max attempts, max backoff,
+delivery timeout) đọc chung các biến `PAYFLOW_OUTBOX_*` như bản gộp, cùng `ddl-auto=validate`,
+`ack-mode=manual_immediate`, `create-schemas: true` và profile `local` nạp thêm `classpath:db/seed`.
+Cả hai chỉ expose health, không có business controller.
+
+### 7.5 Merchant
+
+[`merchant-service/application.yml`](../../services/merchant-service/src/main/resources/application.yml)
+là service duy nhất **không có block `spring.kafka`**: nó thuần REST.
+
+- database `payflow_merchant`, schema `merchant` vừa là `schemas` vừa là `default-schema`;
+- `payflow.merchant.encryption-key-base64` (`PAYFLOW_MERCHANT_ENCRYPTION_KEY_BASE64`) — **không có
+  default**, thiếu key là service không khởi động được; đây là key dùng cho `SecretCipher`;
+- `springdoc.paths-to-match: /api/v1/merchants/**`, Swagger chỉ bật ở profile `local`;
+- profile `local` nạp thêm `classpath:db/seed`.
+
+### 7.6 Reporting (profile `full`)
+
+[`reporting-service/application.yml`](../../services/reporting-service/src/main/resources/application.yml):
+
+- database `payflow_reporting`, schema `reporting`; **không khai báo `spring.jpa`** vì read model
+  ghi bằng JDBC thuần (`JdbcProjectionStore`);
+- `payflow.reporting-consumer.enabled` (`PAYFLOW_REPORTING_CONSUMER_ENABLED`);
+- Kafka producer khai báo `acks: all` nhưng **không có `enable.idempotence`/`delivery.timeout.ms`**
+  như các service outbox, vì Reporting không publish event nào — nó chỉ consume;
+- `springdoc.paths-to-match: /api/v1/reports/**,/api/v1/operations/reporting/**`.
+
+Lưu ý port: `server.port` trong `application.yml` chỉ là default khi chạy trực tiếp trên host.
+Trong Compose, `docker-compose.yml` set lại biến port cho container (ledger `8086`, merchant `8087`,
+reporting `8088`) nên số cổng bạn thấy khi `docker compose ps` khác với default ở file YAML.
+
+### 7.7 Risk
 
 [`risk-service/application.yml`](../../services/risk-service/src/main/resources/application.yml):
 

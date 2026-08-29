@@ -21,12 +21,22 @@ Vì vậy API `POST` trả `202 Accepted`, không trả `200 Payment succeeded`.
 Service đã xác thực, lưu payment/refund và lưu outbox event thành công. Client lấy `paymentId` rồi gọi
 `GET` để xem workflow đã đến trạng thái cuối chưa.
 
-## 2. Vì sao Swagger chỉ có ba API?
+## 2. Service nào có REST public, service nào chỉ là worker?
 
-Hiện tại chỉ `payment-service` sở hữu public REST API. Các service Risk, Account/Ledger và
-Notification là worker nội bộ: chúng nhận event Kafka, cập nhật database riêng và phát event kết quả.
-Thêm controller REST giả cho các worker sẽ tạo ra hai đường chạy cho cùng nghiệp vụ và làm Saga khó
-kiểm soát.
+Risk, Account/Ledger là worker thuần: chúng nhận event Kafka, cập nhật database riêng và phát event
+kết quả, không có controller REST. Thêm controller REST giả cho các worker sẽ tạo ra hai đường chạy
+cho cùng nghiệp vụ và làm Saga khó kiểm soát.
+
+Các service còn lại đều có REST, nhưng REST của chúng không phải "một cách khác để chạy payment":
+
+| Service | REST public | Vai trò của REST |
+| --- | --- | --- |
+| payment-service | `/api/v1/payments/**`, `/api/v1/operations/payments/**` | Điểm bắt đầu và điểm đọc của payment/refund |
+| merchant-service | `/api/v1/merchants/**` | CRUD hồ sơ merchant, API key, webhook config — REST thuần, **không phát Kafka** |
+| reporting-service (`full`) | `/api/v1/reports/**`, `/api/v1/operations/reporting/**` | Đọc read model đã được chiếu từ event; rebuild projection |
+| notification-service | `/api/v1/operations/webhooks/**` | Chỉ endpoint vận hành để retry một lần giao webhook |
+
+Toàn bộ REST nghiệp vụ payment:
 
 | API | Scope JWT | API làm gì | Kafka có chạy không? |
 | --- | --- | --- | --- |
@@ -35,9 +45,29 @@ kiểm soát.
 | `GET /api/v1/payments/{paymentId}` | `payment:read` | Đọc trạng thái payment thuộc merchant trong JWT | Không, đây là truy vấn đồng bộ |
 | `POST /api/v1/payments/{paymentId}/refunds` | `payment:write` | Giữ hạn mức có thể hoàn và nhận refund | Có, bắt đầu từ `refund.requested` |
 | `GET /api/v1/payments/{paymentId}/refunds/{refundId}` | `payment:read` | Đọc refund khi payment, refund và merchant trong JWT cùng khớp | Không, đây là truy vấn đồng bộ |
+| `POST /api/v1/operations/payments/{paymentId}/manual-review/resolve` | `operations:write` | Vận hành gỡ một saga đang `MANUAL_REVIEW_REQUIRED` | Có, saga chạy tiếp |
 
-Hai API `POST` bắt buộc header `Idempotency-Key`. Cùng key + cùng request sẽ replay response cũ;
-cùng key + request khác trả `409`. Đây là lớp bảo vệ khi browser, gateway hoặc client retry.
+REST của các service khác:
+
+| API | Scope JWT | API làm gì |
+| --- | --- | --- |
+| `POST /api/v1/merchants` | `merchant:write:any` | Tạo merchant `PENDING` với code bất biến và policy phí/hạn mức ban đầu |
+| `GET /api/v1/merchants/{merchantId}` | `merchant:read` (hoặc biến thể `:any`) | Đọc hồ sơ merchant, mặc định chỉ merchant của chính caller |
+| `PUT /api/v1/merchants/{merchantId}` | `merchant:write` | Sửa tên/fee/hạn mức với optimistic version chống lost update |
+| `PUT /api/v1/merchants/{merchantId}/status` | `merchant:write` | Chuyển trạng thái `PENDING`/`ACTIVE`/`SUSPENDED`/`CLOSED` |
+| `PUT /api/v1/merchants/{merchantId}/members/{userId}`, `DELETE .../members/{memberId}` | `merchant:write` | Gán/gỡ member (`MERCHANT_ADMIN`/`MERCHANT_USER`) |
+| `POST /api/v1/merchants/{merchantId}/api-keys`, `DELETE .../api-keys/{keyId}` | `merchant:write` | Cấp API key (plaintext trả đúng một lần, DB chỉ giữ hash BCrypt) và thu hồi |
+| `PUT /api/v1/merchants/{merchantId}/webhook` | `merchant:write` | Đặt URL webhook, xoay HMAC secret và danh sách event đăng ký |
+| `GET /api/v1/reports/daily?from=&to=` | `reporting:read` | Số liệu payment theo ngày của merchant trong JWT, đọc generation đang active |
+| `POST /api/v1/operations/reporting/rebuild` | `reporting:rebuild` | Dựng lại projection từ `event_log` rồi so fingerprint trước khi đổi generation |
+| `POST /api/v1/operations/webhooks/{deliveryId}/retry` | `webhook:retry` | Gửi lại một lần giao webhook đã thất bại |
+
+Ngoài ra merchant-service có `/internal/v1/merchants/{id}/payment-policy` và `.../webhook` (scope
+`merchant:internal:read`) cho service khác gọi. Đường `/internal/v1/**` **không có route ở gateway**
+nên không ra được edge công khai.
+
+Hai API `POST` payment/refund bắt buộc header `Idempotency-Key`. Cùng key + cùng request sẽ replay
+response cũ; cùng key + request khác trả `409`. Đây là lớp bảo vệ khi browser, gateway hoặc client retry.
 
 ## 3. Luồng payment thành công
 
@@ -139,19 +169,31 @@ Do đó delivery là **at-least-once + idempotent**, không tuyên bố exactly-
 
 | Topic | Event/command chính | Producer → consumer | Điểm vào source |
 | --- | --- | --- | --- |
-| `payflow.payment.events.v1` | `payment.created`, reserve/capture/release và ledger command, payment outcome | Payment → Risk, Account/Ledger, Notification | `CreatePaymentHandler`, `RiskPaymentKafkaListener`, `AccountLedgerWorkflowKafkaListener` |
+| `payflow.payment.events.v1` | `payment.created`, reserve/capture/release và ledger command, payment outcome | Payment → Risk, Account/Ledger, Notification, Reporting | `CreatePaymentHandler`, `RiskPaymentKafkaListener`, `AccountLedgerWorkflowKafkaListener` (`mvp`) / `AccountWorkflowKafkaListener` + `LedgerWorkflowKafkaListener` (`full`) |
 | `payflow.risk.events.v1` | `risk.assessment.completed` | Risk → Payment | `RiskAssessmentEventFactory`, `PaymentWorkflowKafkaListener` |
 | `payflow.account.events.v1` | reserve/capture/release outcome | Account/Ledger → Payment | account handlers, `PaymentWorkflowEventRouter` |
 | `payflow.ledger.events.v1` | payment/refund journal outcome | Account/Ledger → Payment | ledger handlers, `PaymentWorkflowEventRouter` |
-| `payflow.refund.events.v1` | `refund.requested/succeeded/failed` | Payment → Account/Ledger, Notification | `CreateRefundHandler`, `AccountLedgerWorkflowEventRouter` |
+| `payflow.refund.events.v1` | `refund.requested/succeeded/failed` | Payment → Account/Ledger, Notification, Reporting | `CreateRefundHandler`, `AccountLedgerWorkflowEventRouter` (`mvp`) / `LedgerWorkflowEventRouter` (`full`) |
 | `payflow.dead-letter.v1` | message consumer không xử lý được sau retry | Consumer lỗi → vận hành | các `KafkaConsumerConfig`, runbook DLT |
 
 Tên topic/event được khóa tại `libs/event-contracts/.../PayFlowTopics.java` và các lớp `*Events.java`.
 Schema payload nằm cùng module này để consumer không phụ thuộc code nội bộ của producer.
+`PayFlowTopics` còn khai báo `payflow.notification.commands.v1` và `payflow.settlement.events.v1`,
+nhưng chưa service nào produce/consume hai topic đó.
+
+Từ Phase 2, "Account/Ledger" trong bảng trên là **một hoặc hai service tùy Docker profile**:
+`account-ledger-service` gộp ở profile `mvp`, hoặc `account-service` + `ledger-service` tách ở profile
+`full` (kèm `reporting-service`). Tên topic, tên event và payload **không đổi** giữa hai topology —
+`payment-service` không cần biết mình đang chạy bên nào. Chi tiết xem
+[`kafka-concepts-and-flow-guide.md`](kafka-concepts-and-flow-guide.md) và
+[`current-business-code-flow-guide.md`](current-business-code-flow-guide.md).
 
 ## 7. Test bằng Swagger UI
 
-1. Chạy Docker MVP với profile `local` như runbook.
+1. Chạy Docker theo runbook: `docker compose --profile mvp up -d` (bản gộp) hoặc
+   `docker compose --profile full up -d` (bản tách, có reporting-service). Đừng chạy đồng thời hai
+   profile — hai bên có `processed_events` ở database khác nhau nên cùng một command sẽ được xử lý
+   hai lần.
 2. Mở `http://localhost:8081/swagger-ui.html`. Swagger chạy trực tiếp tại Payment Service để debug;
    ứng dụng thật vẫn nên gọi qua API Gateway ở `http://localhost:8084`.
 3. Lấy JWT từ Keycloak rồi bấm **Authorize**, dán token (không cần tự thêm chữ `Bearer`). Token cần

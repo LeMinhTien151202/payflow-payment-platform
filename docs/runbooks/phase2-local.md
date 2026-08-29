@@ -1,8 +1,12 @@
 # Chạy PayFlow Phase 2 ở local
 
 Phase 2 dùng profile Compose `full`. Profile này thay `account-ledger-service` bằng hai deployable và
-hai database độc lập là `account-service`/`payflow_account` và `ledger-service`/`payflow_ledger`; đồng
-thời bật `merchant-service`, webhook delivery và `reporting-service`.
+hai database độc lập là `account-service`/`payflow_account` và `ledger-service`/`payflow_ledger`, và
+thêm `reporting-service`/`payflow_reporting`. `merchant-service` và webhook delivery chạy ở cả hai
+profile; chỉ việc tách Account/Ledger và Reporting là riêng của `full`.
+
+Không chạy `mvp` và `full` cùng lúc: hai bên có `processed_events` ở database khác nhau nên cùng một
+command reserve/capture sẽ được xử lý hai lần.
 
 ## 1. Gate không cần Docker
 

@@ -20,8 +20,12 @@ gửi lại cùng idempotency key không tạo payment thứ hai.
 | Profile | Thành phần | Mục đích |
 | --- | --- | --- |
 | `infra` | PostgreSQL, Redis, Kafka, `kafka-init`, Keycloak | Hạ tầng để chạy app từ IDE/host |
-| `mvp` | Toàn bộ `infra` + Gateway, Payment, Account-Ledger, Risk, Notification | Lát cắt E2E hiện tại |
-| `full` | Hiện giống `mvp` | Điểm mở rộng, chưa phải tuyên bố toàn bộ roadmap đã xong |
+| `mvp` | Toàn bộ `infra` + Gateway, Payment, Merchant, Account-Ledger (gộp), Risk, Notification | Lát cắt E2E của runbook này |
+| `full` | Toàn bộ `infra` + Gateway, Payment, Merchant, **Account** + **Ledger** tách riêng, Reporting, Risk, Notification | Topology Phase 2 — xem [`phase2-local.md`](phase2-local.md) |
+
+Hai profile là **hai cách đóng gói cùng một nghiệp vụ**, không chạy đồng thời: `account-ledger-service`
+và cặp `account-service`/`ledger-service` có `processed_events` ở database khác nhau, nên nếu bật cả
+hai thì cùng một command reserve sẽ được thực hiện hai lần. Runbook này mô tả `mvp`.
 
 `kafka-init` là job một lần và phải kết thúc với exit code `0`; nó không phải process cần luôn
 healthy. Kafka tắt auto-create topic để lỗi chính tả topic không tạo một luồng dữ liệu im lặng.
@@ -30,11 +34,15 @@ Mỗi owner có database và credential riêng:
 
 | Owner | Database | Schema chính |
 | --- | --- | --- |
-| payment-service | `payflow_payment` | `payment`, `merchant` |
+| payment-service | `payflow_payment` | `payment`, `merchant` (bản snapshot dùng khi `payflow.merchant-client.mode=local`) |
+| merchant-service | `payflow_merchant` | `merchant` (nguồn sự thật của merchant) |
 | account-ledger-service | `payflow_account_ledger` | `account`, `ledger`, `account_ledger` |
 | risk-service | `payflow_risk` | `risk` |
 | notification-service | `payflow_notification` | `notification` |
 | Keycloak | `payflow_keycloak` | do Keycloak quản lý |
+
+Ở profile `full` còn có `payflow_account`, `payflow_ledger` và `payflow_reporting` thay cho
+`payflow_account_ledger`.
 
 Smoke script đọc nhiều database bằng PostgreSQL superuser với vai trò test vận hành bên ngoài; code
 ứng dụng không truy cập chéo database.
@@ -43,8 +51,10 @@ Smoke script đọc nhiều database bằng PostgreSQL superuser với vai trò 
 
 - Docker Desktop đang chạy với Linux containers và Docker Compose v2.
 - Khuyến nghị dành khoảng 8 GB RAM cho Docker Desktop; Keycloak được giới hạn 1 GB.
-- Các port mặc định chưa bị chiếm: `5433`, `6379`, `9092`, `8180`, `8080`, `8081`, `8082`,
-  `8083`, `8085`. Có thể đổi port phía host trong `.env`.
+- Các port mặc định chưa bị chiếm: `5433` (PostgreSQL), `6379` (Redis), `9092` (Kafka), `8180`
+  (Keycloak), `8081` (Payment), `8082` (Account-Ledger ở `mvp` / Account ở `full`), `8083` (Risk),
+  `8084` (Gateway), `8085` (Notification), `8087` (Merchant). Profile `full` dùng thêm `8086`
+  (Ledger) và `8088` (Reporting). Có thể đổi port phía host trong `.env`.
 - PowerShell 5.1+ hoặc PowerShell 7 để chạy smoke script.
 - JDK 21 chỉ cần khi chạy Maven trên host; build image tự dùng JDK 21.
 
@@ -252,6 +262,8 @@ Compose để chứng minh wiring xuyên service.
 ## 12. Giới hạn hiện tại
 
 - Email là mock in-memory; `SENT` chưa chứng minh SMTP/provider thật.
-- Chưa có webhook HMAC, observability stack, Kubernetes, Reporting hay Settlement trong profile này.
-- `full` hiện là alias của MVP, không phải toàn bộ roadmap.
+- Profile `mvp` không chạy Reporting; muốn có read model và topology tách thì dùng profile `full`
+  ([`phase2-local.md`](phase2-local.md)). Webhook delivery chạy ở cả hai profile, bật/tắt bằng
+  `PAYFLOW_WEBHOOK_ENABLED` chứ không phụ thuộc profile.
+- Chưa có observability stack, Kubernetes hay Settlement ở bất kỳ profile nào.
 - Image/Compose chỉ trở thành bằng chứng runtime sau khi chính các lệnh trên chạy thành công.

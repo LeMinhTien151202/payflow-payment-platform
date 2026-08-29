@@ -11,7 +11,25 @@ Luồng API/Saga cụ thể nằm ở [payment-api-code-walkthrough.md](payment-
 
 ## 1. Cấu trúc chung của một service
 
-Mỗi thư mục trực tiếp dưới `services/` là một Maven module và một deployable độc lập:
+Mỗi thư mục trực tiếp dưới `services/` là một Maven module và một deployable độc lập. Tất cả đều được
+build, nhưng không phải tất cả cùng chạy — Docker profile quyết định:
+
+| Module | Chạy ở profile | Port host mặc định |
+| --- | --- | --- |
+| `api-gateway` | `mvp`, `full` | 8084 |
+| `payment-service` | `mvp`, `full` | 8081 |
+| `merchant-service` | `mvp`, `full` | 8087 |
+| `risk-service` | `mvp`, `full` | 8083 |
+| `notification-service` | `mvp`, `full` | 8085 |
+| `account-ledger-service` | chỉ `mvp` | 8082 |
+| `account-service` | chỉ `full` | 8082 |
+| `ledger-service` | chỉ `full` | 8086 |
+| `reporting-service` | chỉ `full` | 8088 |
+
+`account-ledger-service` và cặp `account-service`/`ledger-service` là hai cách đóng gói cùng một
+nghiệp vụ; sửa logic account/ledger thì phải sửa ở cả hai bên.
+
+Module nào cũng có cùng bố cục:
 
 ```text
 services/<service>/
@@ -599,7 +617,7 @@ Các service lặp lại một số tên file có chủ đích:
 
 | Pattern | Có ở đâu | Vì sao không đặt hết vào `libs`? |
 | --- | --- | --- |
-| `ProcessedEventStore` | Payment, Risk, Account-Ledger, Notification | Mỗi service sở hữu schema/transaction riêng |
+| `ProcessedEventStore` | Payment, Risk, Account-Ledger, Account, Ledger, Notification | Mỗi service sở hữu schema/transaction riêng (Reporting thay bằng `event_log` unique `event_id`) |
 | `OutboxAppender/LeaseStore/Transport` | Producer services | Port giống ý tưởng nhưng data/query/transaction owner khác |
 | `PublishOutboxHandler` | Producer services | Có thể tiến hóa metric/retry/config độc lập; tránh shared business runtime |
 | `KafkaListener/EventRouter` | Consumer services | Mỗi service có group, topic, supported event và handler riêng |
@@ -629,7 +647,8 @@ Payment Saga
   Listener → Router → WorkflowHandler → Saga policy → outbox command
         │
         ▼
-Account-Ledger
+Account-Ledger  (profile mvp — profile full: account-service + ledger-service, mỗi bên một listener,
+                 một database, cùng event contract)
   Listener → Router
     ├─ Account handler → Account policy → JPA account/outbox
     └─ Ledger handler → Journal factory → JDBC journal/outbox
@@ -637,10 +656,13 @@ Account-Ledger
         ▼
 Payment Saga → final Payment event
         │
+        ├──────────────► Reporting (chỉ profile full)
+        │                  Listener → event_log (idempotent) → payment_projection
         ▼
 Notification
   Listener → Router → Create handler → JDBC notification
   → scheduled delivery handler → EmailDeliveryPort → in-memory adapter
+  → webhook delivery worker → merchant webhook endpoint (HMAC)
 ```
 
 ## 10. Cách tìm file khi debug
@@ -657,11 +679,15 @@ Notification
 | Event bị xử lý hai lần | Listener ack → router → `ProcessedEventStore` → unique key |
 | Outbox không drain | polling job → properties → publish handler → lease store → Kafka transport |
 | Notification không gửi | create handler/store → delivery store lease → delivery handler → email adapter |
+| Report sai số (`full`) | `reporting.event_log` (đã nhận event chưa) → `JdbcProjectionStore.project(...)` → `payment_projection` join `active_generation` |
+| Payment trả 503 khi tạo | `HttpMerchantCatalog` → merchant-service `/internal/v1/merchants/{id}/payment-policy` → `MerchantCatalogUnavailableException` |
 
 ## 11. Phần không có trong `services/` hiện tại
 
-- Chưa có `user-service` hoặc `settlement-service` deployable.
-- Chưa có public Account/Ledger/Risk/Notification business controller.
+- Chưa có `user-service` hoặc `settlement-service` deployable (`payflow.settlement.events.v1` mới chỉ có
+  tên trong `PayFlowTopics`).
+- Chưa có public Account/Ledger/Risk business controller. Notification chỉ có endpoint vận hành
+  `/api/v1/operations/webhooks/{deliveryId}/retry`, không có API nghiệp vụ.
 - Chưa có browser-login application service; Keycloak hiện cấp service token.
 - Profile `mvp` vẫn dùng Account-Ledger ghép; profile `full` đã tách Account và Ledger thành container/database riêng.
 - Email adapter chưa gọi provider thật.

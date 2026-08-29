@@ -36,7 +36,14 @@ Các lệnh dưới đây phục vụ vòng lặp lập trình hàng ngày (Fast
 
 ## 2. 🐳 Khởi động Hệ thống Sandbox MVP bằng Docker Compose
 
-Lát cắt MVP bao gồm Gateway, Payment Service, Risk Service, Account Ledger Service, Notification Service cùng các hạ tầng PostgreSQL, Redis, Kafka và Keycloak.
+Lát cắt MVP bao gồm Gateway, Payment Service, Merchant Service, Risk Service, Account Ledger Service, Notification Service cùng các hạ tầng PostgreSQL, Redis, Kafka và Keycloak.
+
+> [!NOTE]
+> Từ Phase 2 có hai profile. `mvp` chạy `account-ledger-service` gộp; `full` thay nó bằng
+> `account-service` + `ledger-service` và thêm `reporting-service`. Mọi lệnh dưới đây đổi
+> `--profile mvp` thành `--profile full` là dùng được cho topology tách — chi tiết ở
+> [`phase2-local.md`](phase2-local.md). Không chạy đồng thời hai profile: inbox nằm ở hai database
+> khác nhau nên cùng một command sẽ được xử lý hai lần.
 
 ### 2.1. Khởi tạo file cấu hình `.env`
 ```powershell
@@ -50,11 +57,16 @@ docker compose --env-file .env --profile mvp config --quiet
 ```
 *Kiểm tra cú pháp và biến môi trường trong docker-compose (Exit code `0` là hợp lệ).*
 
-### 2.3. Khởi động toàn bộ Hệ thống MVP (Hạ tầng + 5 Microservices)
+### 2.3. Khởi động toàn bộ Hệ thống MVP (Hạ tầng + 6 Microservices)
 ```powershell
 docker compose --env-file .env --profile mvp up -d --build
 ```
-*Tự động build Docker Image cho 5 Java microservices và khởi động 10 containers (bao gồm job `kafka-init`).*
+*Build image cho 6 Java microservice (gateway, payment, merchant, account-ledger, risk, notification) và khởi động cùng hạ tầng, bao gồm job `kafka-init`.*
+
+Bản tách của Phase 2 (8 service: thay account-ledger bằng account + ledger, thêm reporting):
+```powershell
+docker compose --env-file .env --profile full up -d --build
+```
 
 ### 2.4. Khởi động riêng Hạ tầng (Infra Only)
 ```powershell
@@ -76,6 +88,11 @@ docker compose --env-file .env --profile mvp ps -a
 ```powershell
 .\infrastructure\scripts\smoke-mvp.ps1
 ```
+
+Cùng assertion đó trên topology đã tách (script tự query Account và Ledger ở hai database riêng):
+```powershell
+.\infrastructure\scripts\smoke-mvp.ps1 -Profile full -TimeoutSeconds 300
+```
 *Kịch bản kiểm thử E2E: Tải cấu hình -> Kiểm tra Health endpoints -> Lấy OAuth2 Token từ Keycloak -> POST Payment 500.000 VND -> Đánh giá Risk -> Reserve Account Balance -> Post Ledger Journal -> Capture Reserve -> Xác nhận Payment `SUCCEEDED` và Notification `SENT`.*
 
 ### 3.2. Chạy Full Integration Gate với Testcontainers
@@ -90,7 +107,12 @@ docker compose --env-file .env --profile mvp ps -a
 
 ### 4.1. Xem log thời gian thực (Follow Logs) của các Microservices
 ```powershell
-docker compose --env-file .env --profile mvp logs -f payment-service risk-service account-ledger-service notification-service
+docker compose --env-file .env --profile mvp logs -f payment-service merchant-service risk-service account-ledger-service notification-service
+```
+
+Ở profile `full`:
+```powershell
+docker compose --env-file .env --profile full logs -f payment-service merchant-service risk-service account-service ledger-service reporting-service notification-service
 ```
 
 ### 4.2. Xem 200 dòng log gần nhất của tất cả container
