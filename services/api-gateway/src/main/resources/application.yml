@@ -26,6 +26,27 @@ payflow:
       reporting-service: ${PAYFLOW_REPORTING_SERVICE_URI:http://localhost:8088}
       settlement-service: ${PAYFLOW_SETTLEMENT_SERVICE_URI:http://localhost:8089}
 
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    disable-swagger-default-url: true
+    urls-primary-name: Payment API
+    doc-expansion: none
+    operations-sorter: method
+    tags-sorter: alpha
+    persist-authorization: false
+    urls:
+      - name: Payment API
+        url: /openapi/payment-service-v1.yaml
+      - name: Merchant API
+        url: /openapi/merchant-service-v1.yaml
+      - name: Reporting API
+        url: /openapi/reporting-service-v1.yaml
+      - name: Webhook Operations API
+        url: /openapi/notification-operations-v1.yaml
+      - name: Settlement API
+        url: /openapi/settlement-service-v1.yaml
+
 management:
   endpoints:
     web:

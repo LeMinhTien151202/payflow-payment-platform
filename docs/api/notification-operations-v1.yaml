@@ -1,0 +1,38 @@
+openapi: 3.1.0
+info:
+  title: PayFlow Webhook Operations API
+  version: 1.0.0
+  description: Audited recovery operation for terminal webhook deliveries through the API Gateway.
+servers:
+  - url: http://localhost:8084
+    description: Local API Gateway
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/operations/webhooks/{deliveryId}/retry:
+    post:
+      summary: Retry a DEAD webhook delivery
+      description: Requires webhook:retry. Moves only a terminal DEAD delivery back to PENDING while preserving event id and exact signed raw body.
+      parameters:
+        - {name: deliveryId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: X-Correlation-Id, in: header, required: false, schema: {type: string, maxLength: 64}}
+      responses:
+        '202': {description: Delivery accepted for retry}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  schemas:
+    Problem:
+      type: object
+      properties:
+        status: {type: integer}
+        code: {type: string}
+        detail: {type: string}
+        correlationId: {type: string}
+  responses:
+    Problem:
+      description: RFC Problem Details with stable code and correlationId
+      content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}

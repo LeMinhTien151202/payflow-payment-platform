@@ -9,8 +9,7 @@ info:
 servers:
   - url: http://localhost:8084
     description: Local API Gateway
-  - url: http://localhost:8081
-    description: Direct Payment Service port for local Swagger/debug only
+
 security:
   - bearerAuth: []
 paths:

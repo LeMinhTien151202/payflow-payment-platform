@@ -11,5 +11,7 @@
 **/*.log
 .env
 .env.*
-docs
+docs/**
+!docs/api/
+!docs/api/*.yaml
 PAYFLOW_MICROSERVICE_PROJECT_SPEC.md

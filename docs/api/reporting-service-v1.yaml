@@ -1,0 +1,74 @@
+openapi: 3.1.0
+info:
+  title: PayFlow Reporting Service API
+  version: 1.0.0
+  description: Merchant-scoped reporting reads and audited projection rebuild operations through the API Gateway.
+servers:
+  - url: http://localhost:8084
+    description: Local API Gateway
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/reports/daily:
+    get:
+      summary: Read daily payment metrics
+      description: Requires reporting:read and merchant_id. Reads the active asynchronous projection without cross-database joins.
+      parameters:
+        - {name: from, in: query, required: true, schema: {type: string, format: date-time}}
+        - {name: to, in: query, required: true, schema: {type: string, format: date-time}}
+      responses:
+        '200':
+          description: Daily metrics in the half-open requested time interval
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: '#/components/schemas/DailyMetric'}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /api/v1/operations/reporting/rebuild:
+    post:
+      summary: Rebuild the reporting projection
+      description: Requires reporting:rebuild. Replays the durable event log into a new generation, verifies its fingerprint and atomically activates it.
+      parameters:
+        - {name: X-Correlation-Id, in: header, required: false, schema: {type: string, maxLength: 64}}
+      responses:
+        '202':
+          description: Verified projection generation activated
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RebuildResult'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  schemas:
+    DailyMetric:
+      type: object
+      required: [date, currency, total, succeeded, failed, gross, refunded]
+      properties:
+        date: {type: string, format: date}
+        currency: {type: string, enum: [VND]}
+        total: {type: integer, format: int64, minimum: 0}
+        succeeded: {type: integer, format: int64, minimum: 0}
+        failed: {type: integer, format: int64, minimum: 0}
+        gross: {type: number}
+        refunded: {type: number}
+    RebuildResult:
+      type: object
+      required: [generationId, status]
+      properties:
+        generationId: {type: string, format: uuid}
+        status: {type: string, enum: [ACTIVE]}
+    Problem:
+      type: object
+      properties:
+        status: {type: integer}
+        code: {type: string}
+        detail: {type: string}
+        correlationId: {type: string}
+  responses:
+    Problem:
+      description: RFC Problem Details with stable code and correlationId
+      content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}

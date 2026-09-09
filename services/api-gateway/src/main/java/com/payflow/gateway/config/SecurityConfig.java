@@ -57,6 +57,10 @@ public class SecurityConfig {
                         // Chỉ áp dụng cho Liveness/readiness. Toàn bộ các actuator endpoint còn lại giữ private theo
                         // AGENTS.md phần 10.
                         .pathMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                        // Central API documentation is static/public and contains no credentials. Swagger does not
+                        // persist bearer tokens; callers paste or fetch a short-lived token when trying an operation.
+                        .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/webjars/**",
+                                "/v3/api-docs/**", "/openapi/**").permitAll()
                         .pathMatchers(HttpMethod.OPTIONS).permitAll()
                         .pathMatchers(HttpMethod.POST, "/api/v1/operations/payments/**")
                         .hasAuthority(SCOPE_OPERATIONS_WRITE)

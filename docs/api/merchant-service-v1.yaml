@@ -1,0 +1,229 @@
+openapi: 3.1.0
+info:
+  title: PayFlow Merchant Service API
+  version: 1.0.0
+  description: Public merchant profile, lifecycle, member, API-key and webhook configuration through the API Gateway. Internal payment-policy and webhook-secret endpoints are intentionally excluded.
+servers:
+  - url: http://localhost:8084
+    description: Local API Gateway
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/merchants:
+    post:
+      summary: Create a merchant
+      description: Requires merchant:write:any. Creates a PENDING merchant and an append-only audit record.
+      parameters: [{$ref: '#/components/parameters/CorrelationId'}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateMerchantRequest'}
+      responses:
+        '201': {description: Merchant created, content: {application/json: {schema: {$ref: '#/components/schemas/MerchantProfile'}}}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /api/v1/merchants/{merchantId}:
+    get:
+      summary: Read a merchant profile
+      description: Requires merchant:read/write for the token merchant or a global merchant scope.
+      parameters: [{$ref: '#/components/parameters/MerchantId'}]
+      responses:
+        '200': {description: Merchant profile, content: {application/json: {schema: {$ref: '#/components/schemas/MerchantProfile'}}}}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+    put:
+      summary: Update merchant policy
+      description: Uses expectedVersion for optimistic concurrency and requires merchant write ownership/global scope.
+      parameters: [{$ref: '#/components/parameters/MerchantId'}, {$ref: '#/components/parameters/CorrelationId'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/UpdateMerchantRequest'}}}
+      responses:
+        '200': {description: Updated profile, content: {application/json: {schema: {$ref: '#/components/schemas/MerchantProfile'}}}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /api/v1/merchants/{merchantId}/status:
+    put:
+      summary: Change merchant lifecycle status
+      description: Operations-only transition requiring merchant:write:any.
+      parameters: [{$ref: '#/components/parameters/MerchantId'}, {$ref: '#/components/parameters/CorrelationId'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/ChangeStatusRequest'}}}
+      responses:
+        '200': {description: Updated profile, content: {application/json: {schema: {$ref: '#/components/schemas/MerchantProfile'}}}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /api/v1/merchants/{merchantId}/members/{userId}:
+    put:
+      summary: Add or update a merchant member
+      parameters:
+        - {$ref: '#/components/parameters/MerchantId'}
+        - {name: userId, in: path, required: true, schema: {type: string, maxLength: 100}}
+        - {$ref: '#/components/parameters/CorrelationId'}
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/MemberRequest'}}}
+      responses:
+        '200': {description: Active member, content: {application/json: {schema: {$ref: '#/components/schemas/Member'}}}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '404': {$ref: '#/components/responses/Problem'}
+  /api/v1/merchants/{merchantId}/members/{memberId}:
+    delete:
+      summary: Deactivate a merchant member
+      parameters:
+        - {$ref: '#/components/parameters/MerchantId'}
+        - {name: memberId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/CorrelationId'}
+      responses:
+        '204': {description: Member is inactive or was already inactive}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /api/v1/merchants/{merchantId}/api-keys:
+    post:
+      summary: Create a merchant API key
+      description: The plaintextKey is returned exactly once; only its BCrypt hash is persisted.
+      parameters: [{$ref: '#/components/parameters/MerchantId'}, {$ref: '#/components/parameters/CorrelationId'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/ApiKeyRequest'}}}
+      responses:
+        '201': {description: API key created, content: {application/json: {schema: {$ref: '#/components/schemas/ApiKeyCreated'}}}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /api/v1/merchants/{merchantId}/api-keys/{keyId}:
+    delete:
+      summary: Revoke an API key idempotently
+      parameters:
+        - {$ref: '#/components/parameters/MerchantId'}
+        - {name: keyId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {$ref: '#/components/parameters/CorrelationId'}
+      responses:
+        '204': {description: Key is revoked or was already revoked}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /api/v1/merchants/{merchantId}/webhook:
+    put:
+      summary: Configure merchant webhook
+      description: Rotates the signing secret, encrypts it at rest and returns the new signingSecret exactly once.
+      parameters: [{$ref: '#/components/parameters/MerchantId'}, {$ref: '#/components/parameters/CorrelationId'}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/WebhookRequest'}}}
+      responses:
+        '200': {description: Webhook configured, content: {application/json: {schema: {$ref: '#/components/schemas/WebhookCreated'}}}}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  parameters:
+    MerchantId: {name: merchantId, in: path, required: true, schema: {type: string, format: uuid}}
+    CorrelationId: {name: X-Correlation-Id, in: header, required: false, schema: {type: string, maxLength: 64}}
+  schemas:
+    CreateMerchantRequest:
+      type: object
+      required: [code, name, feeRate, maxTransactionAmount]
+      properties:
+        code: {type: string, pattern: '^[A-Z0-9_-]{3,50}$'}
+        name: {type: string, minLength: 1, maxLength: 200}
+        feeRate: {type: number, minimum: 0, maximum: 1}
+        maxTransactionAmount: {type: number, exclusiveMinimum: 0}
+    UpdateMerchantRequest:
+      type: object
+      required: [name, feeRate, maxTransactionAmount, expectedVersion]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        feeRate: {type: number, minimum: 0, maximum: 1}
+        maxTransactionAmount: {type: number, exclusiveMinimum: 0}
+        expectedVersion: {type: integer, format: int64, minimum: 0}
+    ChangeStatusRequest:
+      type: object
+      required: [status, expectedVersion]
+      properties:
+        status: {type: string, enum: [PENDING, ACTIVE, SUSPENDED, CLOSED]}
+        expectedVersion: {type: integer, format: int64, minimum: 0}
+    MemberRequest:
+      type: object
+      required: [role]
+      properties: {role: {type: string, enum: [MERCHANT_ADMIN, MERCHANT_USER]}}
+    ApiKeyRequest:
+      type: object
+      required: [expiresAt]
+      properties: {expiresAt: {type: string, format: date-time}}
+    WebhookRequest:
+      type: object
+      required: [url, subscribedEvents]
+      properties:
+        url: {type: string, format: uri, maxLength: 1000}
+        subscribedEvents:
+          type: array
+          minItems: 1
+          maxItems: 4
+          uniqueItems: true
+          items: {type: string, enum: [payment.succeeded, payment.failed, refund.succeeded, refund.failed]}
+    MerchantProfile:
+      type: object
+      required: [id, code, name, status, defaultCurrency, feeRate, maxTransactionAmount, createdAt, updatedAt, version]
+      properties:
+        id: {type: string, format: uuid}
+        code: {type: string}
+        name: {type: string}
+        status: {type: string, enum: [PENDING, ACTIVE, SUSPENDED, CLOSED]}
+        defaultCurrency: {type: string, enum: [VND]}
+        feeRate: {type: number}
+        maxTransactionAmount: {type: number}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+        version: {type: integer, format: int64}
+    Member:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        merchantId: {type: string, format: uuid}
+        userId: {type: string}
+        role: {type: string, enum: [MERCHANT_ADMIN, MERCHANT_USER]}
+        status: {type: string, enum: [ACTIVE, INACTIVE]}
+        createdAt: {type: string, format: date-time}
+    ApiKeyCreated:
+      type: object
+      description: plaintextKey is sensitive and is returned only in this response.
+      properties:
+        id: {type: string, format: uuid}
+        prefix: {type: string}
+        plaintextKey: {type: string, readOnly: true}
+        expiresAt: {type: string, format: date-time}
+    WebhookCreated:
+      type: object
+      description: signingSecret is sensitive and is returned only in this response.
+      properties:
+        id: {type: string, format: uuid}
+        url: {type: string, format: uri}
+        signingSecret: {type: string, readOnly: true}
+    Problem:
+      type: object
+      properties:
+        status: {type: integer}
+        code: {type: string}
+        detail: {type: string}
+        correlationId: {type: string}
+  responses:
+    Problem:
+      description: RFC Problem Details with stable code and correlationId
+      content: {application/problem+json: {schema: {$ref: '#/components/schemas/Problem'}}}

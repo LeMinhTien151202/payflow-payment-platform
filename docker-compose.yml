@@ -243,8 +243,8 @@ services:
       PAYFLOW_PAYMENT_INTERNAL_CLIENT_ID: ${PAYFLOW_PAYMENT_INTERNAL_CLIENT_ID}
       PAYFLOW_PAYMENT_INTERNAL_CLIENT_SECRET: ${PAYFLOW_PAYMENT_INTERNAL_CLIENT_SECRET}
       PAYFLOW_MERCHANT_HTTP_TIMEOUT: ${PAYFLOW_MERCHANT_HTTP_TIMEOUT}
-    ports:
-      - "127.0.0.1:${PAYFLOW_PAYMENT_PORT}:8081"
+    expose:
+      - "8081"
     depends_on:
       postgres:
         condition: service_healthy
@@ -287,8 +287,8 @@ services:
       PAYFLOW_OUTBOX_LEASE: ${PAYFLOW_OUTBOX_LEASE}
       PAYFLOW_OUTBOX_MAX_ATTEMPTS: ${PAYFLOW_OUTBOX_MAX_ATTEMPTS}
       PAYFLOW_OUTBOX_MAX_BACKOFF: ${PAYFLOW_OUTBOX_MAX_BACKOFF}
-    ports:
-      - "127.0.0.1:${PAYFLOW_ACCOUNT_LEDGER_PORT}:8082"
+    expose:
+      - "8082"
     depends_on:
       postgres:
         condition: service_healthy
@@ -327,8 +327,8 @@ services:
       PAYFLOW_OUTBOX_LEASE: ${PAYFLOW_OUTBOX_LEASE}
       PAYFLOW_OUTBOX_MAX_ATTEMPTS: ${PAYFLOW_OUTBOX_MAX_ATTEMPTS}
       PAYFLOW_OUTBOX_MAX_BACKOFF: ${PAYFLOW_OUTBOX_MAX_BACKOFF}
-    ports:
-      - "127.0.0.1:${PAYFLOW_ACCOUNT_PORT}:8082"
+    expose:
+      - "8082"
     depends_on:
       postgres: {condition: service_healthy}
       kafka-init: {condition: service_completed_successfully}
@@ -365,8 +365,8 @@ services:
       PAYFLOW_OUTBOX_LEASE: ${PAYFLOW_OUTBOX_LEASE}
       PAYFLOW_OUTBOX_MAX_ATTEMPTS: ${PAYFLOW_OUTBOX_MAX_ATTEMPTS}
       PAYFLOW_OUTBOX_MAX_BACKOFF: ${PAYFLOW_OUTBOX_MAX_BACKOFF}
-    ports:
-      - "127.0.0.1:${PAYFLOW_LEDGER_PORT}:8086"
+    expose:
+      - "8086"
     depends_on:
       postgres: {condition: service_healthy}
       kafka-init: {condition: service_completed_successfully}
@@ -395,8 +395,8 @@ services:
       PAYFLOW_MERCHANT_ENCRYPTION_KEY_BASE64: ${PAYFLOW_MERCHANT_ENCRYPTION_KEY_BASE64}
       PAYFLOW_OIDC_ISSUER_URI: ${PAYFLOW_OIDC_ISSUER_URI}
       PAYFLOW_OIDC_JWK_SET_URI: http://keycloak:8080/realms/payflow/protocol/openid-connect/certs
-    ports:
-      - "127.0.0.1:${PAYFLOW_MERCHANT_PORT}:8087"
+    expose:
+      - "8087"
     depends_on:
       postgres: {condition: service_healthy}
       keycloak: {condition: service_healthy}
@@ -425,8 +425,8 @@ services:
       PAYFLOW_REPORTING_CONSUMER_ENABLED: ${PAYFLOW_REPORTING_CONSUMER_ENABLED}
       PAYFLOW_OIDC_ISSUER_URI: ${PAYFLOW_OIDC_ISSUER_URI}
       PAYFLOW_OIDC_JWK_SET_URI: http://keycloak:8080/realms/payflow/protocol/openid-connect/certs
-    ports:
-      - "127.0.0.1:${PAYFLOW_REPORTING_PORT}:8088"
+    expose:
+      - "8088"
     depends_on:
       postgres: {condition: service_healthy}
       kafka-init: {condition: service_completed_successfully}
@@ -464,8 +464,8 @@ services:
       PAYFLOW_OUTBOX_LEASE: ${PAYFLOW_OUTBOX_LEASE}
       PAYFLOW_OUTBOX_MAX_ATTEMPTS: ${PAYFLOW_OUTBOX_MAX_ATTEMPTS}
       PAYFLOW_OUTBOX_MAX_BACKOFF: ${PAYFLOW_OUTBOX_MAX_BACKOFF}
-    ports:
-      - "127.0.0.1:${PAYFLOW_SETTLEMENT_PORT}:8089"
+    expose:
+      - "8089"
     depends_on:
       postgres: {condition: service_healthy}
       kafka-init: {condition: service_completed_successfully}
@@ -505,8 +505,8 @@ services:
       PAYFLOW_OUTBOX_LEASE: ${PAYFLOW_OUTBOX_LEASE}
       PAYFLOW_OUTBOX_MAX_ATTEMPTS: ${PAYFLOW_OUTBOX_MAX_ATTEMPTS}
       PAYFLOW_OUTBOX_MAX_BACKOFF: ${PAYFLOW_OUTBOX_MAX_BACKOFF}
-    ports:
-      - "127.0.0.1:${PAYFLOW_RISK_PORT}:8083"
+    expose:
+      - "8083"
     depends_on:
       postgres:
         condition: service_healthy
@@ -555,8 +555,8 @@ services:
       PAYFLOW_SERVICE_TOKEN_URI: http://keycloak:8080/realms/payflow/protocol/openid-connect/token
       PAYFLOW_NOTIFICATION_CLIENT_ID: ${PAYFLOW_NOTIFICATION_CLIENT_ID}
       PAYFLOW_NOTIFICATION_CLIENT_SECRET: ${PAYFLOW_NOTIFICATION_CLIENT_SECRET}
-    ports:
-      - "127.0.0.1:${PAYFLOW_NOTIFICATION_PORT}:8085"
+    expose:
+      - "8085"
     depends_on:
       postgres:
         condition: service_healthy

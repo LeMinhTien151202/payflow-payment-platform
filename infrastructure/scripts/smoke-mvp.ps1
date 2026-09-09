@@ -3,7 +3,9 @@ param(
     [ValidateRange(30, 600)]
     [int]$TimeoutSeconds = 180,
     [ValidateSet('mvp', 'full')]
-    [string]$Profile = 'mvp'
+    [string]$Profile = 'mvp',
+    [ValidateRange(0.0001, 1000000000)]
+    [decimal]$Amount = 500000
 )
 
 Set-StrictMode -Version Latest
@@ -97,6 +99,27 @@ function Wait-HttpHealthy {
     throw "$Name did not become healthy before timeout: $Uri"
 }
 
+function Wait-ComposeServiceHealthy {
+    param(
+        [string]$Service,
+        [datetime]$Deadline
+    )
+
+    do {
+        $containerId = (& docker compose --env-file $EnvFile --profile $Profile ps -q $Service | Out-String).Trim()
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($containerId)) {
+            $status = (& docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' $containerId | Out-String).Trim()
+            if ($LASTEXITCODE -eq 0 -and ($status -eq 'healthy' -or $status -eq 'running')) {
+                Write-Host "[UP] $Service"
+                return
+            }
+        }
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $Deadline)
+
+    throw "$Service did not become healthy before timeout. Inspect it with docker compose ps/logs."
+}
+
 function Assert-Equal {
     param(
         [string]$Label,
@@ -130,7 +153,8 @@ try {
             'PAYFLOW_MERCHANT_DB_PASSWORD',
             'PAYFLOW_REPORTING_DB_PASSWORD',
             'PAYFLOW_NOTIFICATION_CLIENT_SECRET',
-            'PAYFLOW_PAYMENT_INTERNAL_CLIENT_SECRET'))
+            'PAYFLOW_PAYMENT_INTERNAL_CLIENT_SECRET',
+            'PAYFLOW_SETTLEMENT_DB_PASSWORD'))
     }
     foreach ($secretName in $requiredSecrets) {
         $secret = Require-EnvironmentValue $secretName
@@ -143,35 +167,45 @@ try {
     Invoke-Compose config --quiet
 
     $healthDeadline = (Get-Date).AddSeconds($TimeoutSeconds)
-    $healthTargets = [ordered]@{
-        'payment-service'      = "http://localhost:$(Require-EnvironmentValue 'PAYFLOW_PAYMENT_PORT')/actuator/health/readiness"
-        'risk-service'         = "http://localhost:$(Require-EnvironmentValue 'PAYFLOW_RISK_PORT')/actuator/health/readiness"
-        'notification-service' = "http://localhost:$(Require-EnvironmentValue 'PAYFLOW_NOTIFICATION_PORT')/actuator/health/readiness"
-        'api-gateway'          = "http://localhost:$(Require-EnvironmentValue 'PAYFLOW_GATEWAY_PORT')/actuator/health/readiness"
-    }
+    $serviceHealthTargets = [System.Collections.Generic.List[string]]@(
+        'payment-service',
+        'risk-service',
+        'notification-service')
     if ($Profile -eq 'full') {
-        $healthTargets['account-service'] = "http://localhost:$(Require-EnvironmentValue 'PAYFLOW_ACCOUNT_PORT')/actuator/health/readiness"
-        $healthTargets['ledger-service'] = "http://localhost:$(Require-EnvironmentValue 'PAYFLOW_LEDGER_PORT')/actuator/health/readiness"
-        $healthTargets['merchant-service'] = "http://localhost:$(Require-EnvironmentValue 'PAYFLOW_MERCHANT_PORT')/actuator/health/readiness"
-        $healthTargets['reporting-service'] = "http://localhost:$(Require-EnvironmentValue 'PAYFLOW_REPORTING_PORT')/actuator/health/readiness"
+        $serviceHealthTargets.AddRange([string[]]@(
+            'account-service',
+            'ledger-service',
+            'merchant-service',
+            'reporting-service',
+            'settlement-service'))
         $accountDatabase = 'payflow_account'
         $ledgerDatabase = 'payflow_ledger'
     }
     else {
-        $healthTargets['account-ledger-service'] = "http://localhost:$(Require-EnvironmentValue 'PAYFLOW_ACCOUNT_LEDGER_PORT')/actuator/health/readiness"
+        $serviceHealthTargets.Add('account-ledger-service')
         $accountDatabase = 'payflow_account_ledger'
         $ledgerDatabase = 'payflow_account_ledger'
     }
-    foreach ($target in $healthTargets.GetEnumerator()) {
-        Wait-HttpHealthy $target.Key $target.Value $healthDeadline
+    foreach ($service in $serviceHealthTargets) {
+        Wait-ComposeServiceHealthy $service $healthDeadline
     }
+    Wait-HttpHealthy 'api-gateway' `
+        "http://localhost:$(Require-EnvironmentValue 'PAYFLOW_GATEWAY_PORT')/actuator/health/readiness" `
+        $healthDeadline
 
     $balanceBefore = Invoke-PsqlScalar $accountDatabase `
         "select available_balance::text || '|' || reserved_balance::text from account.accounts where id = '$HappySourceAccountId';"
-    if ($balanceBefore -ne '1000000.0000|0.0000') {
-        throw "The happy-path account is not pristine (actual $balanceBefore). Reset only disposable local data before retrying."
+    $balanceParts = $balanceBefore.Split('|')
+    if ($balanceParts.Count -ne 2) {
+        throw "Unexpected account balance format: $balanceBefore"
     }
-    Write-Host '[OK] pristine account = 1000000.0000 available, 0.0000 reserved'
+    $culture = [System.Globalization.CultureInfo]::InvariantCulture
+    $availableBefore = [decimal]::Parse($balanceParts[0], $culture)
+    $reservedBefore = [decimal]::Parse($balanceParts[1], $culture)
+    if ($reservedBefore -ne 0 -or $availableBefore -lt $Amount) {
+        throw "The smoke account cannot fund $Amount VND (actual $balanceBefore). No data was reset."
+    }
+    Write-Host "[OK] account can fund $Amount VND; available=$availableBefore reserved=$reservedBefore"
 
     $issuer = (Require-EnvironmentValue 'PAYFLOW_OIDC_ISSUER_URI').TrimEnd('/')
     $tokenResponse = Invoke-RestMethod -Method Post `
@@ -194,7 +228,7 @@ try {
         merchantReference = "ORDER-$runId"
         customerId         = $HappyCustomerId
         sourceAccountId    = $HappySourceAccountId
-        amount             = 500000
+        amount             = $Amount
         currency           = 'VND'
         description        = "PayFlow local $Profile smoke payment"
         metadata           = @{ scenario = "$Profile-happy-path" }
@@ -256,7 +290,8 @@ try {
         "select count(*)::text from payment.payments where id = '$paymentId';"
 
     Assert-Equal 'risk decision' $riskDecision 'APPROVED'
-    Assert-Equal 'account balance available|reserved' $balanceAfter '500000.0000|0.0000'
+    $expectedAvailable = ($availableBefore - $Amount).ToString('F4', $culture)
+    Assert-Equal 'account balance available|reserved' $balanceAfter "$expectedAvailable|0.0000"
     Assert-Equal 'reservation status' $reservation 'CAPTURED'
     Assert-Equal 'journal entry-count|net' $journal '2|0.0000'
     Assert-Equal 'notification status' $notification 'SENT'

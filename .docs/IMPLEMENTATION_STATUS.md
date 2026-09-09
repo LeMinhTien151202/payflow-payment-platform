@@ -694,6 +694,27 @@ Known limitations:
   - COMPLETED is an audited settlement accounting transition and event; external bank payout execution is not implemented or claimed.
   - Kubernetes remains intentionally outside the active runtime scope.
 ```
+### 2026-09-09 — Gateway-only application edge, centralized Swagger và root command
+
+```text
+Date/time (UTC): 2026-09-09T14:48:30Z
+Commit SHA: 62c96c4 (working tree changes not committed at gate time)
+Environment: Windows; Java 21.0.7; Maven Wrapper 3.9.16; Docker Desktop 28.0.1; full Compose profile
+Capability/scenario: một public application edge qua API Gateway; 5 OpenAPI documents trong một Swagger UI; root payflow.ps1 cho rebuild/start/stop/status/logs/token/smoke; service ports chỉ còn Docker-internal.
+Targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/api-gateway -am verify '-Dit.test=ApiGatewaySecurityIT' '-Dfailsafe.failIfNoSpecifiedTests=false'
+Targeted result: BUILD SUCCESS; ApiGatewaySecurityIT 14/14 pass, gồm public Swagger/static OpenAPI và JWT/scope deny-by-default cho business routes.
+Static checks: 5/5 OpenAPI YAML parse bằng SnakeYAML 2.6; PowerShell scripts parse; Maven XML parse; full Compose model resolves; git diff --check passes.
+Docker build: lần đầu gặp Maven Central trả thiếu zstd-jni; shared locked BuildKit /root/.m2 cache được thêm, retry build toàn bộ 9 Java images thành công và Gateway-only rebuild xác nhận copy 5 OpenAPI specs.
+Runtime network: Gateway là application container duy nhất publish host port (127.0.0.1:8084); Payment/Account/Ledger/Merchant/Reporting/Settlement/Risk/Notification chỉ expose trong Compose network. PostgreSQL/Kafka/Redis/Keycloak development ports vẫn bind localhost.
+Swagger runtime: /swagger-ui.html redirect hợp lệ; /v3/api-docs/swagger-config trả đúng 5 definitions; cả 5 /openapi/*.yaml trả 200 và không chứa client secret/bearer token.
+Token command: payflow.ps1 token -Client service lấy token client_credentials, không in/persist token, copy clipboard; token có đúng payment/merchant/reporting/settlement scopes.
+Smoke command: .\payflow.ps1 smoke -TimeoutSeconds 300
+Smoke result: FULL SMOKE PASSED for payment 07d4b1cf-f917-40a5-b8c6-824a4a16fc21 amount 1000 VND; SUCCEEDED/APPROVED/CAPTURED, balanced two-line ledger, SENT notification, one row after idempotent replay; fixture balance 400000 -> 399000.
+Known limitations:
+  - Profile split/rút gọn ở mục 2 không được thực hiện theo quyết định của repository owner; root command dùng full profile duy nhất.
+  - START_HERE và đợt đồng bộ hóa toàn bộ runbook cũ (mục 5) được chủ động hoãn; không tạo user-guide mới trong lát cắt này.
+  - Swagger API specifications là public metadata; gọi business API vẫn yêu cầu JWT/scope. Swagger không persist bearer token.
+```
 Quy tắc cập nhật:
 
 - Không ghi `VERIFIED_*` nếu thiếu command và kết quả.

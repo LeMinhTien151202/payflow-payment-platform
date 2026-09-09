@@ -234,6 +234,24 @@ class ApiGatewaySecurityIT extends GatewayTestSupport {
                 .exchange().expectStatus().isAccepted();
     }
 
+    @Test
+    @DisplayName("central Swagger config and packaged API contracts are public without weakening business routes")
+    void centralSwaggerIsPublic() {
+        webTestClient.get().uri("/swagger-ui.html").exchange()
+                .expectStatus().value(status -> org.assertj.core.api.Assertions.assertThat(status)
+                        .isIn(200, 302, 307, 308));
+        webTestClient.get().uri("/v3/api-docs/swagger-config").exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.urls").isArray()
+                .jsonPath("$.urls.length()").isEqualTo(5);
+        webTestClient.get().uri("/openapi/payment-service-v1.yaml").exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> org.assertj.core.api.Assertions.assertThat(body)
+                        .contains("PayFlow Payment Service API")
+                        .doesNotContain("client_secret"));
+    }
     /**
      * Trường hợp regression mà test này bảo vệ: thêm một route mới mà quên thêm quy tắc phân quyền. Với
      * quy tắc {@code anyExchange().denyAll()} đứng cuối, việc bỏ sót sẽ tạo ra lỗi 403 thay vì âm thầm mở

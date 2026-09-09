@@ -14,7 +14,10 @@ RUN javac -d /workspace/healthcheck infrastructure/docker/HealthCheck.java
 
 # Windows checkouts can present mvnw with CRLF and without an executable bit. Normalize only the
 # image copy, then build the selected service plus its internal library dependencies.
-RUN sed -i 's/\r$//' mvnw \
+# The locked BuildKit cache lets all service images reuse one verified Maven repository. This
+# avoids downloading the same artifacts for every image and prevents concurrent partial writes.
+RUN --mount=type=cache,target=/root/.m2,sharing=locked \
+    sed -i 's/\r$//' mvnw \
     && chmod +x mvnw \
     && ./mvnw -B -ntp -Pno-docker -pl "services/${SERVICE_MODULE}" -am package -DskipTests \
     && cp "services/${SERVICE_MODULE}/target/${SERVICE_MODULE}-0.0.1-SNAPSHOT.jar" /workspace/app.jar
