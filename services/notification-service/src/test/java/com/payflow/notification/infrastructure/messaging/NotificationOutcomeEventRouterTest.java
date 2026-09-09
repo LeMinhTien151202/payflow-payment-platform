@@ -11,6 +11,8 @@ import static org.mockito.Mockito.when;
 import com.payflow.events.EventEnvelope;
 import com.payflow.events.payment.PaymentEvents;
 import com.payflow.events.payment.PaymentFailedData;
+import com.payflow.events.payment.PaymentSucceededV2Data;
+import java.math.BigDecimal;
 import com.payflow.notification.application.inbox.EventProcessingResult;
 import com.payflow.notification.application.notification.CreateOutcomeNotificationHandler;
 import com.payflow.notification.application.notification.OutcomeNotificationFactory;
@@ -34,6 +36,23 @@ class NotificationOutcomeEventRouterTest {
         when(handler.handle(any())).thenReturn(EventProcessingResult.PROCESSED);
 
         assertThat(router.route(event.aggregateId(), mapper.writeValueAsString(event)))
+                .isEqualTo(NotificationOutcomeEventRouter.RouteResult.PROCESSED);
+        verify(handler).handle(any());
+    }
+
+    @Test
+    void routesPaymentSucceededV2WithoutReinterpretingFeeSnapshot() {
+        UUID paymentId = UUID.randomUUID();
+        Instant now = Instant.parse("2026-08-08T02:00:00Z");
+        var event = EventEnvelope.of(UUID.randomUUID(), PaymentEvents.PAYMENT_SUCCEEDED_V2,
+                paymentId.toString(), "notification-v2", "payment-service", now,
+                new PaymentSucceededV2Data(paymentId, UUID.randomUUID(), UUID.randomUUID(),
+                        new BigDecimal("100.0000"), "VND", "fee-v1",
+                        new BigDecimal("0.020000"), new BigDecimal("2.0000"),
+                        "VND", "HALF_EVEN", now));
+        when(handler.handle(any())).thenReturn(EventProcessingResult.PROCESSED);
+
+        assertThat(router.route(paymentId.toString(), mapper.writeValueAsString(event)))
                 .isEqualTo(NotificationOutcomeEventRouter.RouteResult.PROCESSED);
         verify(handler).handle(any());
     }

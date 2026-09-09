@@ -11,4 +11,6 @@ class ProjectionEventParserTest{
   """;
  @Test void parsesSupportedEnvelope(){assertThat(parser.parse("22222222-2222-4222-8222-222222222222",payload).eventType()).isEqualTo("payment.created");}
  @Test void rejectsWrongKey(){assertThatThrownBy(()->parser.parse("wrong",payload)).isInstanceOf(IllegalArgumentException.class);}
+ @Test void acceptsPaymentSucceededV2(){String v2=payload.replace("payment.created","payment.succeeded").replace("\"eventVersion\":1","\"eventVersion\":2");assertThat(parser.parse("22222222-2222-4222-8222-222222222222",v2).eventVersion()).isEqualTo(2);}
+ @Test void rejectsV2ForOtherEventTypes(){String v2=payload.replace("\"eventVersion\":1","\"eventVersion\":2");assertThatThrownBy(()->parser.parse("22222222-2222-4222-8222-222222222222",v2)).hasMessageContaining("Unsupported");}
 }

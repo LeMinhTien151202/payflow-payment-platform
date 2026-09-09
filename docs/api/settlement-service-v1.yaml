@@ -1,0 +1,113 @@
+openapi: 3.1.0
+info:
+  title: PayFlow Settlement Service API
+  version: 1.0.0
+  description: Merchant-scoped settlement reads and privileged audited settlement/reconciliation operations.
+servers:
+  - url: http://localhost:8084
+    description: Local API Gateway
+security:
+  - bearerAuth: []
+paths:
+  /api/v1/settlements:
+    get:
+      summary: List merchant settlement batches
+      description: The merchant is taken from the validated JWT merchant_id claim, never from query input.
+      security: [{bearerAuth: [settlement:read]}]
+      parameters:
+        - {$ref: '#/components/parameters/FromDate'}
+        - {$ref: '#/components/parameters/ToDate'}
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/Size'}
+      responses:
+        '200': {description: Bounded page of daily batches}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
+  /api/v1/settlements/{id}:
+    get:
+      summary: Get a merchant-owned settlement and its immutable items
+      security: [{bearerAuth: [settlement:read]}]
+      parameters:
+        - {$ref: '#/components/parameters/BatchId'}
+      responses:
+        '200': {description: Settlement batch detail}
+        '404': {$ref: '#/components/responses/Problem'}
+  /api/v1/operations/settlements/run:
+    post:
+      summary: Calculate batches for one business date
+      description: Recalculates item totals under row locks and moves OPEN/FAILED batches through CALCULATING to READY or FAILED. No payout occurs.
+      security: [{bearerAuth: [settlement:run]}]
+      parameters:
+        - {$ref: '#/components/parameters/Date'}
+        - {$ref: '#/components/parameters/CorrelationId'}
+      responses:
+        '202': {description: Calculation committed with typed audit records}
+        '409': {$ref: '#/components/responses/Problem'}
+  /api/v1/operations/settlements/{id}/complete:
+    post:
+      summary: Complete a READY settlement batch
+      description: Atomically marks the batch COMPLETED and appends settlement.completed to the transactional outbox. Replaying a completed batch does not emit a second event.
+      security: [{bearerAuth: [settlement:run]}]
+      parameters:
+        - {$ref: '#/components/parameters/BatchId'}
+        - {$ref: '#/components/parameters/CorrelationId'}
+      responses:
+        '200': {description: Completed batch}
+        '404': {$ref: '#/components/responses/Problem'}
+        '409': {$ref: '#/components/responses/Problem'}
+  /api/v1/operations/reconciliation/run:
+    post:
+      summary: Reconcile settlement with immutable financial facts
+      description: Detects missing/mismatched Payment, Refund, Account and Ledger facts. It records issues and never silently adjusts money.
+      security: [{bearerAuth: [reconciliation:run]}]
+      parameters:
+        - {$ref: '#/components/parameters/Date'}
+        - {$ref: '#/components/parameters/CorrelationId'}
+      responses:
+        '202': {description: Reconciliation result}
+  /api/v1/operations/reconciliation/issues:
+    get:
+      summary: List reconciliation issues
+      security: [{bearerAuth: [reconciliation:read]}]
+      parameters:
+        - {$ref: '#/components/parameters/Date'}
+        - {name: status, in: query, schema: {type: string, enum: [OPEN, RESOLVED], default: OPEN}}
+        - {$ref: '#/components/parameters/Page'}
+        - {$ref: '#/components/parameters/Size'}
+      responses:
+        '200': {description: Bounded issue page}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: oauth2
+      flows:
+        clientCredentials:
+          tokenUrl: http://localhost:8180/realms/payflow/protocol/openid-connect/token
+          scopes:
+            settlement:read: Read merchant-owned settlement batches
+            settlement:run: Calculate and complete settlement batches
+            reconciliation:read: Read reconciliation issues
+            reconciliation:run: Run reconciliation
+  parameters:
+    BatchId: {name: id, in: path, required: true, schema: {type: string, format: uuid}}
+    Date: {name: date, in: query, required: true, schema: {type: string, format: date}}
+    FromDate: {name: from, in: query, required: true, schema: {type: string, format: date}}
+    ToDate: {name: to, in: query, required: true, schema: {type: string, format: date}}
+    Page: {name: page, in: query, schema: {type: integer, minimum: 0, default: 0}}
+    Size: {name: size, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+    CorrelationId: {name: X-Correlation-Id, in: header, required: false, schema: {type: string, maxLength: 64}}
+  responses:
+    Problem:
+      description: RFC Problem Details with stable code and correlationId
+      content:
+        application/problem+json:
+          schema:
+            type: object
+            required: [type, title, status, detail, code, correlationId]
+            properties:
+              type: {type: string, format: uri}
+              title: {type: string}
+              status: {type: integer}
+              detail: {type: string}
+              code: {type: string}
+              correlationId: {type: string}

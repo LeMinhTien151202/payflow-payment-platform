@@ -4,7 +4,7 @@ import com.payflow.events.account.AccountCaptureRequestedData;
 import com.payflow.events.account.AccountFundsCapturedData;
 import com.payflow.events.account.AccountFundsReservedData;
 import com.payflow.events.ledger.LedgerPaymentPostedData;
-import com.payflow.events.payment.PaymentSucceededData;
+import com.payflow.events.payment.PaymentSucceededV2Data;
 import com.payflow.payment.application.exception.FinancialFinalizationMismatchException;
 import com.payflow.payment.domain.exception.UnexpectedPaymentStatusException;
 import com.payflow.payment.domain.model.Payment;
@@ -51,7 +51,7 @@ public final class PaymentFinalizationPolicy {
      * Completes Payment only when both durable financial acknowledgements match the reserved intent.
      * Uses Payment Service's local processing time so producer clock skew cannot move updatedAt.
      */
-    public PaymentSucceededData complete(
+    public PaymentSucceededV2Data complete(
             Payment payment,
             AccountFundsReservedData reservation,
             LedgerPaymentPostedData ledger,
@@ -71,12 +71,18 @@ public final class PaymentFinalizationPolicy {
 
         payment.transitionTo(
                 PaymentStatus.SUCCEEDED, "FINANCIAL_FINALIZATION_CONFIRMED", processedAt);
-        return new PaymentSucceededData(
+        var fee = payment.feeSnapshot();
+        return new PaymentSucceededV2Data(
                 payment.id(),
                 payment.merchantId(),
                 payment.customerId(),
                 payment.amount().amount(),
                 payment.amount().currency(),
+                fee.policyVersion(),
+                fee.appliedRate(),
+                fee.feeAmount().amount(),
+                fee.feeAmount().currency(),
+                fee.roundingMode().name(),
                 processedAt);
     }
 

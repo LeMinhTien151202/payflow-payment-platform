@@ -25,7 +25,7 @@ import com.payflow.events.ledger.LedgerPostPaymentRequestedData;
 import com.payflow.events.payment.PaymentEvents;
 import com.payflow.events.payment.PaymentFailedData;
 import com.payflow.events.payment.PaymentManualReviewRequiredData;
-import com.payflow.events.payment.PaymentSucceededData;
+import com.payflow.events.payment.PaymentSucceededV2Data;
 import com.payflow.events.risk.RiskAssessmentCompletedData;
 import com.payflow.events.risk.RiskDecisionValue;
 import com.payflow.events.risk.RiskEvents;
@@ -243,7 +243,7 @@ class HandlePaymentWorkflowEventHandlerTest {
 
         assertThat(payment.status()).isEqualTo(PaymentStatus.SUCCEEDED);
         assertThat(saga.status()).isEqualTo(PaymentSagaStatus.COMPLETED);
-        assertOutgoing(PaymentEvents.PAYMENT_SUCCEEDED, PaymentSucceededData.class, event);
+        assertOutgoing(PaymentEvents.PAYMENT_SUCCEEDED_V2, PaymentSucceededV2Data.class, event);
     }
 
     @Test

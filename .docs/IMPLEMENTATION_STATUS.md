@@ -47,7 +47,7 @@ File này là bảng bằng chứng sống. Cập nhật sau mỗi milestone; kh
 | Merchant service và Payment policy boundary | `IMPLEMENTED` | Merchant unit test + Payment remote-adapter test; no-Docker reactor gate | Profile full dùng authenticated internal REST, timeout/fail-closed và immutable fee/limit snapshot; Flyway/Keycloak runtime chờ Docker |
 | Webhook HMAC/retry/operations | `IMPLEMENTED` | Signature/retry unit test; PostgreSQL persistence IT đã compile | Stable event id/raw body, lease/retry/DEAD, subscribed-event filter và audited manual requeue; network/PostgreSQL gate chờ Docker |
 | Reporting projection/rebuild | `IMPLEMENTED` | Parser unit test; rebuild-equivalence PostgreSQL IT đã compile | Event log idempotent, generation switch, fingerprint, version rejection/DLT và audited rebuild; PostgreSQL/Kafka gate chờ Docker |
-| Settlement/reconciliation/Kubernetes/load | `PLANNED` | — | Phase 3 |
+| Settlement/reconciliation/Docker/load | `VERIFIED_LOCAL` | Full clean verify 705/705; Compose + Keycloak + Kafka → Settlement runtime pass, 2026-09-09 | Settlement calculation/reconciliation/completion and idempotent outbox verified locally; k6 and deployed Prometheus/Grafana evidence remain pending; Kubernetes is intentionally deferred |
 
 ## Known deviations
 
@@ -68,6 +68,7 @@ review sau không phải đoán đó là lệch hay là bug.
 | D-10 | Spec §9.2 đánh dấu Payment `SUCCEEDED` trước khi Account capture | ADR-011 đổi thành ledger posted → explicit capture → funds captured → payment success | Thứ tự baseline có thể công bố success khi tiền chưa capture. Thứ tự mới giữ Payment `PROCESSING` đến khi cả journal và capture đã commit; sau journal POSTED không tự release reservation |
 | D-11 | Roadmap Phase 1B yêu cầu Kafka/PostgreSQL E2E | Hoàn thiện trước command/outcome contract và orchestration core bằng unit/contract test không Docker | Repository owner yêu cầu viết xong code core rồi mới bật hạ tầng. Phạm vi này không tuyên bố atomic inbox/outbox, locking, duplicate delivery, crash recovery hay Phase 1B E2E đã đạt gate |
 | D-12 | ADR-012 gate yêu cầu PostgreSQL/Kafka/failure E2E trước Phase 2 | Chuẩn bị Payment listener, transactional consumer, retry/DLT và Testcontainers test trước khi bật hạ tầng | Repository owner yêu cầu implementation-first. Code được compile/unit-test nhưng capability vẫn `IMPLEMENTED`; không dùng unit test để tuyên bố offset, DLT hoặc PostgreSQL atomicity đã được chứng minh |
+| D-13 | Spec/Roadmap Phase 3 có Kubernetes, NetworkPolicy và HPA | Runtime Phase 3 hiện dùng Docker Compose; Kubernetes source/deploy workflow được hoãn | Repository owner yêu cầu tạm thời không dùng Kubernetes. Việc hoãn không đổi Settlement/Reconciliation, event contract, database ownership hoặc reliability invariant; không tuyên bố Kubernetes experience/runtime evidence |
 
 ## Evidence record template
 
@@ -652,6 +653,47 @@ Known limitations:
   - Existing local .env and persisted Keycloak realm require the documented Phase 2 preparation/migration when Docker is enabled.
 ```
 
+### 2026-08-08 — Phase 3 code-first, Docker-free gate
+
+```text
+Date/time (UTC): 2026-08-08T09:11:24Z
+Commit SHA: 860b3fa (working tree changes not committed)
+Environment: Windows; Java 21.0.7; Maven Wrapper 3.9.16; Docker/runtime intentionally not invoked
+Capability/scenario: payment.succeeded v2 fee snapshot; daily settlement/reconciliation service; merchant/operations API and scopes; transactional inbox/outbox; alerts/dashboard/k6/security-scan source artifacts
+Command: .\mvnw.cmd -B -ntp -Pno-docker clean verify
+Result: BUILD SUCCESS in 02:16; all 14/14 reactor modules SUCCESS; 615 tests, 0 failures, 0 errors, 0 skipped across generated Surefire/Failsafe XML reports.
+Static checks at the time: realm-payflow.json and Grafana dashboard parse; git diff --check exits 0. Earlier Kustomize evidence is historical only; Kubernetes was subsequently removed from active scope by D-13.
+Delivery source: Docker Compose `full` profile builds settlement-service with the shared non-root Dockerfile and wires PostgreSQL, Kafka, Keycloak and Gateway configuration.
+Post-change targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/api-gateway,services/reporting-service,services/notification-service,services/settlement-service -am verify
+Post-change targeted result: BUILD SUCCESS in 00:53; Gateway settlement scope/route IT 13/13, reporting parser 4/4 and notification unit 37/37 pass. Final settlement-only test rerun BUILD SUCCESS in 00:15 with 10/10 settlement tests after outbox validation was tightened.
+Final repository regression: `.\mvnw.cmd -B -ntp -Pno-docker verify` -> BUILD SUCCESS in 01:44; 14/14 reactor modules and 622/622 generated Surefire/Failsafe test cases pass with no failure, error or skip.
+Known limitations:
+  - SettlementPersistenceIT is compiled and tagged docker but not executed, so PostgreSQL constraints, triggers, locking, Flyway and transaction rollback are not yet runtime evidence.
+  - No Kafka broker delivery/redelivery, Keycloak token, Compose full-profile smoke, Prometheus alert or k6 threshold was executed in this historical code-first gate.
+  - Kubernetes is intentionally outside the current runtime scope; no deployment or operational evidence is claimed.
+```
+
+### 2026-09-09 — Phase 3 Docker Compose runtime gate, không Kubernetes
+
+```text
+Date/time (UTC): 2026-09-09T13:11:00Z
+Commit SHA: 94cce61 (Phase 3 working tree changes not committed at gate time)
+Environment: Windows; Java 21.0.7; Maven Wrapper 3.9.16; Docker Desktop 28.0.1; PostgreSQL 17.10 Testcontainers và Compose; Kafka 4.3.1; Keycloak 26.7.0
+Capability/scenario: Phase 3 Settlement/Reconciliation integrated on main; Docker Compose is the active runtime; Kubernetes artifacts excluded; existing PostgreSQL and Keycloak volumes upgraded idempotently without reset.
+Repository command: .\mvnw.cmd -B -ntp clean verify
+Repository result: BUILD SUCCESS in 04:31; all 14/14 reactor modules SUCCESS; 705 tests, 0 failures, 0 errors, 0 skipped across Surefire/Failsafe XML reports.
+PostgreSQL result: SettlementPersistenceIT passed against PostgreSQL 17.10 after removing final from the two @Transactional JDBC outbox adapters so Spring transaction proxies can be created.
+Compose result: full profile built successfully; PostgreSQL, Kafka, Redis, Keycloak, Gateway, Payment, Account, Ledger, Merchant, Risk, Notification, Reporting and Settlement became healthy; kafka-init exited 0.
+Keycloak result: provision-phase3-keycloak.ps1 added missing settlement/reconciliation scopes to the persisted realm and a second run returned only KEEP, proving the migration is idempotent; newly issued service and operations tokens contained the expected scopes.
+Runtime payment: payment 5ac23b7a-fcea-4bfd-b5bc-a8a5db8f0556, amount 100000 VND, reached SUCCEEDED and idempotent replay returned the same payment id.
+Kafka/settlement facts: PAYMENT_SUCCEEDED, LEDGER_PAYMENT_POSTED and ACCOUNT_FUNDS_CAPTURED were persisted for the payment.
+Settlement result: batch e0c320e6-4064-4665-a2ce-8608989435ea calculated READY with gross 100000, fee 2000 and net 98000; reconciliation checked 1 item with 0 open issues; complete + replay both returned COMPLETED and exactly one settlement.completed outbox row reached PUBLISHED.
+Known limitations:
+  - The existing full smoke harness stopped safely because its fixture balance was already 500000 rather than pristine 1000000; the bounded 100000 VND runtime scenario above replaced that destructive reset and passed.
+  - k6 thresholds and a deployed Prometheus/Grafana stack were not run, so no throughput, latency or alert-firing claim is made.
+  - COMPLETED is an audited settlement accounting transition and event; external bank payout execution is not implemented or claimed.
+  - Kubernetes remains intentionally outside the active runtime scope.
+```
 Quy tắc cập nhật:
 
 - Không ghi `VERIFIED_*` nếu thiếu command và kết quả.

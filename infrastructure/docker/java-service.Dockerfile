@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 
 # One reviewed build recipe serves every Java deployable. SERVICE_MODULE is a repository folder
-# name, not arbitrary shell input; docker-compose.yml supplies one of the five known values.
+# name, not arbitrary shell input; docker-compose.yml supplies a reviewed module.
 FROM eclipse-temurin:21-jdk-jammy AS build
 
 ARG SERVICE_MODULE

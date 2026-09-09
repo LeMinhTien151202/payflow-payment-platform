@@ -37,6 +37,10 @@ public class GatewayRoutesConfig {
                 .route("reporting-service", r -> r
                         .path("/api/v1/reports/**", "/api/v1/operations/reporting/**")
                         .uri(downstream.reportingService()))
+                .route("settlement-service", r -> r
+                        .path("/api/v1/settlements/**", "/api/v1/operations/settlements/**",
+                                "/api/v1/operations/reconciliation/**")
+                        .uri(downstream.settlementService()))
                 .build();
     }
 }

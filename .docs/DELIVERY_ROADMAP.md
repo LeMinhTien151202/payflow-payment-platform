@@ -107,14 +107,18 @@ Spec đặt Saga state, compensation và DLT trong Phase 2. OD-002 phải đư�
 
 - Settlement và reconciliation.
 - Full observability dashboards/alerts/runbooks.
-- Docker images non-root, Kubernetes/Kustomize, NetworkPolicy, HPA khi có metric.
-- CI/CD staging, smoke test, dependency/security scan.
-- k6 load test và chaos scenarios có report tái tạo được.
+- Docker images non-root và Docker Compose full-profile deployment.
+- CI build/test, Compose smoke test và dependency/security scan.
+- k6 load test và container failure scenarios có report tái tạo được.
+
+Kubernetes/Kustomize, NetworkPolicy và HPA tạm hoãn theo quyết định của repository owner. Đây là
+hạng mục tùy chọn sau khi Docker Compose runtime gate ổn định, không phải dependency của nghiệp vụ
+Settlement/Reconciliation.
 
 ### Gate
 
 - Settlement gross/refund/fee/net đúng bằng fixture và reconciliation không lệch.
-- Deploy/rollback/smoke test được document và thực thi.
+- Full-profile Compose start/restart/smoke test được document và thực thi.
 - Alert quan trọng có owner/runbook.
 - Performance report ghi hardware/config/dataset/date; không dùng số liệu giả.
 

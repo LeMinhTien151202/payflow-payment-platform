@@ -1,0 +1,64 @@
+spring:
+  application.name: settlement-service
+  datasource:
+    url: ${PAYFLOW_SETTLEMENT_DB_URL:jdbc:postgresql://localhost:5433/payflow_settlement}
+    username: ${PAYFLOW_SETTLEMENT_DB_USERNAME}
+    password: ${PAYFLOW_SETTLEMENT_DB_PASSWORD}
+  flyway:
+    enabled: true
+    schemas: settlement_runtime,settlement
+    default-schema: settlement_runtime
+    create-schemas: true
+  security.oauth2.resourceserver.jwt:
+    issuer-uri: ${PAYFLOW_OIDC_ISSUER_URI:http://localhost:8180/realms/payflow}
+    jwk-set-uri: ${PAYFLOW_OIDC_JWK_SET_URI:http://localhost:8180/realms/payflow/protocol/openid-connect/certs}
+  kafka:
+    bootstrap-servers: ${PAYFLOW_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+    consumer:
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener.ack-mode: manual_immediate
+server.port: ${PAYFLOW_SETTLEMENT_PORT:8089}
+payflow:
+  settlement.business-zone: ${PAYFLOW_SETTLEMENT_BUSINESS_ZONE:Asia/Ho_Chi_Minh}
+  settlement-consumer.enabled: ${PAYFLOW_SETTLEMENT_CONSUMER_ENABLED:true}
+  outbox:
+    enabled: ${PAYFLOW_OUTBOX_ENABLED:true}
+    poll-interval: ${PAYFLOW_OUTBOX_POLL_INTERVAL:500ms}
+    batch-size: ${PAYFLOW_OUTBOX_BATCH_SIZE:100}
+    lease: ${PAYFLOW_OUTBOX_LEASE:120s}
+    max-attempts: ${PAYFLOW_OUTBOX_MAX_ATTEMPTS:10}
+    max-backoff: ${PAYFLOW_OUTBOX_MAX_BACKOFF:300s}
+    delivery-timeout: ${PAYFLOW_OUTBOX_DELIVERY_TIMEOUT:30s}
+management:
+  endpoints.web.exposure.include: health,prometheus
+  tracing:
+    sampling.probability: ${PAYFLOW_TRACING_SAMPLING_PROBABILITY:0.10}
+  opentelemetry.tracing.export.otlp:
+    endpoint: ${PAYFLOW_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+    enabled: ${PAYFLOW_OTLP_ENABLED:false}
+  endpoint.health:
+    probes.enabled: true
+    show-details: never
+logging:
+  structured.format.console: ecs
+  level.root: INFO
+springdoc:
+  api-docs.enabled: false
+  swagger-ui.enabled: false
+  paths-to-match: /api/v1/settlements/**,/api/v1/operations/settlements/**,/api/v1/operations/reconciliation/**
+---
+spring:
+  config.activate.on-profile: local
+springdoc:
+  api-docs.enabled: true
+  api-docs.path: /v3/api-docs
+  swagger-ui.enabled: true
+  swagger-ui.path: /swagger-ui.html
+  swagger-ui.operations-sorter: method
