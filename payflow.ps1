@@ -85,7 +85,9 @@ function Invoke-Compose {
 }
 
 function Require-Docker {
-    & docker info *> $null
+    # `docker info` emits harmless host capability warnings on some Docker Desktop/WSL setups.
+    # With ErrorActionPreference=Stop, PowerShell can promote stderr warnings to terminating errors.
+    & docker version --format '{{.Server.Version}}' *> $null
     if ($LASTEXITCODE -ne 0) {
         throw 'Docker Engine is not available. Start Docker Desktop and retry.'
     }
