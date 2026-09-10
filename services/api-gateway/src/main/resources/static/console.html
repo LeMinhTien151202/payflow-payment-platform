@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="description" content="PayFlow local operations console for merchant payments, reporting and settlement APIs.">
+  <title>PayFlow Console</title>
+  <link rel="stylesheet" href="/console/app.css">
+</head>
+<body>
+  <a class="skip-link" href="#workspace">Đi tới nội dung chính</a>
+  <noscript>
+    <div class="noscript">PayFlow Console cần JavaScript để gọi API qua Gateway.</div>
+  </noscript>
+
+  <header class="topbar">
+    <a class="brand" href="/console.html" aria-label="PayFlow Console, trang tổng quan">
+      <span class="brand-mark" aria-hidden="true">PF</span>
+      <span>
+        <strong>PayFlow</strong>
+        <small>Operations Console</small>
+      </span>
+    </a>
+    <div class="topbar-actions">
+      <span class="environment">LOCAL</span>
+      <span class="gateway-state" id="gateway-state" data-state="checking">Đang kiểm tra Gateway</span>
+      <a class="text-link" href="/swagger-ui.html" target="_blank" rel="noreferrer">Mở API docs</a>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Điều hướng PayFlow">
+      <div class="sidebar-heading">
+        <span>Không gian làm việc</span>
+        <button class="quiet-button mobile-nav-button" id="mobile-nav-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button>
+      </div>
+      <nav class="primary-nav" id="primary-nav"></nav>
+
+      <section class="token-vault" aria-labelledby="token-title">
+        <div class="token-heading">
+          <h2 id="token-title">Token trong phiên</h2>
+          <span class="memory-only">MEMORY ONLY</span>
+        </div>
+        <p>Chạy <code>.\payflow.ps1 token</code>, sau đó dán JWT. Token không được lưu vào trình duyệt.</p>
+        <form id="token-form" autocomplete="off">
+          <label for="token-slot">Loại token</label>
+          <select id="token-slot" name="slot">
+            <option value="service">Merchant service</option>
+            <option value="operations">Operations</option>
+          </select>
+          <label for="token-input">Access token</label>
+          <div class="token-input-row">
+            <input id="token-input" name="token" type="password" spellcheck="false" autocomplete="off" placeholder="Dán JWT tại đây" required>
+            <button class="primary-button compact" type="submit">Nạp</button>
+          </div>
+        </form>
+        <div class="token-list" id="token-list" aria-live="polite"></div>
+      </section>
+    </aside>
+
+    <main class="workspace" id="workspace" tabindex="-1">
+      <div class="workspace-header">
+        <div>
+          <p class="eyebrow" id="workspace-eyebrow">Tổng quan</p>
+          <h1 id="workspace-title">Điều hành luồng thanh toán</h1>
+          <p id="workspace-description">Một cửa vào cho các API đang có trong PayFlow, với scope và trạng thái request hiển thị rõ ràng.</p>
+        </div>
+        <div class="clock-block" aria-label="Thời gian cục bộ">
+          <span>LOCAL TIME</span>
+          <strong id="local-clock">--:--:--</strong>
+        </div>
+      </div>
+
+      <section id="overview-view" class="view" aria-labelledby="workspace-title">
+        <div class="overview-grid">
+          <article class="health-panel">
+            <div class="panel-heading">
+              <div>
+                <span class="section-kicker">Runtime</span>
+                <h2>Gateway readiness</h2>
+              </div>
+              <button class="quiet-button" id="refresh-health" type="button">Kiểm tra lại</button>
+            </div>
+            <div class="health-reading">
+              <span class="health-indicator" id="health-indicator" data-state="checking"></span>
+              <div>
+                <strong id="health-value">Đang kết nối</strong>
+                <p id="health-detail">GET /actuator/health/readiness</p>
+              </div>
+            </div>
+          </article>
+
+          <article class="flow-panel">
+            <span class="section-kicker">Request path</span>
+            <h2>Một cổng, hai lớp kiểm tra</h2>
+            <ol class="flow-list">
+              <li><span>01</span><div><strong>JWT từ Keycloak</strong><small>Token chứa merchant_id và scope.</small></div></li>
+              <li><span>02</span><div><strong>Gateway kiểm tra</strong><small>Route mới bị từ chối mặc định.</small></div></li>
+              <li><span>03</span><div><strong>Service kiểm tra lại</strong><small>Ownership được áp dụng tại nơi sở hữu dữ liệu.</small></div></li>
+            </ol>
+          </article>
+        </div>
+
+        <section class="capability-section" aria-labelledby="capability-title">
+          <div class="section-heading">
+            <span class="section-kicker">API surface</span>
+            <h2 id="capability-title">Chức năng đang nối</h2>
+            <p>Chọn một khu vực để xem form phù hợp với contract và scope hiện tại.</p>
+          </div>
+          <div class="capability-grid" id="capability-grid"></div>
+        </section>
+
+        <section class="activity-section" aria-labelledby="activity-title">
+          <div class="panel-heading">
+            <div>
+              <span class="section-kicker">Trong tab này</span>
+              <h2 id="activity-title">Request gần đây</h2>
+            </div>
+            <button class="quiet-button" id="clear-activity" type="button">Xóa lịch sử</button>
+          </div>
+          <div id="activity-list" class="activity-list" aria-live="polite"></div>
+        </section>
+      </section>
+
+      <section id="operations-view" class="view" hidden aria-labelledby="workspace-title">
+        <div class="operation-toolbar">
+          <div>
+            <label for="operation-select">Chức năng</label>
+            <select id="operation-select"></select>
+          </div>
+          <div class="scope-requirement">
+            <span>Scope yêu cầu</span>
+            <strong id="required-scope">--</strong>
+          </div>
+        </div>
+
+        <div class="operation-layout">
+          <section class="request-panel" aria-labelledby="operation-title">
+            <div class="panel-heading operation-heading">
+              <div>
+                <div class="method-line">
+                  <span class="method-badge" id="method-badge">GET</span>
+                  <code id="operation-path">/api/v1</code>
+                </div>
+                <h2 id="operation-title">Chọn chức năng</h2>
+                <p id="operation-description"></p>
+              </div>
+            </div>
+            <div class="workflow-note" id="workflow-note" hidden></div>
+            <form id="operation-form" autocomplete="off"></form>
+          </section>
+
+          <section class="response-panel" aria-labelledby="response-title">
+            <div class="panel-heading response-heading">
+              <div>
+                <span class="section-kicker">Response</span>
+                <h2 id="response-title">Kết quả API</h2>
+              </div>
+              <button class="quiet-button" id="copy-response" type="button" disabled>Copy JSON</button>
+            </div>
+            <div class="response-empty" id="response-empty">
+              <strong>Chưa có request</strong>
+              <p>Điền form bên trái. Console sẽ hiển thị HTTP status, correlation ID và payload trả về.</p>
+            </div>
+            <div id="response-content" hidden>
+              <div class="response-meta" id="response-meta"></div>
+              <div class="response-summary" id="response-summary"></div>
+              <details class="raw-response">
+                <summary>Xem response thô</summary>
+                <pre id="response-json"></pre>
+              </details>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast-region" id="toast-region" aria-live="polite" aria-atomic="true"></div>
+  <script type="module" src="/console/app.js"></script>
+</body>
+</html>

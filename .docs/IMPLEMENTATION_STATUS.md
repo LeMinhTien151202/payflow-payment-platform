@@ -721,3 +721,18 @@ Quy tắc cập nhật:
 - Failure test phải ghi injection point và state cuối của từng aggregate.
 - Load-test result phải trỏ tới script/config và môi trường.
 - Nếu một regression làm gate fail, hạ trạng thái capability và ghi nguyên nhân; không giữ badge cũ.
+
+### 2026-09-10 — PayFlow Operations Console tại API Gateway
+
+```text
+Date/time (Asia/Bangkok): 2026-09-10T10:10:03+07:00
+Base commit SHA: b4f727f (working tree changes not committed at gate time)
+Capability/scenario: responsive same-origin Operations Console served by API Gateway; 24 OpenAPI-aligned payment, refund, merchant, reporting, settlement, reconciliation and recovery operations; memory-only JWT slots; exact decimal JSON serialization; correlation and idempotency headers; structured response/activity states.
+Security boundary: only /console.html and /console/** are public static assets. Every business route remains JWT/scope protected and deny-by-default; no client secret or access token is embedded or persisted by the Console.
+Targeted command: .\mvnw.cmd -B -ntp -Pno-docker -pl services/api-gateway -am verify '-Dit.test=ApiGatewaySecurityIT' '-Dfailsafe.failIfNoSpecifiedTests=false'
+Targeted result: BUILD SUCCESS in 45.151 s; ApiGatewaySecurityIT 15/15 pass, including public Console assets and unchanged 401/403 routing behavior.
+Static checks: node --check console/app.js passes; secret/storage/em-dash/gradient scan has no match; git diff --check exits 0.
+Visual QA: Chrome headless screenshots at 1440x1100 and responsive 560x900 passed using a temporary localhost static server that was stopped immediately after capture.
+Docker image: gateway-only image payflow/api-gateway:dev built successfully from final source. Docker Desktop stopped before the final container recreate, so live Compose activation of this exact image remains a one-command local step.
+Known limitation: Console accepts an already-issued short-lived JWT; it intentionally does not place a Keycloak client secret in browser code or implement a browser login flow.
+```

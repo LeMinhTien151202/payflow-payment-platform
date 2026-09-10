@@ -252,6 +252,26 @@ class ApiGatewaySecurityIT extends GatewayTestSupport {
                         .contains("PayFlow Payment Service API")
                         .doesNotContain("client_secret"));
     }
+
+    @Test
+    @DisplayName("PayFlow Console is public, while its assets contain no embedded credentials")
+    void payflowConsoleIsPublicWithoutEmbeddedCredentials() {
+        webTestClient.get().uri("/console.html").exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> org.assertj.core.api.Assertions.assertThat(body)
+                        .contains("PayFlow Console", "/console/app.js")
+                        .doesNotContain("client_secret", "PAYFLOW_SERVICE_CLIENT_SECRET"));
+        webTestClient.get().uri("/console/app.js").exchange()
+                .expectStatus().isOk()
+                .expectBody(String.class)
+                .value(body -> org.assertj.core.api.Assertions.assertThat(body)
+                        .contains("/api/v1/payments", "/api/v1/settlements")
+                        .doesNotContain("client_secret", "PAYFLOW_SERVICE_CLIENT_SECRET"));
+        webTestClient.get().uri("/console/app.css").exchange()
+                .expectStatus().isOk();
+    }
+
     /**
      * Trường hợp regression mà test này bảo vệ: thêm một route mới mà quên thêm quy tắc phân quyền. Với
      * quy tắc {@code anyExchange().denyAll()} đứng cuối, việc bỏ sót sẽ tạo ra lỗi 403 thay vì âm thầm mở
