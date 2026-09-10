@@ -736,3 +736,14 @@ Visual QA: Chrome headless screenshots at 1440x1100 and responsive 560x900 passe
 Docker image: gateway-only image payflow/api-gateway:dev built successfully from final source. Docker Desktop stopped before the final container recreate, so live Compose activation of this exact image remains a one-command local step.
 Known limitation: Console accepts an already-issued short-lived JWT; it intentionally does not place a Keycloak client secret in browser code or implement a browser login flow.
 ```
+### 2026-09-10 — Operations Console Compose runtime activation
+
+```text
+Date/time (Asia/Bangkok): 2026-09-10T15:23:12+07:00
+Commit SHA: a79fb03
+Command: .\payflow.ps1 start -TimeoutSeconds 300
+Result: PostgreSQL, Kafka, Redis, Keycloak, all full-profile business services and API Gateway reported UP; Gateway public readiness endpoint reported UP. Existing images were used with no full rebuild.
+Console check: GET http://localhost:8084/console.html -> 200.
+Authenticated read checks: payflow-service token GET /api/v1/payments?page=0&size=1 -> 200; payflow-operations token GET /api/v1/operations/reconciliation/issues with bounded query -> 200. Tokens and client secrets remained process-memory-only and were not printed.
+Visual runtime check: Chrome headless loaded the Gateway-served Console at 1440x1000 and displayed Gateway readiness UP.
+```
