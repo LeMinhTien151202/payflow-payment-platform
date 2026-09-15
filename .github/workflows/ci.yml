@@ -40,7 +40,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           # Phải khớp với toolchain trong parent POM. ADR-013 khóa cố định Java 21.
           java-version: '21'
@@ -78,7 +78,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Set up JDK 21
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           java-version: '21'
           distribution: temurin
