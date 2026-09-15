@@ -633,6 +633,11 @@ class CreatePaymentHandlerTest {
         }
 
         @Override
+        public Optional<VersionedPaymentSaga> findByPaymentIdForCancellation(UUID paymentId) {
+            return Optional.empty();
+        }
+
+        @Override
         public List<UUID> findDueIds(Instant dueAt, int limit) {
             return List.of();
         }

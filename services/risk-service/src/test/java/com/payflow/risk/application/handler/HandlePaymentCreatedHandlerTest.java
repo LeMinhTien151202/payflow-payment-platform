@@ -56,10 +56,10 @@ class HandlePaymentCreatedHandlerTest {
     private HandlePaymentCreatedHandler handler;
 
     @BeforeEach
-    @SuppressWarnings({"unchecked", "rawtypes"})
     void setUp() {
-        when(transactions.execute(any(TransactionCallback.class))).thenAnswer(invocation -> {
-            TransactionCallback<?> callback = invocation.getArgument(0);
+        when(transactions.execute(org.mockito.ArgumentMatchers
+                .<TransactionCallback<Object>>any())).thenAnswer(invocation -> {
+            TransactionCallback<Object> callback = invocation.getArgument(0);
             return callback.doInTransaction(mock(TransactionStatus.class));
         });
         handler = new HandlePaymentCreatedHandler(
@@ -184,7 +184,8 @@ class HandlePaymentCreatedHandlerTest {
         assertThatThrownBy(() -> handler.handle(event))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Redis unavailable");
-        verify(transactions, never()).execute(any(TransactionCallback.class));
+        verify(transactions, never()).execute(
+                org.mockito.ArgumentMatchers.<TransactionCallback<Object>>any());
         verify(inbox, never()).recordIfNew(any());
         verify(outbox, never()).append(any(), any());
     }

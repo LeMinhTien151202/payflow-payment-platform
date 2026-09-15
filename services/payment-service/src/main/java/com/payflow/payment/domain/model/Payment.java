@@ -328,6 +328,11 @@ public final class Payment {
         transitionTo(PaymentStatus.RISK_CHECKING, "RISK_SUBMITTED", at);
     }
 
+    /** Cancels only before the Saga has requested a balance reservation. */
+    public void cancelBeforeReservation(Instant at) {
+        transitionTo(PaymentStatus.CANCELLED, "MERCHANT_CANCELLED", at);
+    }
+
     /**
      * Applies the decision semantics fixed by ADR-016 without performing any I/O.
      *

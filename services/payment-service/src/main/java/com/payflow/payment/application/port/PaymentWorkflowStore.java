@@ -9,5 +9,8 @@ public interface PaymentWorkflowStore {
 
     Optional<VersionedPayment> findForWorkflow(UUID paymentId);
 
+    /** Locks the merchant-owned row so cancel cannot race past a financial Saga transition. */
+    Optional<VersionedPayment> findForCancellation(UUID paymentId, UUID merchantId);
+
     void updateWorkflow(VersionedPayment payment);
 }

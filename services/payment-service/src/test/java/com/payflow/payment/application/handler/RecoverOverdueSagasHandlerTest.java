@@ -267,6 +267,11 @@ class RecoverOverdueSagasHandlerTest {
         }
 
         @Override
+        public Optional<VersionedPaymentSaga> findByPaymentIdForCancellation(UUID paymentId) {
+            return findByPaymentId(paymentId);
+        }
+
+        @Override
         public List<UUID> findDueIds(Instant dueAt, int limit) {
             return dueIds.stream().limit(limit).toList();
         }
@@ -297,6 +302,12 @@ class RecoverOverdueSagasHandlerTest {
         @Override
         public Optional<VersionedPayment> findForWorkflow(UUID paymentId) {
             return Optional.ofNullable(rows.get(paymentId));
+        }
+
+        @Override
+        public Optional<VersionedPayment> findForCancellation(UUID paymentId, UUID merchantId) {
+            return Optional.ofNullable(rows.get(paymentId))
+                    .filter(row -> row.payment().merchantId().equals(merchantId));
         }
 
         @Override

@@ -21,6 +21,9 @@ public final class IdempotencyScope {
     /** Template scope: paymentId is part of the request fingerprint, not the bounded scope string. */
     public static final String CREATE_REFUND = "POST /api/v1/payments/{paymentId}/refunds";
 
+    /** Template scope: paymentId is part of the request fingerprint. */
+    public static final String CANCEL_PAYMENT = "POST /api/v1/payments/{paymentId}/cancel";
+
     /** Matches {@code idempotency_records.scope VARCHAR(100)}. */
     public static final int MAX_LENGTH = 100;
 
@@ -34,6 +37,10 @@ public final class IdempotencyScope {
 
     public static String createRefund(UUID merchantId) {
         return of(merchantId, CREATE_REFUND);
+    }
+
+    public static String cancelPayment(UUID merchantId) {
+        return of(merchantId, CANCEL_PAYMENT);
     }
 
     public static String of(UUID merchantId, String endpoint) {

@@ -1,6 +1,7 @@
 package com.payflow.payment.application.handler;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -31,6 +32,7 @@ import com.payflow.events.risk.RiskDecisionValue;
 import com.payflow.events.risk.RiskEvents;
 import com.payflow.events.risk.RiskLevelValue;
 import com.payflow.payment.application.inbox.EventProcessingResult;
+import com.payflow.payment.domain.exception.UnexpectedPaymentStatusException;
 import com.payflow.payment.application.port.OutboxAppender;
 import com.payflow.payment.application.port.PaymentSagaStore;
 import com.payflow.payment.application.port.PaymentWorkflowStore;
@@ -131,6 +133,47 @@ class HandlePaymentWorkflowEventHandlerTest {
         assertOutgoing(AccountEvents.RESERVE_REQUESTED, AccountReserveRequestedData.class, event);
         verify(payments).updateWorkflow(any());
         verify(sagas).update(any());
+    }
+
+    @Test
+    void lateRiskResultAfterCancellationIsRecordedWithoutRestartingTheSaga() {
+        Payment payment = payment(PaymentStatus.CANCELLED);
+        PaymentSaga saga = saga(
+                PaymentSagaStep.RISK_ASSESSMENT,
+                PaymentSagaStatus.CANCELLED,
+                null,
+                null,
+                "MERCHANT_CANCELLED");
+        givenWorkflow(payment, saga);
+
+        assertThat(handler.handleRiskAssessment(riskEvent(RiskDecisionValue.APPROVED)))
+                .isEqualTo(EventProcessingResult.PROCESSED);
+
+        verify(payments, never()).updateWorkflow(any());
+        verify(sagas, never()).update(any());
+        verify(outbox, never()).appendCausedBy(any(), any(), any(), any(), any(), any());
+        assertThat(payment.status()).isEqualTo(PaymentStatus.CANCELLED);
+        assertThat(saga.status()).isEqualTo(PaymentSagaStatus.CANCELLED);
+    }
+
+    @Test
+    void cancellationDoesNotHideAnImpossibleLateFinancialEvent() {
+        Payment payment = payment(PaymentStatus.CANCELLED);
+        PaymentSaga saga = saga(
+                PaymentSagaStep.RISK_ASSESSMENT,
+                PaymentSagaStatus.CANCELLED,
+                null,
+                null,
+                "MERCHANT_CANCELLED");
+        givenWorkflow(payment, saga);
+        var event = envelope(
+                AccountEvents.FUNDS_RESERVED,
+                new AccountFundsReservedData(
+                        PAYMENT_ID, ACCOUNT_ID, RESERVATION_ID, AMOUNT, "VND"));
+
+        assertThatThrownBy(() -> handler.handleFundsReserved(event))
+                .isInstanceOf(UnexpectedPaymentStatusException.class);
+        verify(outbox, never()).appendCausedBy(any(), any(), any(), any(), any(), any());
     }
 
     @Test

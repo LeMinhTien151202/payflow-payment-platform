@@ -8,8 +8,9 @@ import com.payflow.notification.infrastructure.delivery.NotificationDeliveryProp
 import com.payflow.notification.infrastructure.delivery.WebhookProperties;
 import com.payflow.notification.application.webhook.*;
 import org.springframework.web.client.RestClient;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import tools.jackson.databind.ObjectMapper;
+import java.net.http.HttpClient;
 import java.time.Clock;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -45,8 +46,11 @@ class RuntimeConfig {
 
     @Bean WebhookRetryPolicy webhookRetryPolicy(){return new WebhookRetryPolicy();}
     @Bean WebhookTransport webhookTransport(RestClient.Builder builder,WebhookProperties properties,ObjectMapper json,Clock clock){
-        var requests = new SimpleClientHttpRequestFactory();
-        requests.setConnectTimeout(properties.httpTimeout());
+        var client = HttpClient.newBuilder()
+                .connectTimeout(properties.httpTimeout())
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .build();
+        var requests = new JdkClientHttpRequestFactory(client);
         requests.setReadTimeout(properties.httpTimeout());
         return new com.payflow.notification.infrastructure.delivery.HttpWebhookTransport(
                 builder.requestFactory(requests).build(), properties, json, clock);

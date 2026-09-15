@@ -64,18 +64,19 @@ payflow-parent
 ├── libs/observability-support
 ├── libs/error-contract ───────> observability-support
 ├── libs/event-contracts ──────> observability-support
+├── libs/network-security-support
 ├── services/api-gateway ──────> observability-support + error-contract
-├── services/payment-service ──> cả 3 libs
+├── services/payment-service ──> observability + error + event contracts
 ├── services/account-ledger ───> observability-support + event-contracts   (profile mvp)
 ├── services/account-service ──> observability-support + event-contracts   (profile full)
 ├── services/ledger-service ───> observability-support + event-contracts   (profile full)
-├── services/merchant-service ─> observability-support + error-contract
+├── services/merchant-service ─> observability + error + network security
 ├── services/reporting-service > observability-support + event-contracts   (profile full)
 ├── services/risk-service ─────> observability-support + event-contracts
-└── services/notification ─────> observability-support + event-contracts
+└── services/notification ─────> observability + event contracts + network security
 ```
 
-Phase 2 thêm bốn module service vào `<modules>`; reactor hiện có 12 module (3 libs + 9 service).
+Reactor hiện có 14 module (4 libs + 10 service); Maven hiển thị thêm parent nên full build có 15 project.
 `merchant-service` là service duy nhất dùng `error-contract` mà không dùng `event-contracts`: nó chỉ
 phục vụ REST, chưa publish event nào. `account-ledger-service` (gộp) và cặp
 `account-service`/`ledger-service` (tách) đều nằm trong reactor và đều được build ở mọi lệnh
@@ -324,6 +325,7 @@ Topic name cố ý không cấu hình bằng `.env`: topic khác nhau giữa mô
 | `payment.failed` | [`PaymentFailedData`](../../libs/event-contracts/src/main/java/com/payflow/events/payment/PaymentFailedData.java) | Outcome thất bại cuối |
 | `payment.succeeded` | [`PaymentSucceededData`](../../libs/event-contracts/src/main/java/com/payflow/events/payment/PaymentSucceededData.java) | Ledger + capture đã commit |
 | `payment.manual-review-required` | [`PaymentManualReviewRequiredData`](../../libs/event-contracts/src/main/java/com/payflow/events/payment/PaymentManualReviewRequiredData.java) | Workflow tự động dừng để review |
+| `payment.cancelled` | [`PaymentCancelledData`](../../libs/event-contracts/src/main/java/com/payflow/events/payment/PaymentCancelledData.java) | Merchant hủy workflow trước khi Account reserve tiền |
 
 #### Risk-owned contracts
 
@@ -427,9 +429,17 @@ Contract JAR không tự publish và không tự consume. Producer/consumer adap
 - Producer service vẫn là owner của event dù class nằm trong shared module.
 - Contract test trong `src/test` serialize record để kiểm tra JSON thực tế, không chỉ compile Java.
 
-## 6. Luồng cấu hình từ `.env` vào application
+## 6. `network-security-support`
 
-### 6.1 Ba tầng cấu hình
+Module Java thuần này chứa [`OutboundHttpUrlPolicy`](../../libs/network-security-support/src/main/java/com/payflow/security/net/OutboundHttpUrlPolicy.java).
+Nó resolve DNS và chỉ cho phép HTTPS tới địa chỉ public; chặn user-info, fragment, loopback, link-local,
+private và reserved address. Merchant gọi policy trước khi lưu webhook URL; Notification gọi lại ngay
+trước HTTP POST để giảm cửa sổ DNS rebinding. Escape hatch local được điều khiển bằng
+`PAYFLOW_WEBHOOK_ALLOW_UNSAFE_LOCAL_TARGETS=false` và mặc định luôn an toàn.
+
+## 7. Luồng cấu hình từ `.env` vào application
+
+### 7.1 Ba tầng cấu hình
 
 ```text
 .env
@@ -465,7 +475,7 @@ OutboxPollingJob/PublishOutboxHandler:
 
 `:${default}` trong `application.yml` là fallback khi chạy service trên host. Username/password không có fallback để thiếu credential phải fail thay vì dùng secret cứng.
 
-### 6.2 `.env.example` và `.env`
+### 7.2 `.env.example` và `.env`
 
 | File | Vai trò |
 | --- | --- |
@@ -485,9 +495,9 @@ Nhóm biến:
 
 `POSTGRES_PORT=5433` chỉ là cổng từ **host** vào container. Bên trong Compose, service vẫn gọi `postgres:5432`.
 
-## 7. `application.yml` của từng service
+## 8. `application.yml` của từng service
 
-### 7.1 Cấu hình chung
+### 8.1 Cấu hình chung
 
 | Section | Tác dụng |
 | --- | --- |
@@ -502,7 +512,7 @@ Nhóm biến:
 | `management` | Chỉ expose health/readiness, không lộ actuator detail |
 | `logging.structured.console=ecs` | JSON/ECS structured logs |
 
-### 7.2 Payment
+### 8.2 Payment
 
 [`payment-service/application.yml`](../../services/payment-service/src/main/resources/application.yml):
 
@@ -514,7 +524,7 @@ Nhóm biến:
 - Swagger tắt mặc định, chỉ bật trong profile `local`;
 - profile `local` thêm `db/seed` vào Flyway locations.
 
-### 7.3 Account-Ledger (profile `mvp`)
+### 8.3 Account-Ledger (profile `mvp`)
 
 [`account-ledger/application.yml`](../../services/account-ledger-service/src/main/resources/application.yml):
 
@@ -523,7 +533,7 @@ Nhóm biến:
 - outbox publisher;
 - profile `local` nạp fixture account/ledger giả.
 
-### 7.4 Account và Ledger tách rời (profile `full`)
+### 8.4 Account và Ledger tách rời (profile `full`)
 
 Hai file gần như đối xứng với nhau và với bản gộp — khác nhau ở database, schema, cờ consumer và port:
 
@@ -540,7 +550,7 @@ delivery timeout) đọc chung các biến `PAYFLOW_OUTBOX_*` như bản gộp, 
 `ack-mode=manual_immediate`, `create-schemas: true` và profile `local` nạp thêm `classpath:db/seed`.
 Cả hai chỉ expose health, không có business controller.
 
-### 7.5 Merchant
+### 8.5 Merchant
 
 [`merchant-service/application.yml`](../../services/merchant-service/src/main/resources/application.yml)
 là service duy nhất **không có block `spring.kafka`**: nó thuần REST.
@@ -551,7 +561,7 @@ là service duy nhất **không có block `spring.kafka`**: nó thuần REST.
 - `springdoc.paths-to-match: /api/v1/merchants/**`, Swagger chỉ bật ở profile `local`;
 - profile `local` nạp thêm `classpath:db/seed`.
 
-### 7.6 Reporting (profile `full`)
+### 8.6 Reporting (profile `full`)
 
 [`reporting-service/application.yml`](../../services/reporting-service/src/main/resources/application.yml):
 
@@ -566,7 +576,7 @@ Lưu ý port: `server.port` trong `application.yml` chỉ là default khi chạy
 Trong Compose, `docker-compose.yml` set lại biến port cho container (ledger `8086`, merchant `8087`,
 reporting `8088`) nên số cổng bạn thấy khi `docker compose ps` khác với default ở file YAML.
 
-### 7.7 Risk
+### 8.7 Risk
 
 [`risk-service/application.yml`](../../services/risk-service/src/main/resources/application.yml):
 
@@ -575,7 +585,7 @@ reporting `8088`) nên số cổng bạn thấy khi `docker compose ps` khác v�
 - consumer `payment.created` và Risk outbox;
 - Redis không làm money source of truth.
 
-### 7.5 Notification
+### 8.8 Notification
 
 [`notification-service/application.yml`](../../services/notification-service/src/main/resources/application.yml):
 
@@ -584,7 +594,7 @@ reporting `8088`) nên số cổng bạn thấy khi `docker compose ps` khác v�
 - delivery worker config: poll interval, batch, lease, provider timeout, attempts;
 - adapter hiện là in-memory, nhưng config giữ contract cho adapter thật.
 
-### 7.6 Gateway
+### 8.9 Gateway
 
 [`api-gateway/application.yml`](../../services/api-gateway/src/main/resources/application.yml):
 
@@ -594,7 +604,7 @@ reporting `8088`) nên số cổng bạn thấy khi `docker compose ps` khác v�
 - giới hạn header 16 KB;
 - health và structured log.
 
-## 8. Luồng khởi động Docker Compose
+## 9. Luồng khởi động Docker Compose
 
 [`docker-compose.yml`](../../docker-compose.yml) có ba profile:
 
@@ -628,9 +638,9 @@ Payment healthy + Keycloak healthy
 
 Compose `depends_on` chỉ giải quyết startup local; nó không thay retry/recovery trong code.
 
-## 9. PostgreSQL bootstrap và Flyway
+## 10. PostgreSQL bootstrap và Flyway
 
-### 9.1 Bootstrap database
+### 10.1 Bootstrap database
 
 [`01-create-databases.sh`](../../infrastructure/docker/postgres/init/01-create-databases.sh) chỉ chạy khi PostgreSQL volume còn rỗng. Nó tạo:
 
@@ -644,7 +654,7 @@ Script revoke quyền `PUBLIC` và cấp owner/connect đúng role. Đây là h�
 
 Script này không chạy lại mỗi lần `docker compose up`. Xóa volume làm mất dữ liệu và chỉ nên làm với local disposable environment khi chủ động yêu cầu.
 
-### 9.2 Flyway trong service
+### 10.2 Flyway trong service
 
 ```text
 Service start
@@ -659,7 +669,7 @@ Service start
 
 Flyway sở hữu schema. Không sửa migration đã apply; thay đổi schema sau này tạo migration forward-only mới.
 
-## 10. Kafka bootstrap và runtime config
+## 11. Kafka bootstrap và runtime config
 
 Kafka chạy KRaft một node, không ZooKeeper. Có hai advertised listener:
 
@@ -670,7 +680,7 @@ Kafka chạy KRaft một node, không ZooKeeper. Có hai advertised listener:
 
 Một node/replication factor 1 chỉ dành cho sandbox local, không phải HA production.
 
-## 11. Keycloak realm import
+## 12. Keycloak realm import
 
 [`realm-payflow.json`](../../infrastructure/keycloak/realm-payflow.json) định nghĩa:
 
@@ -685,7 +695,7 @@ Secret không nằm trong JSON. `${PAYFLOW_SERVICE_CLIENT_SECRET}` và `${PAYFLO
 
 Keycloak lưu realm trong `payflow_keycloak`, nên restart container không làm mất cấu hình. Realm import không phải Java shared library và không chạy trong Gateway; Gateway/Service chỉ tải JWK và validate token Keycloak phát.
 
-## 12. Docker build và health check
+## 13. Docker build và health check
 
 [`java-service.Dockerfile`](../../infrastructure/docker/java-service.Dockerfile) là recipe dùng chung cho năm deployable:
 
@@ -699,7 +709,7 @@ Keycloak lưu realm trong `payflow_keycloak`, nên restart container không làm
 
 `HealthCheck` dùng Java HTTP client gọi `/actuator/health/readiness`, yêu cầu status 200 và body chứa `"status":"UP"`. Dùng Java thuần vì runtime image không cần cài curl/wget.
 
-## 13. Các file root và công cụ khác
+## 14. Các file root và công cụ khác
 
 | File/thư mục | Runtime hay development? | Chức năng |
 | --- | --- | --- |
@@ -715,7 +725,7 @@ Keycloak lưu realm trong `payflow_keycloak`, nên restart container không làm
 | `PAYFLOW_MICROSERVICE_PROJECT_SPEC.md` | Product specification | Nguồn yêu cầu; application không parse file này |
 | `payflowPayment.zip` | Archive | Không tham gia Maven reactor, Docker Compose hay runtime |
 
-## 14. CI chạy các file này như thế nào
+## 15. CI chạy các file này như thế nào
 
 [`ci.yml`](../../.github/workflows/ci.yml):
 
@@ -729,9 +739,9 @@ Maven test convention:
 - `*IT.java`: Failsafe; có thể boot context hoặc Testcontainers.
 - `-Pno-docker verify`: bỏ nhóm `@Tag("docker")`, phù hợp gate local khi Docker tắt nhưng không thay full verify.
 
-## 15. Ba luồng kết hợp dễ hình dung nhất
+## 16. Ba luồng kết hợp dễ hình dung nhất
 
-### 15.1 HTTP thành event có thể truy vết
+### 16.1 HTTP thành event có thể truy vết
 
 ```text
 .env issuer/JWK
@@ -744,7 +754,7 @@ Maven test convention:
  → Kafka
 ```
 
-### 15.2 Event trùng nhưng không trừ tiền hai lần
+### 16.2 Event trùng nhưng không trừ tiền hai lần
 
 ```text
 event-contracts giữ nguyên eventId khi republish
@@ -758,7 +768,7 @@ event-contracts giữ nguyên eventId khi republish
 
 Shared contract cung cấp identity; inbox database của từng service mới thực thi idempotency.
 
-### 15.3 Lỗi vẫn nối được về request
+### 16.3 Lỗi vẫn nối được về request
 
 ```text
 CorrelationId shared helper
@@ -769,7 +779,7 @@ CorrelationId shared helper
  → operator grep cùng ID trong structured log và Kafka/outbox metadata
 ```
 
-## 16. Khi thêm hoặc sửa một phần dùng chung
+## 17. Khi thêm hoặc sửa một phần dùng chung
 
 ### Thêm event mới
 
@@ -793,7 +803,7 @@ Không đưa handler/domain policy vào `event-contracts`.
 
 Chỉ thêm convention kỹ thuật thật sự dùng chung. Filter MVC/WebFlux vẫn ở service tương ứng vì lifecycle framework khác nhau.
 
-## 17. Phần hiện chưa tồn tại
+## 18. Phần hiện chưa tồn tại
 
 - Kiến trúc mục tiêu từng nhắc `libs/test-support`, nhưng repository hiện chưa có module này.
 - Chưa có shared tracing/OpenTelemetry auto-configuration module.

@@ -8,11 +8,11 @@ giai đoạn xây dựng nằm ở [`.docs/`](../.docs/README.md) và
 | --- | --- | --- |
 | [adr/](adr/README.md) | ADR chính thức | ADR-004, ADR-007, ADR-011–ADR-021 (các ID có file) `ACCEPTED` |
 | [runbooks/](runbooks/mvp-docker.md) | Vận hành và chạy local | Docker MVP, local development, Saga manual review, outbox recovery, Payment workflow DLT và Notification delivery failure |
-| [api/](api/payment-service-v1.yaml) | OpenAPI contract | Payment create/get và refund intake v1 |
+| [api/](api/payment-service-v1.yaml) | OpenAPI contract | Payment create/search/get/cancel/refund, operations, merchant, reporting và settlement |
 | [events/](events/refund-workflow-v1.md) | Kafka event contract | Payment Saga, refund intake và refund financial workflow v1 |
 | [architecture/](architecture/business-processing-reference.md) | Nghiệp vụ, cấu hình, source layout và call flow | Có business reference, code-flow guide và Kafka guide |
-| `diagrams/` | Sequence/state diagram | Chưa có |
-| `postman/` | Collection để thử API | Chưa có — Phase 1A |
+| `diagrams/` | Sequence/state diagram | Luồng chính được tóm tắt trong README gốc và các architecture guide |
+| Gateway Console | Form thử API | `http://localhost:8084/console.html`; thay cho Postman collection tĩnh |
 
 Bắt đầu từ đâu:
 

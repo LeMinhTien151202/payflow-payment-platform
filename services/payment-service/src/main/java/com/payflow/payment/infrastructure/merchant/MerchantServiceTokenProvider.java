@@ -41,7 +41,7 @@ final class MerchantServiceTokenProvider {
                 .retrieve()
                 .body(String.class);
         var body = json.readTree(response);
-        token = body.required("access_token").asText();
+        token = body.required("access_token").stringValue();
         long expiresIn = Math.max(30, body.required("expires_in").asLong());
         refreshAt = clock.instant().plusSeconds(Math.max(1, expiresIn - 15));
         return token;

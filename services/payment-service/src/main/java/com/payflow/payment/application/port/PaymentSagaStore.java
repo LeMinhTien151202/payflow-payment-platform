@@ -16,6 +16,9 @@ public interface PaymentSagaStore {
 
     Optional<VersionedPaymentSaga> findByPaymentId(UUID paymentId);
 
+    /** Locks the Saga after the corresponding payment row has been locked for cancellation. */
+    Optional<VersionedPaymentSaga> findByPaymentIdForCancellation(UUID paymentId);
+
     List<UUID> findDueIds(Instant dueAt, int limit);
 
     void update(VersionedPaymentSaga saga);

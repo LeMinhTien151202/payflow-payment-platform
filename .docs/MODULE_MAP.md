@@ -6,7 +6,7 @@
 | --- | --- | --- | --- | --- |
 | `api-gateway` | JWT validation, routing, rate limit, CORS, correlation, edge metrics | Redis cho rate-limit nếu cần | Public `/api/v1/**` | 0 |
 | `payment-service` | Payment/refund lifecycle, idempotency, status history, Saga orchestration | `payflow_payment` | Payment/refund REST; payment/Saga commands/events | 0–2 |
-| `merchant-service` (legacy module chỉ còn trong MVP migration) | Merchant, member, fee/limit, API key, webhook config | `payflow_merchant`; Payment không đọc database này | Merchant REST/internal policy query | 2 |
+| `merchant-service` | Merchant, member, fee/limit, API key, webhook config | `payflow_merchant`; Payment không đọc database này | Merchant REST/internal policy query | 2 |
 | `account-ledger-service` | MVP deployable chứa Account và Ledger boundary riêng | schema/table namespace riêng | Account/ledger commands/events | 1 |
 | `account-service` | Balance, reservation, capture, release, refund credit | `payflow_account` | Account internal API/commands/events | 2 |
 | `ledger-service` | Immutable journal, double entry, reversal, audit query | `payflow_ledger` | Ledger internal API/commands/events | 2 |
@@ -38,6 +38,7 @@ account-ledger-service/
 | Event/command | Producer | Consumer chính | Key | Side effect |
 | --- | --- | --- | --- | --- |
 | `payment.created` | Payment | Risk, reporting | `paymentId` | Tạo assessment/projection |
+| `payment.cancelled` | Payment | Reporting | `paymentId` | Ghi nhận merchant hủy trước reserve; risk result đến trễ không khởi động lại Saga |
 | `risk.assessment.completed` | Risk | Payment, reporting | `paymentId` | Tiến/reject/giữ chờ review theo ADR-016 |
 | `account.reserve.requested` | Payment | Account | `paymentId` | Tạo một reservation |
 | `account.funds-reserved` | Account | Payment | `paymentId` | Yêu cầu post ledger |
@@ -64,6 +65,7 @@ Tên/schema cuối cùng phải được định nghĩa trong event-contract mod
 - observability/correlation bootstrap;
 - test fixtures/Testcontainers support;
 - generic Problem Details/error convention.
+- outbound network URL validation thuần kỹ thuật, không chứa webhook business policy.
 
 Không được phép:
 

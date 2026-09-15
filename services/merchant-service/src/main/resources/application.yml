@@ -14,7 +14,9 @@ spring:
     issuer-uri: ${PAYFLOW_OIDC_ISSUER_URI:http://localhost:8180/realms/payflow}
     jwk-set-uri: ${PAYFLOW_OIDC_JWK_SET_URI:http://localhost:8180/realms/payflow/protocol/openid-connect/certs}
 server.port: ${PAYFLOW_MERCHANT_PORT:8086}
-payflow.merchant.encryption-key-base64: ${PAYFLOW_MERCHANT_ENCRYPTION_KEY_BASE64}
+payflow.merchant:
+  encryption-key-base64: ${PAYFLOW_MERCHANT_ENCRYPTION_KEY_BASE64}
+  allow-unsafe-local-webhook-targets: ${PAYFLOW_WEBHOOK_ALLOW_UNSAFE_LOCAL_TARGETS:false}
 management:
   endpoints.web.exposure.include: health
   endpoint.health:

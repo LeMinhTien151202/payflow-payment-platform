@@ -39,8 +39,8 @@ class JdbcProjectionStore implements ProjectionStore{
     values(:generation,:payment,:merchant,:customer,:amount,:currency,'CREATED',0,:created,:created)
     on conflict(generation_id,payment_id) do nothing
     """).param("generation",generation).param("payment",uuid(d,"paymentId")).param("merchant",uuid(d,"merchantId"))
-     .param("customer",uuid(d,"customerId")).param("amount",decimal(d,"amount")).param("currency",d.required("currency").asText())
-     .param("created",Instant.parse(d.required("createdAt").asText()).atOffset(ZoneOffset.UTC)).update();
+     .param("customer",uuid(d,"customerId")).param("amount",decimal(d,"amount")).param("currency",d.required("currency").stringValue())
+     .param("created",Instant.parse(d.required("createdAt").stringValue()).atOffset(ZoneOffset.UTC)).update();
    case "payment.succeeded" -> jdbc.sql("""
     insert into reporting.payment_projection(generation_id,payment_id,merchant_id,customer_id,amount,currency,status,
       refunded_amount,created_at,completed_at,updated_at)
@@ -49,19 +49,24 @@ class JdbcProjectionStore implements ProjectionStore{
       customer_id=excluded.customer_id,amount=excluded.amount,currency=excluded.currency,
       completed_at=excluded.completed_at,updated_at=excluded.updated_at
     """).param("generation",generation).param("payment",uuid(d,"paymentId")).param("merchant",uuid(d,"merchantId"))
-     .param("customer",uuid(d,"customerId")).param("amount",decimal(d,"amount")).param("currency",d.required("currency").asText())
-     .param("completed",Instant.parse(d.required("completedAt").asText()).atOffset(ZoneOffset.UTC)).update();
+     .param("customer",uuid(d,"customerId")).param("amount",decimal(d,"amount")).param("currency",d.required("currency").stringValue())
+     .param("completed",Instant.parse(d.required("completedAt").stringValue()).atOffset(ZoneOffset.UTC)).update();
    case "payment.failed" -> jdbc.sql("""
     update reporting.payment_projection set status='FAILED',completed_at=:at,updated_at=:at
     where generation_id=:generation and payment_id=:payment
     """).param("generation",generation).param("payment",uuid(d,"paymentId"))
-     .param("at",Instant.parse(d.required("failedAt").asText()).atOffset(ZoneOffset.UTC)).update();
+     .param("at",Instant.parse(d.required("failedAt").stringValue()).atOffset(ZoneOffset.UTC)).update();
+   case "payment.cancelled" -> jdbc.sql("""
+    update reporting.payment_projection set status='CANCELLED',completed_at=:at,updated_at=:at
+    where generation_id=:generation and payment_id=:payment
+    """).param("generation",generation).param("payment",uuid(d,"paymentId"))
+     .param("at",Instant.parse(d.required("cancelledAt").stringValue()).atOffset(ZoneOffset.UTC)).update();
    case "refund.succeeded" -> jdbc.sql("""
     update reporting.payment_projection set refunded_amount=refunded_amount+:amount,
       status=case when refunded_amount+:amount>=amount then 'REFUNDED' else 'PARTIALLY_REFUNDED' end,
       updated_at=:at where generation_id=:generation and payment_id=:payment
     """).param("generation",generation).param("payment",uuid(d,"paymentId")).param("amount",decimal(d,"amount"))
-     .param("at",Instant.parse(d.required("completedAt").asText()).atOffset(ZoneOffset.UTC)).update();
+     .param("at",Instant.parse(d.required("completedAt").stringValue()).atOffset(ZoneOffset.UTC)).update();
    default -> { }
   }
  }
@@ -114,6 +119,11 @@ class JdbcProjectionStore implements ProjectionStore{
    .query((rs,n)->new DailyMetric(rs.getObject("metric_date",java.time.LocalDate.class),rs.getString("currency"),
     rs.getLong("total"),rs.getLong("succeeded"),rs.getLong("failed"),rs.getBigDecimal("gross"),rs.getBigDecimal("refunded"))).list();
  }
- private static UUID uuid(tools.jackson.databind.JsonNode n,String field){return UUID.fromString(n.required(field).asText());}
- private static BigDecimal decimal(tools.jackson.databind.JsonNode n,String field){return new BigDecimal(n.required(field).asText());}
+ private static UUID uuid(tools.jackson.databind.JsonNode n,String field){return UUID.fromString(n.required(field).stringValue());}
+ private static BigDecimal decimal(tools.jackson.databind.JsonNode n,String field){
+  var value=n.required(field);
+  if(value.isNumber())return value.decimalValue();
+  if(value.isTextual())return new BigDecimal(value.stringValue());
+  throw new IllegalArgumentException(field+" must be numeric");
+ }
 }

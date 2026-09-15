@@ -77,6 +77,13 @@ class ApiGatewaySecurityIT extends GatewayTestSupport {
                                         .withHeader("Content-Type", "application/json")
                                         .withBody("{\"status\":\"RUNNING\"}")));
         PAYMENT_SERVICE_STUB.stubFor(
+                get(urlPathMatching("/api/v1/operations/payments.*"))
+                        .willReturn(
+                                aResponse()
+                                        .withStatus(200)
+                                        .withHeader("Content-Type", "application/json")
+                                        .withBody("{\"items\":[]}")));
+        PAYMENT_SERVICE_STUB.stubFor(
                 get(urlPathMatching("/api/v1/settlements.*"))
                         .willReturn(aResponse().withStatus(200).withHeader("Content-Type", "application/json")
                                 .withBody("{\"content\":[]}")));
@@ -190,6 +197,24 @@ class ApiGatewaySecurityIT extends GatewayTestSupport {
                 .exchange()
                 .expectStatus()
                 .isOk();
+    }
+
+    @Test
+    @DisplayName("operations scope can read the manual-review queue")
+    void operationsScopeReadsManualReviewQueue() {
+        webTestClient
+                .get()
+                .uri("/api/v1/operations/payments/manual-review")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN_OPERATIONS)
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody()
+                .jsonPath("$.items")
+                .isArray();
+
+        PAYMENT_SERVICE_STUB.verify(
+                1, getRequestedFor(urlPathMatching("/api/v1/operations/payments.*")));
     }
 
     @Test

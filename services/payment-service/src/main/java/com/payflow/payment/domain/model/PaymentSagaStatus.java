@@ -7,10 +7,10 @@ public enum PaymentSagaStatus {
     COMPENSATING,
     COMPENSATED,
     FAILED,
+    CANCELLED,
     MANUAL_REVIEW_REQUIRED;
 
     public boolean isTerminal() {
-        return this == COMPLETED || this == COMPENSATED || this == FAILED;
+        return this == COMPLETED || this == COMPENSATED || this == FAILED || this == CANCELLED;
     }
 }
-

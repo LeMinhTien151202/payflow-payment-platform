@@ -48,22 +48,22 @@ public final class SettlementEventParser {
                     eventId, eventType, version, 1, aggregateId, correlationId,
                     SettlementFactType.LEDGER_PAYMENT_POSTED,
                     uuid(data, "paymentId"), uuid(data, "paymentId"), decimal(data, "amount"),
-                    data.required("currency").asText(), occurredAt));
+                    data.required("currency").stringValue(), occurredAt));
             case "ledger.refund-posted" -> Optional.of(simpleFact(
                     eventId, eventType, version, 1, aggregateId, correlationId,
                     SettlementFactType.LEDGER_REFUND_POSTED,
                     uuid(data, "refundId"), uuid(data, "paymentId"), decimal(data, "amount"),
-                    data.required("currency").asText(), occurredAt));
+                    data.required("currency").stringValue(), occurredAt));
             case "account.funds-captured" -> Optional.of(simpleFact(
                     eventId, eventType, version, 1, aggregateId, correlationId,
                     SettlementFactType.ACCOUNT_FUNDS_CAPTURED,
                     uuid(data, "paymentId"), uuid(data, "paymentId"), decimal(data, "amount"),
-                    data.required("currency").asText(), occurredAt));
+                    data.required("currency").stringValue(), occurredAt));
             case "account.refund-credited" -> Optional.of(simpleFact(
                     eventId, eventType, version, 1, aggregateId, correlationId,
                     SettlementFactType.ACCOUNT_REFUND_CREDITED,
                     uuid(data, "refundId"), uuid(data, "paymentId"), decimal(data, "amount"),
-                    data.required("currency").asText(), occurredAt));
+                    data.required("currency").stringValue(), occurredAt));
             default -> Optional.empty();
         };
     }
@@ -81,8 +81,8 @@ public final class SettlementEventParser {
         UUID merchantId = uuid(data, "merchantId");
         BigDecimal amount = decimal(data, "amount");
         BigDecimal fee = decimal(data, "feeAmount");
-        String currency = data.required("currency").asText();
-        String feeCurrency = data.required("feeCurrency").asText();
+        String currency = data.required("currency").stringValue();
+        String feeCurrency = data.required("feeCurrency").stringValue();
         if (!currency.equals(feeCurrency)) {
             throw new IllegalArgumentException("feeCurrency must equal payment currency");
         }
@@ -117,7 +117,7 @@ public final class SettlementEventParser {
         UUID merchantId = uuid(data, "merchantId");
         BigDecimal amount = decimal(data, "amount");
         BigDecimal feeReversal = decimal(data, "feeReversalAmount");
-        String currency = data.required("currency").asText();
+        String currency = data.required("currency").stringValue();
         return new SettlementFact(
                 eventId,
                 "refund.succeeded",
@@ -182,7 +182,7 @@ public final class SettlementEventParser {
     }
 
     private static String text(JsonNode node, String field) {
-        String value = node.required(field).asText();
+        String value = node.required(field).stringValue();
         if (value == null || value.isBlank()) {
             throw new IllegalArgumentException(field + " is required");
         }
@@ -194,6 +194,13 @@ public final class SettlementEventParser {
     }
 
     private static BigDecimal decimal(JsonNode node, String field) {
-        return new BigDecimal(text(node, field));
+        JsonNode value = node.required(field);
+        if (value.isNumber()) {
+            return value.decimalValue();
+        }
+        if (value.isTextual()) {
+            return new BigDecimal(value.stringValue());
+        }
+        throw new IllegalArgumentException(field + " must be numeric");
     }
 }

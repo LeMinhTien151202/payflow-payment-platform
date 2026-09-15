@@ -3,6 +3,7 @@ package com.payflow.merchant.application;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.payflow.merchant.application.port.MerchantStore;
@@ -21,17 +22,22 @@ import org.junit.jupiter.api.Test;
 class MerchantApplicationServiceTest {
 
     private MerchantStore store;
+    private SecretMaterial secrets;
+    private SecretCipher cipher;
     private MerchantApplicationService service;
     private final Instant now = Instant.parse("2026-08-07T00:00:00Z");
 
     @BeforeEach
     void setUp() {
         store = mock(MerchantStore.class);
+        secrets = mock(SecretMaterial.class);
+        cipher = mock(SecretCipher.class);
         service = new MerchantApplicationService(
                 store,
-                mock(SecretMaterial.class),
-                mock(SecretCipher.class),
-                Clock.fixed(now, ZoneOffset.UTC));
+                secrets,
+                cipher,
+                Clock.fixed(now, ZoneOffset.UTC),
+                false);
     }
 
     @Test
@@ -87,6 +93,33 @@ class MerchantApplicationServiceTest {
                 org.mockito.ArgumentMatchers.eq("ACTIVE"),
                 org.mockito.ArgumentMatchers.eq("corr"),
                 org.mockito.ArgumentMatchers.eq(now));
+    }
+
+    @Test
+    void privateWebhookTargetIsRejectedBeforeSecretOrConfigurationIsWritten() {
+        UUID merchantId = UUID.randomUUID();
+        when(store.find(merchantId)).thenReturn(Optional.of(profile(merchantId, MerchantStatus.ACTIVE, 0)));
+        var actor = new MerchantActor("merchant-admin", merchantId, Set.of("merchant:write"));
+
+        assertThatThrownBy(() -> service.configureWebhook(
+                        actor,
+                        merchantId,
+                        "http://169.254.169.254/latest/meta-data",
+                        Set.of("payment.succeeded"),
+                        "corr"))
+                .isInstanceOf(MerchantException.class)
+                .extracting(error -> ((MerchantException) error).code())
+                .isEqualTo("MERCHANT_WEBHOOK_URL_INVALID");
+
+        verifyNoInteractions(secrets, cipher);
+        org.mockito.Mockito.verify(store, org.mockito.Mockito.never())
+                .upsertWebhook(
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.any());
     }
 
     private MerchantProfile profile(UUID id, MerchantStatus status, long version) {

@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.math.BigDecimal;
 import com.payflow.payment.application.command.CreateRefundCommand;
+import com.payflow.payment.application.command.CancelPaymentCommand;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -181,6 +182,21 @@ class RequestFingerprintTest {
                         new BigDecimal("200"),
                         "returned")))
                 .isNotEqualTo(base);
+    }
+
+    @Test
+    @DisplayName("cancel fingerprint identifies merchant and payment, not key or retrying actor")
+    void fingerprintsCancellationIntent() {
+        UUID merchant = com.payflow.payment.PaymentTokens.MERCHANT_ID;
+        CancelPaymentCommand first =
+                new CancelPaymentCommand(merchant, "actor-1", REFUND_PAYMENT_ID, "key-1");
+        CancelPaymentCommand retry =
+                new CancelPaymentCommand(merchant, "actor-2", REFUND_PAYMENT_ID, "key-2");
+
+        assertThat(RequestFingerprint.of(first)).isEqualTo(RequestFingerprint.of(retry));
+        assertThat(RequestFingerprint.of(new CancelPaymentCommand(
+                        merchant, "actor-1", UUID.randomUUID(), "key-1")))
+                .isNotEqualTo(RequestFingerprint.of(first));
     }
 
     private static CreateRefundCommand refund(

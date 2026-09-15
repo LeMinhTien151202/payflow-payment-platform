@@ -62,6 +62,8 @@ public class SecurityConfig {
                         .permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/operations/**")
                         .hasAuthority(SCOPE_OPERATIONS_WRITE)
+                        .requestMatchers(HttpMethod.GET, "/api/v1/operations/**")
+                        .hasAuthority(SCOPE_OPERATIONS_WRITE)
                         .requestMatchers(HttpMethod.GET, "/api/v1/payments/**")
                         .hasAuthority(SCOPE_PAYMENT_READ)
                         .requestMatchers(HttpMethod.POST, "/api/v1/payments/**")

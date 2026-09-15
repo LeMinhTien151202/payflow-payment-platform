@@ -226,6 +226,16 @@ public final class PaymentSaga {
         updatedAt = changedAt;
     }
 
+    /** Merchant cancellation is safe only while Risk is active and no financial command exists. */
+    public void cancelBeforeReservation(Instant at) {
+        requireRunningStep(PaymentSagaStep.RISK_ASSESSMENT, "cancel Saga");
+        Instant changedAt = requireChronological(at);
+        status = PaymentSagaStatus.CANCELLED;
+        retryCount = 0;
+        lastErrorCode = "MERCHANT_CANCELLED";
+        updatedAt = changedAt;
+    }
+
     public void complete(Instant at) {
         requireRunningStep(PaymentSagaStep.CAPTURE_FUNDS, "complete Saga");
         if (reservationId == null || journalId == null) {

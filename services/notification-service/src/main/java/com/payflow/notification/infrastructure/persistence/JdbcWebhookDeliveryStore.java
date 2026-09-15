@@ -2,6 +2,8 @@ package com.payflow.notification.infrastructure.persistence;
 
 import com.payflow.notification.application.notification.OutcomeNotificationIntent;
 import com.payflow.notification.application.port.WebhookDeliveryStore;
+import com.payflow.notification.application.webhook.WebhookDeadItem;
+import com.payflow.notification.application.webhook.WebhookDeadPage;
 import java.time.*;
 import java.util.*;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -78,6 +80,26 @@ class JdbcWebhookDeliveryStore implements WebhookDeliveryStore {
     .param("audit",UUID.randomUUID()).param("actor",actor).param("delivery",id).param("correlation",correlation)
     .param("now",now.atOffset(ZoneOffset.UTC)).update();
   return changed==1;
+ }
+ @Override @Transactional(readOnly=true)
+ public WebhookDeadPage findDead(int page,int size){
+  if(page<0||size<1||size>100)throw new IllegalArgumentException(
+    "webhook dead-letter page must be non-negative and size must be between 1 and 100");
+  List<WebhookDeadItem> items=jdbc.sql("""
+    select id,merchant_id,event_id,event_type,attempt_count,response_status,
+      response_body_excerpt,failure_code,next_attempt_at,created_at
+    from notification.webhook_deliveries where status='DEAD'
+    order by created_at,id limit :limit offset :offset
+    """).param("limit",size).param("offset",Math.multiplyExact(page,size))
+    .query((rs,n)->new WebhookDeadItem(
+      rs.getObject("id",UUID.class),rs.getObject("merchant_id",UUID.class),
+      rs.getObject("event_id",UUID.class),rs.getString("event_type"),rs.getInt("attempt_count"),
+      rs.getObject("response_status",Integer.class),rs.getString("response_body_excerpt"),
+      rs.getString("failure_code"),rs.getObject("next_attempt_at",OffsetDateTime.class).toInstant(),
+      rs.getObject("created_at",OffsetDateTime.class).toInstant())).list();
+  long total=jdbc.sql("select count(*) from notification.webhook_deliveries where status='DEAD'")
+    .query(Long.class).single();
+  return WebhookDeadPage.of(items,page,size,total);
  }
  private boolean update(UUID id,String owner,String assignments,Map<String,?> extra){
   var spec=jdbc.sql("update notification.webhook_deliveries set "+assignments+" where id=:id and status='PROCESSING' and lock_owner=:owner")

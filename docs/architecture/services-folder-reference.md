@@ -143,7 +143,8 @@ Base package: `com.payflow.payment`.
 | File | Chức năng |
 | --- | --- |
 | [`PaymentServiceApplication`](../../services/payment-service/src/main/java/com/payflow/payment/PaymentServiceApplication.java) | Spring Boot entry point |
-| [`PaymentController`](../../services/payment-service/src/main/java/com/payflow/payment/api/PaymentController.java) | Tạo/đọc/tìm payment và tạo/đọc refund; lấy `merchant_id/sub` từ JWT |
+| [`PaymentController`](../../services/payment-service/src/main/java/com/payflow/payment/api/PaymentController.java) | Tạo/đọc/tìm/hủy payment và tạo/đọc refund; lấy `merchant_id/sub` từ JWT |
+| [`OperationsController`](../../services/payment-service/src/main/java/com/payflow/payment/api/OperationsController.java) | Liệt kê và xử lý Saga cần manual review bằng operations scope |
 | [`PaymentOpenApiConfig`](../../services/payment-service/src/main/java/com/payflow/payment/api/PaymentOpenApiConfig.java) | Tiêu đề/security scheme/tag cho Swagger local |
 | [`PaymentErrorCode`](../../services/payment-service/src/main/java/com/payflow/payment/api/PaymentErrorCode.java) | Stable business error code của Payment API |
 | `api/exception/IdempotencyKeyRequiredException` | Báo thiếu/sai `Idempotency-Key` tại HTTP boundary |
@@ -177,6 +178,7 @@ Base path: `application/handler`.
 | Handler | Transaction/use case |
 | --- | --- |
 | [`CreatePaymentHandler`](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/CreatePaymentHandler.java) | Idempotency + merchant + Payment + Saga + `payment.created` outbox |
+| [`CancelPaymentHandler`](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/CancelPaymentHandler.java) | Lock Payment rồi Saga, chỉ hủy trước reservation, ghi idempotency + `payment.cancelled` atomic |
 | [`GetPaymentHandler`](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/GetPaymentHandler.java) | Read-only query theo payment ID + merchant ID |
 | [`SearchPaymentsHandler`](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/SearchPaymentsHandler.java) | Read-only search theo merchant/status/[from,to), phân trang tối đa 100 |
 | [`CreateRefundHandler`](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/CreateRefundHandler.java) | Lock Payment, giữ refund capacity, tạo Refund + outbox |
@@ -185,6 +187,7 @@ Base path: `application/handler`.
 | [`HandleRefundWorkflowEventHandler`](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/HandleRefundWorkflowEventHandler.java) | Inbox + Payment/Refund financial facts + outgoing event |
 | [`PublishOutboxHandler`](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/PublishOutboxHandler.java) | Claim lease, publish ngoài DB transaction, conditional mark/retry |
 | [`RecoverOverdueSagasHandler`](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/RecoverOverdueSagasHandler.java) | Đọc Saga quá hạn, chọn retry/compensation/manual review |
+| [`SearchManualReviewsHandler`](../../services/payment-service/src/main/java/com/payflow/payment/application/handler/SearchManualReviewsHandler.java) | Query queue review có phân trang, chỉ trả Payment/Saga cùng ở `MANUAL_REVIEW_REQUIRED` |
 
 Đây là nơi đặt local transaction boundary. Mỗi handler chỉ dùng port, domain và type contract; chi tiết SQL/Kafka nằm ngoài.
 
@@ -570,9 +573,9 @@ Test gồm rule/score/context unit tests, event factory/handler, router/listener
 | --- | --- |
 | `WebhookIntentFactory`, `WebhookDeliveryStore` | Tạo durable delivery intent từ outcome trong cùng local transaction với inbox/notification |
 | `WebhookSignature` | Ký HMAC SHA-256 trên `timestamp.rawBody`; retry giữ nguyên event id và raw body |
-| `WebhookDeliveryJob`, `HttpWebhookTransport` | Claim lease, gọi endpoint ngoài transaction, timeout ngắn và cập nhật retry/`DEAD` có điều kiện |
-| `JdbcWebhookDeliveryStore` | Persistence intent, attempt, lease và append-only operations audit |
-| `WebhookOperationsController` | Requeue bản ghi `DEAD` bằng scope riêng; không tạo event business mới |
+| `WebhookDeliveryJob`, `HttpWebhookTransport` | Claim lease, kiểm tra URL chống SSRF ngay trước khi gửi, gọi endpoint ngoài transaction, timeout ngắn và cập nhật retry/`DEAD` có điều kiện |
+| `JdbcWebhookDeliveryStore` | Persistence intent, attempt, lease, query queue `DEAD` và append-only operations audit |
+| `WebhookOperationsController` | Liệt kê/requeue bản ghi `DEAD` bằng scope riêng; không trả raw body/secret và không tạo event business mới |
 | `ClientCredentialsTokenProvider` | Lấy service token để đọc webhook config/subscription từ Merchant internal API |
 
 Resources:
@@ -602,7 +605,9 @@ hai PostgreSQL IT cho transaction/duplicate/lease ownership/webhook persistence.
 [`merchant-service`](../../services/merchant-service/) sở hữu profile/status, member, versioned fee/limit
 policy, API-key hash, webhook secret mã hóa/subscription và audit. Public API dùng merchant scope; internal
 policy/webhook lookup dùng service credential riêng. Payment lấy immutable policy snapshot trước khi mở
-local database transaction và fail closed nếu Merchant không sẵn sàng.
+local database transaction và fail closed nếu Merchant không sẵn sàng. Khi cấu hình webhook, service
+dùng shared `OutboundHttpUrlPolicy` để chỉ nhận HTTPS trỏ tới địa chỉ public; Notification kiểm tra lại
+ngay trước mỗi lần gửi để giảm rủi ro DNS rebinding.
 
 ### 7.3 `reporting-service`
 

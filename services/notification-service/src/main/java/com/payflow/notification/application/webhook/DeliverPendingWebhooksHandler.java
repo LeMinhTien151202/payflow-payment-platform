@@ -3,7 +3,6 @@ package com.payflow.notification.application.webhook;
 import com.payflow.notification.application.port.WebhookDeliveryStore;
 import java.time.Clock;
 import java.time.Duration;
-import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 @Service

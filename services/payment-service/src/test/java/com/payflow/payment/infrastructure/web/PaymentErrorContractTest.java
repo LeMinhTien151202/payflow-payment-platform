@@ -20,10 +20,12 @@ import com.payflow.observability.CorrelationId;
 import com.payflow.payment.PaymentTokens;
 import com.payflow.payment.application.exception.PaymentNotFoundException;
 import com.payflow.payment.application.handler.CreatePaymentHandler;
+import com.payflow.payment.application.handler.CancelPaymentHandler;
 import com.payflow.payment.application.handler.CreateRefundHandler;
 import com.payflow.payment.application.handler.GetPaymentHandler;
 import com.payflow.payment.application.handler.GetRefundHandler;
 import com.payflow.payment.application.handler.SearchPaymentsHandler;
+import com.payflow.payment.application.handler.SearchManualReviewsHandler;
 import com.payflow.payment.application.handler.ResolveManualReviewHandler;
 import com.payflow.payment.infrastructure.security.SecurityConfig;
 import java.time.Clock;
@@ -70,6 +72,9 @@ class PaymentErrorContractTest {
     private CreatePaymentHandler createPaymentHandler;
 
     @MockitoBean
+    private CancelPaymentHandler cancelPaymentHandler;
+
+    @MockitoBean
     private CreateRefundHandler createRefundHandler;
 
     @MockitoBean
@@ -83,6 +88,9 @@ class PaymentErrorContractTest {
 
     @MockitoBean
     private ResolveManualReviewHandler resolveManualReviewHandler;
+
+    @MockitoBean
+    private SearchManualReviewsHandler searchManualReviewsHandler;
 
     @MockitoBean
     private Clock clock;

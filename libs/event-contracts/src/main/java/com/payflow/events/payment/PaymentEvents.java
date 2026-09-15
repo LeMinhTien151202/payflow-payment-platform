@@ -24,6 +24,10 @@ public final class PaymentEvents {
     /** A payment reached an unsuccessful terminal outcome. Spec 8.4 and ADR-016. */
     public static final EventType PAYMENT_FAILED = new EventType("payment.failed", 1, AGGREGATE_TYPE);
 
+    /** A merchant cancelled the payment before any funds reservation was issued. */
+    public static final EventType PAYMENT_CANCELLED =
+            new EventType("payment.cancelled", 1, AGGREGATE_TYPE);
+
     /** Ledger and capture have both committed, per ADR-011. Legacy payload without fee economics. */
     public static final EventType PAYMENT_SUCCEEDED =
             new EventType("payment.succeeded", 1, AGGREGATE_TYPE);

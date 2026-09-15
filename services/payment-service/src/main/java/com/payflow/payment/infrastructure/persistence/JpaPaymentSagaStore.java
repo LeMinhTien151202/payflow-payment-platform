@@ -6,6 +6,7 @@ import com.payflow.payment.application.saga.VersionedPaymentSaga;
 import com.payflow.payment.domain.model.PaymentSaga;
 import com.payflow.payment.domain.model.PaymentSagaStatus;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.LockModeType;
 import jakarta.persistence.OptimisticLockException;
 import java.time.Instant;
 import java.util.List;
@@ -46,6 +47,20 @@ class JpaPaymentSagaStore implements PaymentSagaStore {
                         "select s from PaymentSagaEntity s where s.paymentId = :paymentId",
                         PaymentSagaEntity.class)
                 .setParameter("paymentId", paymentId)
+                .getResultList()
+                .stream()
+                .findFirst()
+                .map(entity -> new VersionedPaymentSaga(entity.toSaga(), entity.version()));
+    }
+
+    @Override
+    public Optional<VersionedPaymentSaga> findByPaymentIdForCancellation(UUID paymentId) {
+        return entityManager
+                .createQuery(
+                        "select s from PaymentSagaEntity s where s.paymentId = :paymentId",
+                        PaymentSagaEntity.class)
+                .setParameter("paymentId", paymentId)
+                .setLockMode(LockModeType.PESSIMISTIC_WRITE)
                 .getResultList()
                 .stream()
                 .findFirst()

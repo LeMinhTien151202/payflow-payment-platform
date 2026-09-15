@@ -99,6 +99,22 @@ class JpaPaymentRepository implements PaymentRepository, PaymentWorkflowStore, R
     }
 
     @Override
+    public Optional<VersionedPayment> findForCancellation(UUID paymentId, UUID merchantId) {
+        return entityManager
+                .createQuery(
+                        "select p from PaymentEntity p where p.id = :id and p.merchantId = :merchantId",
+                        PaymentEntity.class)
+                .setParameter("id", paymentId)
+                .setParameter("merchantId", merchantId)
+                .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+                .getResultList()
+                .stream()
+                .findFirst()
+                .map(row -> new VersionedPayment(
+                        row.toPayment(metadata(row.metadata())), row.version()));
+    }
+
+    @Override
     public Optional<Payment> findForRefund(UUID paymentId, UUID merchantId) {
         return entityManager
                 .createQuery(

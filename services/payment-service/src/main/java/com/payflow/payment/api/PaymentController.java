@@ -7,6 +7,7 @@ import com.payflow.payment.api.request.CreateRefundRequest;
 import com.payflow.payment.api.response.ApiResponse;
 import com.payflow.payment.api.response.ResponseMeta;
 import com.payflow.payment.application.CreatePaymentResult;
+import com.payflow.payment.application.CancelPaymentResult;
 import com.payflow.payment.application.CreateRefundResult;
 import com.payflow.payment.application.PaymentAcceptance;
 import com.payflow.payment.application.PaymentDetail;
@@ -15,6 +16,7 @@ import com.payflow.payment.application.PaymentSearchResult;
 import com.payflow.payment.application.RefundAcceptance;
 import com.payflow.payment.application.RefundDetail;
 import com.payflow.payment.application.handler.CreatePaymentHandler;
+import com.payflow.payment.application.handler.CancelPaymentHandler;
 import com.payflow.payment.application.handler.CreateRefundHandler;
 import com.payflow.payment.application.handler.GetPaymentHandler;
 import com.payflow.payment.application.handler.GetRefundHandler;
@@ -22,6 +24,7 @@ import com.payflow.payment.application.handler.SearchPaymentsHandler;
 import com.payflow.payment.domain.model.PaymentIntake;
 import com.payflow.payment.domain.model.PaymentStatus;
 import com.payflow.payment.domain.model.Refund;
+import com.payflow.payment.application.command.CancelPaymentCommand;
 import com.payflow.payment.infrastructure.web.CorrelationIdFilter;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -54,8 +57,8 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(
         name = "Payments",
         description =
-                "Nhận payment/refund và đọc trạng thái. Các lệnh ghi chạy bất đồng bộ: HTTP 202 "
-                        + "chỉ xác nhận đã lưu yêu cầu, kết quả cuối cùng được đọc bằng GET payment.")
+                "Nhận payment/refund và đọc trạng thái. Lệnh tạo payment/refund trả HTTP 202 sau "
+                        + "khi intake đã commit; hủy trước reservation trả đồng bộ HTTP 200.")
 @SecurityRequirement(name = PaymentOpenApiConfig.BEARER_AUTH)
 public class PaymentController {
 
@@ -63,6 +66,7 @@ public class PaymentController {
     private static final String MERCHANT_ID_CLAIM = "merchant_id";
 
     private final CreatePaymentHandler createPayment;
+    private final CancelPaymentHandler cancelPayment;
     private final CreateRefundHandler createRefund;
     private final GetPaymentHandler getPayment;
     private final GetRefundHandler getRefund;
@@ -71,17 +75,54 @@ public class PaymentController {
 
     public PaymentController(
             CreatePaymentHandler createPayment,
+            CancelPaymentHandler cancelPayment,
             CreateRefundHandler createRefund,
             GetPaymentHandler getPayment,
             GetRefundHandler getRefund,
             SearchPaymentsHandler searchPayments,
             Clock clock) {
         this.createPayment = createPayment;
+        this.cancelPayment = cancelPayment;
         this.createRefund = createRefund;
         this.getPayment = getPayment;
         this.getRefund = getRefund;
         this.searchPayments = searchPayments;
         this.clock = clock;
+    }
+
+    @Operation(
+            operationId = "cancelPayment",
+            summary = "Cancel a payment before funds reservation",
+            description =
+                    "Cancels the merchant-owned Payment and its Saga atomically only while Risk is "
+                            + "still the active step. A late Risk event is deduplicated and ignored. "
+                            + "The same Idempotency-Key replays the original response.")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "200", description = "Payment cancelled or replayed", useReturnTypeSchema = true),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "400", description = "Idempotency-Key is missing or invalid", content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "404", description = "Payment absent or owned by another merchant", content = @Content),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                responseCode = "409", description = "Funds processing has already started", content = @Content)
+    })
+    @PostMapping("/{paymentId}/cancel")
+    ResponseEntity<ApiResponse<PaymentAcceptance>> cancel(
+            @Parameter(hidden = true) @AuthenticationPrincipal Jwt jwt,
+            @PathVariable UUID paymentId,
+            @Parameter(
+                            name = IDEMPOTENCY_KEY_HEADER,
+                            in = ParameterIn.HEADER,
+                            required = true,
+                            description = "Stable key for this cancellation request")
+                    @RequestHeader(value = IDEMPOTENCY_KEY_HEADER, required = false)
+                    String idempotencyKey,
+            @Parameter(hidden = true) HttpServletRequest servletRequest) {
+        CancelPaymentResult result = cancelPayment.handle(new CancelPaymentCommand(
+                merchantId(jwt), actorId(jwt), paymentId, requireIdempotencyKey(idempotencyKey)));
+        return ResponseEntity.status(result.responseStatus())
+                .body(envelope(result.payment(), servletRequest));
     }
 
     @Operation(

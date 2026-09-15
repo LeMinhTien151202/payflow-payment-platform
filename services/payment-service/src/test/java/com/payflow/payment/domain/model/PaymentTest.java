@@ -182,6 +182,23 @@ class PaymentTest {
     }
 
     @Test
+    @DisplayName("merchant cancellation is allowed before, but not after, reservation starts")
+    void cancelsOnlyBeforeReservation() {
+        Payment checkingRisk = paymentCheckingRisk();
+
+        checkingRisk.cancelBeforeReservation(LATER.plusSeconds(1));
+
+        assertThat(checkingRisk.status()).isEqualTo(PaymentStatus.CANCELLED);
+        assertThat(checkingRisk.recordedStatusChanges().getLast().reasonCode())
+                .isEqualTo("MERCHANT_CANCELLED");
+
+        Payment reserving = paymentCheckingRisk();
+        reserving.applyRiskDecision(PaymentRiskDecision.APPROVED, LATER.plusSeconds(1));
+        assertThatThrownBy(() -> reserving.cancelBeforeReservation(LATER.plusSeconds(2)))
+                .isInstanceOf(IllegalStatusTransitionException.class);
+    }
+
+    @Test
     @DisplayName("approved risk decision advances to reservation without touching money")
     void approvedRiskRequestsReservation() {
         Payment payment = paymentCheckingRisk();

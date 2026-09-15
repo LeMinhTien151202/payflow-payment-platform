@@ -31,6 +31,23 @@ class PaymentSagaTest {
     }
 
     @Test
+    void cancellationIsTerminalOnlyWhileRiskIsTheActiveStep() {
+        PaymentSaga cancelled = start();
+        cancelled.cancelBeforeReservation(CREATED.plusSeconds(1));
+
+        assertThat(cancelled.status()).isEqualTo(PaymentSagaStatus.CANCELLED);
+        assertThat(cancelled.currentStep()).isEqualTo(PaymentSagaStep.RISK_ASSESSMENT);
+        assertThat(cancelled.lastErrorCode()).isEqualTo("MERCHANT_CANCELLED");
+        assertThat(cancelled.status().isTerminal()).isTrue();
+        assertThat(cancelled.isOverdueAt(CREATED.plusSeconds(100))).isFalse();
+
+        PaymentSaga reserving = start();
+        reserving.recordRiskApproved(CREATED.plusSeconds(20), CREATED.plusSeconds(1));
+        assertThatThrownBy(() -> reserving.cancelBeforeReservation(CREATED.plusSeconds(2)))
+                .isInstanceOf(SagaInvariantViolationException.class);
+    }
+
+    @Test
     void recordsDurableFactsBeforeAdvancingAndCompleting() {
         PaymentSaga saga = sagaAtPostLedger();
         saga.recordLedgerPosted(

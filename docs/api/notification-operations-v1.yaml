@@ -9,6 +9,26 @@ servers:
 security:
   - bearerAuth: []
 paths:
+  /api/v1/operations/webhooks:
+    get:
+      operationId: listDeadWebhooks
+      summary: List terminal webhook deliveries
+      description: >-
+        Requires webhook:retry. Returns oldest first and deliberately excludes the signed raw body
+        and merchant webhook secret. Use deliveryId with the retry endpoint after investigating.
+      parameters:
+        - {name: page, in: query, required: false, schema: {type: integer, minimum: 0, default: 0}}
+        - {name: size, in: query, required: false, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+        - {name: X-Correlation-Id, in: header, required: false, schema: {type: string, maxLength: 64}}
+      responses:
+        '200':
+          description: Bounded DEAD delivery page
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/WebhookDeadPage'}
+        '400': {$ref: '#/components/responses/Problem'}
+        '401': {$ref: '#/components/responses/Problem'}
+        '403': {$ref: '#/components/responses/Problem'}
   /api/v1/operations/webhooks/{deliveryId}/retry:
     post:
       summary: Retry a DEAD webhook delivery
@@ -25,6 +45,31 @@ components:
   securitySchemes:
     bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
   schemas:
+    WebhookDeadItem:
+      type: object
+      required: [deliveryId, merchantId, eventId, eventType, attemptCount, nextAttemptAt, createdAt]
+      properties:
+        deliveryId: {type: string, format: uuid}
+        merchantId: {type: string, format: uuid}
+        eventId: {type: string, format: uuid}
+        eventType: {type: string}
+        attemptCount: {type: integer, minimum: 0}
+        responseStatus: {type: [integer, 'null']}
+        responseBodyExcerpt: {type: [string, 'null'], maxLength: 1000}
+        failureCode: {type: [string, 'null']}
+        nextAttemptAt: {type: string, format: date-time}
+        createdAt: {type: string, format: date-time}
+    WebhookDeadPage:
+      type: object
+      required: [items, page, size, totalElements, totalPages]
+      properties:
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/WebhookDeadItem'}
+        page: {type: integer, minimum: 0}
+        size: {type: integer, minimum: 1, maximum: 100}
+        totalElements: {type: integer, format: int64, minimum: 0}
+        totalPages: {type: integer, minimum: 0}
     Problem:
       type: object
       properties:

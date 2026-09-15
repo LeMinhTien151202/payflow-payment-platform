@@ -1,5 +1,6 @@
 package com.payflow.payment.application.idempotency;
 
+import com.payflow.payment.application.command.CancelPaymentCommand;
 import com.payflow.payment.application.command.CreatePaymentCommand;
 import com.payflow.payment.application.command.CreateRefundCommand;
 import java.math.BigDecimal;
@@ -74,6 +75,14 @@ public final class RequestFingerprint {
         field(canonical, "paymentId", text(command.paymentId()));
         field(canonical, "amount", amount(command.amount()));
         field(canonical, "reason", command.reason());
+        return hex(canonical.toString());
+    }
+
+    /** Canonical cancel payload. Actor is deliberately excluded from retry identity. */
+    public static String of(CancelPaymentCommand command) {
+        StringBuilder canonical = new StringBuilder();
+        field(canonical, "merchantId", text(command.merchantId()));
+        field(canonical, "paymentId", text(command.paymentId()));
         return hex(canonical.toString());
     }
 

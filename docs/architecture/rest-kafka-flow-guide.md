@@ -43,8 +43,10 @@ Toàn bộ REST nghiệp vụ payment:
 | `POST /api/v1/payments` | `payment:write` | Nhận payment, chống gửi trùng và tạo Saga | Có, bắt đầu từ `payment.created` |
 | `GET /api/v1/payments?status=&from=&to=&page=&size=` | `payment:read` | Tìm payment theo merchant trong JWT, có filter và phân trang giới hạn | Không, đây là truy vấn đồng bộ |
 | `GET /api/v1/payments/{paymentId}` | `payment:read` | Đọc trạng thái payment thuộc merchant trong JWT | Không, đây là truy vấn đồng bộ |
+| `POST /api/v1/payments/{paymentId}/cancel` | `payment:write` | Merchant hủy khi Saga còn ở bước risk, trước khi giữ tiền | Có, phát fact `payment.cancelled`; trả đồng bộ `200` |
 | `POST /api/v1/payments/{paymentId}/refunds` | `payment:write` | Giữ hạn mức có thể hoàn và nhận refund | Có, bắt đầu từ `refund.requested` |
 | `GET /api/v1/payments/{paymentId}/refunds/{refundId}` | `payment:read` | Đọc refund khi payment, refund và merchant trong JWT cùng khớp | Không, đây là truy vấn đồng bộ |
+| `GET /api/v1/operations/payments/manual-review?page=&size=` | `operations:write` | Liệt kê queue Saga cần con người xử lý, cũ nhất trước | Không, query đồng bộ |
 | `POST /api/v1/operations/payments/{paymentId}/manual-review/resolve` | `operations:write` | Vận hành gỡ một saga đang `MANUAL_REVIEW_REQUIRED` | Có, saga chạy tiếp |
 
 REST của các service khác:
@@ -60,14 +62,16 @@ REST của các service khác:
 | `PUT /api/v1/merchants/{merchantId}/webhook` | `merchant:write` | Đặt URL webhook, xoay HMAC secret và danh sách event đăng ký |
 | `GET /api/v1/reports/daily?from=&to=` | `reporting:read` | Số liệu payment theo ngày của merchant trong JWT, đọc generation đang active |
 | `POST /api/v1/operations/reporting/rebuild` | `reporting:rebuild` | Dựng lại projection từ `event_log` rồi so fingerprint trước khi đổi generation |
+| `GET /api/v1/operations/webhooks?page=&size=` | `webhook:retry` | Liệt kê delivery đang `DEAD`, không trả raw body hay secret |
 | `POST /api/v1/operations/webhooks/{deliveryId}/retry` | `webhook:retry` | Gửi lại một lần giao webhook đã thất bại |
 
 Ngoài ra merchant-service có `/internal/v1/merchants/{id}/payment-policy` và `.../webhook` (scope
 `merchant:internal:read`) cho service khác gọi. Đường `/internal/v1/**` **không có route ở gateway**
 nên không ra được edge công khai.
 
-Hai API `POST` payment/refund bắt buộc header `Idempotency-Key`. Cùng key + cùng request sẽ replay
-response cũ; cùng key + request khác trả `409`. Đây là lớp bảo vệ khi browser, gateway hoặc client retry.
+Ba API `POST` tạo payment, hủy payment và tạo refund bắt buộc header `Idempotency-Key`. Cùng key +
+cùng request sẽ replay response cũ; cùng key + request khác trả `409`. Đây là lớp bảo vệ khi browser,
+gateway hoặc client retry.
 
 ## 3. Luồng payment thành công
 
@@ -169,7 +173,7 @@ Do đó delivery là **at-least-once + idempotent**, không tuyên bố exactly-
 
 | Topic | Event/command chính | Producer → consumer | Điểm vào source |
 | --- | --- | --- | --- |
-| `payflow.payment.events.v1` | `payment.created`, reserve/capture/release và ledger command, payment outcome | Payment → Risk, Account/Ledger, Notification, Reporting | `CreatePaymentHandler`, `RiskPaymentKafkaListener`, `AccountLedgerWorkflowKafkaListener` (`mvp`) / `AccountWorkflowKafkaListener` + `LedgerWorkflowKafkaListener` (`full`) |
+| `payflow.payment.events.v1` | `payment.created`, `payment.cancelled`, reserve/capture/release và ledger command, payment outcome | Payment → Risk, Account/Ledger, Notification, Reporting | `CreatePaymentHandler`, `CancelPaymentHandler`, `RiskPaymentKafkaListener`, `AccountLedgerWorkflowKafkaListener` (`mvp`) / `AccountWorkflowKafkaListener` + `LedgerWorkflowKafkaListener` (`full`) |
 | `payflow.risk.events.v1` | `risk.assessment.completed` | Risk → Payment | `RiskAssessmentEventFactory`, `PaymentWorkflowKafkaListener` |
 | `payflow.account.events.v1` | reserve/capture/release outcome | Account/Ledger → Payment | account handlers, `PaymentWorkflowEventRouter` |
 | `payflow.ledger.events.v1` | payment/refund journal outcome | Account/Ledger → Payment | ledger handlers, `PaymentWorkflowEventRouter` |

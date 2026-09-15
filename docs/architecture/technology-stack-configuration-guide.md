@@ -997,6 +997,20 @@ PostgreSQL giải quyết atomicity local; Kafka vận chuyển at-least-once; i
 | Health | service `application.yml` + Compose healthcheck | Actuator + HealthCheck.java |
 | Notification retry | `.env` + Notification application config | Delivery properties/policy/handler |
 | Logging format | service `application.yml` | Spring Boot logging + MDC filters |
+| Webhook outbound policy | `.env` + Merchant/Notification `application.yml` | `OutboundHttpUrlPolicy`, `HttpWebhookTransport` |
+
+### Webhook outbound HTTP và chống SSRF
+
+Merchant không coi URL do người dùng nhập là endpoint an toàn. Khi cấu hình, `MerchantApplicationService`
+gọi shared `OutboundHttpUrlPolicy`; ngay trước mỗi HTTP POST, `HttpWebhookTransport` resolve và kiểm tra
+lại URL. Mặc định chỉ HTTPS và mọi địa chỉ DNS resolve được đều phải là public. User-info, fragment,
+localhost, private/link-local/reserved IP bị từ chối. HTTP client không tự đi theo redirect; response
+3xx được coi là lỗi dứt điểm để redirect không trở thành đường vòng tới mạng nội bộ.
+
+Biến `PAYFLOW_WEBHOOK_ALLOW_UNSAFE_LOCAL_TARGETS` được nối qua `.env.example`, Compose và
+`application.yml` của Merchant/Notification. Giữ `false` trong mọi môi trường thông thường; chỉ bật
+ngắn hạn khi cố ý demo receiver trên mạng local đáng tin cậy. Đây là defense-in-depth: validate lúc lưu
+và validate lại lúc gửi để giảm DNS rebinding/stale configuration.
 
 ## 24. Công nghệ chưa được áp dụng hoàn chỉnh
 

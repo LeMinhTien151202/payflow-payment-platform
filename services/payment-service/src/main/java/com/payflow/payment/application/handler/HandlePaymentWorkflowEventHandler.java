@@ -35,6 +35,8 @@ import com.payflow.payment.application.saga.VersionedPaymentSaga;
 import com.payflow.payment.domain.model.Payment;
 import com.payflow.payment.domain.model.PaymentRiskAction;
 import com.payflow.payment.domain.model.PaymentSaga;
+import com.payflow.payment.domain.model.PaymentSagaStatus;
+import com.payflow.payment.domain.model.PaymentStatus;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
@@ -228,6 +230,13 @@ public class HandlePaymentWorkflowEventHandler {
                     .orElseThrow(() -> new SagaRecoveryDataException("PaymentSaga", paymentId));
             Payment payment = storedPayment.payment();
             PaymentSaga saga = storedSaga.saga();
+            if (RiskEvents.RISK_ASSESSMENT_COMPLETED.equals(expectedType)
+                    && payment.status() == PaymentStatus.CANCELLED
+                    && saga.status() == PaymentSagaStatus.CANCELLED) {
+                // payment.created may already have reached Risk before the merchant cancelled.
+                // Recording this response in the inbox and returning success prevents retry/DLT noise.
+                return EventProcessingResult.PROCESSED;
+            }
             WorkflowChange change = mutation.apply(payment, saga, processedAt);
 
             if (change.paymentChanged()) {

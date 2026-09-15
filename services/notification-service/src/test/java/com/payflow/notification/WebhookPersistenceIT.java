@@ -79,9 +79,18 @@ class WebhookPersistenceIT extends AbstractNotificationRuntimeIT {
 
         assertThat(webhooks.dead(second.id(), "worker-b", 400, "bad request", "PERMANENT"))
                 .isTrue();
+        var deadPage = webhooks.findDead(0, 20);
+        assertThat(deadPage.totalElements()).isEqualTo(1);
+        assertThat(deadPage.items()).singleElement().satisfies(item -> {
+            assertThat(item.deliveryId()).isEqualTo(second.id());
+            assertThat(item.eventId()).isEqualTo(event.eventId());
+            assertThat(item.failureCode()).isEqualTo("PERMANENT");
+            assertThat(item.responseBodyExcerpt()).isEqualTo("bad request");
+        });
         assertThat(webhooks.manualRequeue(
                         second.id(), "operations", "corr-manual-retry", Instant.now()))
                 .isTrue();
+        assertThat(webhooks.findDead(0, 20).items()).isEmpty();
         assertThat(jdbc.queryForObject(
                         "select count(*) from notification.webhook_audit where delivery_id=?",
                         Integer.class,

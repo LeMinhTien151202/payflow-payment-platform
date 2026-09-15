@@ -5,6 +5,8 @@ import com.payflow.payment.api.request.ResolveManualReviewRequest;
 import com.payflow.payment.api.response.ApiResponse;
 import com.payflow.payment.api.response.ResponseMeta;
 import com.payflow.payment.application.handler.ResolveManualReviewHandler;
+import com.payflow.payment.application.handler.SearchManualReviewsHandler;
+import com.payflow.payment.application.operations.ManualReviewSearchResult;
 import com.payflow.payment.application.operations.ManualReviewResolutionResult;
 import com.payflow.payment.application.operations.ResolveManualReviewCommand;
 import com.payflow.payment.infrastructure.web.CorrelationIdFilter;
@@ -21,9 +23,11 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /** Privileged Payment operations API; isolated from merchant-owned routes and scopes. */
@@ -34,11 +38,30 @@ import org.springframework.web.bind.annotation.RestController;
 public class OperationsController {
 
     private final ResolveManualReviewHandler resolveManualReview;
+    private final SearchManualReviewsHandler searchManualReviews;
     private final Clock clock;
 
-    public OperationsController(ResolveManualReviewHandler resolveManualReview, Clock clock) {
+    public OperationsController(
+            ResolveManualReviewHandler resolveManualReview,
+            SearchManualReviewsHandler searchManualReviews,
+            Clock clock) {
         this.resolveManualReview = resolveManualReview;
+        this.searchManualReviews = searchManualReviews;
         this.clock = clock;
+    }
+
+    @Operation(
+            operationId = "searchPaymentManualReviews",
+            summary = "List Payment Sagas waiting for manual review",
+            description =
+                    "Requires operations:write. Returns only safe operational facts, ordered by "
+                            + "longest waiting first. This read does not lock a Saga or publish an event.")
+    @GetMapping("/manual-review")
+    ApiResponse<ManualReviewSearchResult> search(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            HttpServletRequest servletRequest) {
+        return envelope(searchManualReviews.handle(page, size), servletRequest);
     }
 
     @Operation(
@@ -69,13 +92,26 @@ public class OperationsController {
             @PathVariable UUID paymentId,
             @Valid @RequestBody ResolveManualReviewRequest request,
             HttpServletRequest servletRequest) {
-        String correlationId = CorrelationIdFilter.current(servletRequest);
+        var result = resolveManualReview.handle(new ResolveManualReviewCommand(
+                paymentId,
+                request.decision(),
+                request.decisionCode(),
+                actorSubject(jwt),
+                correlationId(servletRequest)));
+        return envelope(result, servletRequest);
+    }
+
+    private <T> ApiResponse<T> envelope(T data, HttpServletRequest request) {
+        return new ApiResponse<>(
+                data, new ResponseMeta(correlationId(request), clock.instant()));
+    }
+
+    private static String correlationId(HttpServletRequest request) {
+        String correlationId = CorrelationIdFilter.current(request);
         if (!CorrelationId.isSafe(correlationId)) {
             throw new IllegalStateException("request correlation id is missing");
         }
-        var result = resolveManualReview.handle(new ResolveManualReviewCommand(
-                paymentId, request.decision(), request.decisionCode(), actorSubject(jwt), correlationId));
-        return new ApiResponse<>(result, new ResponseMeta(correlationId, clock.instant()));
+        return correlationId;
     }
 
     private static String actorSubject(Jwt jwt) {

@@ -36,10 +36,10 @@ class CreateOutcomeNotificationHandlerTest {
     private CreateOutcomeNotificationHandler handler;
 
     @BeforeEach
-    @SuppressWarnings({"unchecked", "rawtypes"})
     void setUp() {
-        when(transactions.execute(any(TransactionCallback.class))).thenAnswer(invocation -> {
-            TransactionCallback<?> callback = invocation.getArgument(0);
+        when(transactions.execute(org.mockito.ArgumentMatchers
+                .<TransactionCallback<Object>>any())).thenAnswer(invocation -> {
+            TransactionCallback<Object> callback = invocation.getArgument(0);
             return callback.doInTransaction(mock(TransactionStatus.class));
         });
         handler = new CreateOutcomeNotificationHandler(inbox, notifications, webhooks, transactions,

@@ -1,6 +1,8 @@
 package com.payflow.notification.infrastructure.delivery;
 
 import com.payflow.notification.application.webhook.*;
+import com.payflow.security.OutboundHttpUrlPolicy;
+import java.net.URI;
 import java.time.Clock;
 import java.util.UUID;
 import org.springframework.http.MediaType;
@@ -18,11 +20,18 @@ public final class HttpWebhookTransport implements WebhookTransport {
     .header("Authorization","Bearer "+tokens.token()).retrieve().body(String.class);
    var configJson=json.readTree(config);
    if(!configJson.get("enabled").asBoolean())return new Result(410,"webhook disabled",false);
-   var subscriptions=json.readTree(configJson.required("subscribedEvents").asText());
+   var subscriptions=json.readTree(configJson.required("subscribedEvents").stringValue());
    boolean subscribed=subscriptions.isArray()&&subscriptions.valueStream()
-    .anyMatch(node->eventType.equals(node.asText()));
+    .anyMatch(node->eventType.equals(node.stringValue()));
    if(!subscribed)return new Result(204,"event type not subscribed",false);
-   String url=configJson.get("url").asText();String secret=configJson.get("signingSecret").asText();long timestamp=clock.instant().getEpochSecond();
+   URI url;
+   try {
+    url=OutboundHttpUrlPolicy.requireAllowed(
+      configJson.get("url").stringValue(),props.allowUnsafeLocalTargets());
+   } catch(IllegalArgumentException unsafeTarget) {
+    return new Result(400,"webhook target blocked by security policy",false);
+   }
+   String secret=configJson.get("signingSecret").stringValue();long timestamp=clock.instant().getEpochSecond();
    var response=rest.post().uri(url).contentType(MediaType.APPLICATION_JSON)
     .header("X-PayFlow-Event-Id",eventId.toString()).header("X-PayFlow-Timestamp",Long.toString(timestamp))
     .header("X-PayFlow-Signature",WebhookSignature.sign(secret,timestamp,rawBody)).body(rawBody).retrieve().toEntity(String.class);

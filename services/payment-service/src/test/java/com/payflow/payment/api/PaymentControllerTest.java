@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.payflow.payment.application.CreatePaymentResult;
+import com.payflow.payment.application.CancelPaymentResult;
 import com.payflow.payment.application.PaymentAcceptance;
 import com.payflow.payment.application.PaymentDetail;
 import com.payflow.payment.application.PaymentSearchQuery;
@@ -23,9 +24,11 @@ import com.payflow.payment.application.CreateRefundResult;
 import com.payflow.payment.application.RefundAcceptance;
 import com.payflow.payment.application.RefundDetail;
 import com.payflow.payment.application.command.CreatePaymentCommand;
+import com.payflow.payment.application.command.CancelPaymentCommand;
 import com.payflow.payment.application.command.CreateRefundCommand;
 import com.payflow.payment.application.exception.IdempotencyConflictException;
 import com.payflow.payment.application.handler.CreatePaymentHandler;
+import com.payflow.payment.application.handler.CancelPaymentHandler;
 import com.payflow.payment.application.handler.CreateRefundHandler;
 import com.payflow.payment.application.handler.GetPaymentHandler;
 import com.payflow.payment.application.handler.GetRefundHandler;
@@ -93,6 +96,9 @@ class PaymentControllerTest {
 
     @MockitoBean
     private CreatePaymentHandler createPayment;
+
+    @MockitoBean
+    private CancelPaymentHandler cancelPayment;
 
     @MockitoBean
     private CreateRefundHandler createRefund;
@@ -241,6 +247,37 @@ class PaymentControllerTest {
                 .andExpect(jsonPath("$.meta.correlationId").value("api-get-1"));
 
         verify(getPayment).handle(PAYMENT_ID, MERCHANT_ID);
+    }
+
+    @Test
+    @DisplayName("cancel returns 200 and derives merchant plus actor from JWT")
+    void cancelsPaymentForAuthenticatedMerchant() throws Exception {
+        PaymentAcceptance cancelled = new PaymentAcceptance(
+                PAYMENT_ID,
+                PaymentStatus.CANCELLED,
+                new BigDecimal("500000.0000"),
+                "VND",
+                NOW);
+        given(cancelPayment.handle(any()))
+                .willReturn(new CancelPaymentResult.Cancelled(cancelled));
+
+        mockMvc.perform(
+                        post("/api/v1/payments/" + PAYMENT_ID + "/cancel")
+                                .header(HttpHeaders.AUTHORIZATION, "Bearer " + FULL_SCOPE)
+                                .header(PaymentController.IDEMPOTENCY_KEY_HEADER, KEY)
+                                .header("X-Correlation-Id", "api-cancel-1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.paymentId").value(PAYMENT_ID.toString()))
+                .andExpect(jsonPath("$.data.status").value("CANCELLED"))
+                .andExpect(jsonPath("$.meta.correlationId").value("api-cancel-1"));
+
+        ArgumentCaptor<CancelPaymentCommand> command =
+                ArgumentCaptor.forClass(CancelPaymentCommand.class);
+        verify(cancelPayment).handle(command.capture());
+        assertThat(command.getValue().merchantId()).isEqualTo(MERCHANT_ID);
+        assertThat(command.getValue().actorId()).isEqualTo("service-account-payflow-service");
+        assertThat(command.getValue().paymentId()).isEqualTo(PAYMENT_ID);
+        assertThat(command.getValue().idempotencyKey()).isEqualTo(KEY);
     }
 
     @Test

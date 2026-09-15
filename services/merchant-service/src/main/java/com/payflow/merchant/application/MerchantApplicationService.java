@@ -3,19 +3,24 @@ package com.payflow.merchant.application;
 import com.payflow.merchant.application.port.MerchantStore;
 import com.payflow.merchant.domain.MerchantProfile;
 import com.payflow.merchant.domain.MerchantStatus;
+import com.payflow.security.OutboundHttpUrlPolicy;
 import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.Set;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class MerchantApplicationService {
     private final MerchantStore store; private final SecretMaterial secrets; private final SecretCipher cipher; private final Clock clock;
-    public MerchantApplicationService(MerchantStore store,SecretMaterial secrets,SecretCipher cipher,Clock clock) {
+    private final boolean allowUnsafeLocalWebhookTargets;
+    public MerchantApplicationService(MerchantStore store,SecretMaterial secrets,SecretCipher cipher,Clock clock,
+            @Value("${payflow.merchant.allow-unsafe-local-webhook-targets:false}") boolean allowUnsafeLocalWebhookTargets) {
         this.store=store; this.secrets=secrets; this.cipher=cipher; this.clock=clock;
+        this.allowUnsafeLocalWebhookTargets=allowUnsafeLocalWebhookTargets;
     }
     @Transactional
     public MerchantProfile create(MerchantActor actor,String code,String name,BigDecimal feeRate,BigDecimal limit,String correlationId) {
@@ -83,10 +88,19 @@ public class MerchantApplicationService {
     }
     @Transactional
     public WebhookCreated configureWebhook(MerchantActor actor,UUID merchantId,String url,Set<String> subscribedEvents,String correlationId) {
-        actor.requireWriteAccess(merchantId); requireConfigurable(required(merchantId)); Instant now=clock.instant(); String plain=secrets.generate("whsec"); UUID id=UUID.randomUUID();
+        actor.requireWriteAccess(merchantId);
+        requireConfigurable(required(merchantId));
         var allowed=Set.of("payment.succeeded","payment.failed","refund.succeeded","refund.failed");
         if(subscribedEvents==null||subscribedEvents.isEmpty()||!allowed.containsAll(subscribedEvents))
             throw new MerchantException("MERCHANT_WEBHOOK_EVENTS_INVALID","Webhook event subscription is invalid",400);
+        try {
+            OutboundHttpUrlPolicy.requireAllowed(url,allowUnsafeLocalWebhookTargets);
+        } catch (IllegalArgumentException unsafe) {
+            throw new MerchantException("MERCHANT_WEBHOOK_URL_INVALID","Webhook URL is not an allowed target",400);
+        }
+        Instant now=clock.instant();
+        String plain=secrets.generate("whsec");
+        UUID id=UUID.randomUUID();
         store.upsertWebhook(id,merchantId,url,cipher.encrypt(plain),subscribedEvents,now);
         store.appendAudit(UUID.randomUUID(),actor.subject(),"WEBHOOK_CONFIGURED","MERCHANT_WEBHOOK",id,null,"ENABLED",correlationId,now);
         return new WebhookCreated(id,url,plain);

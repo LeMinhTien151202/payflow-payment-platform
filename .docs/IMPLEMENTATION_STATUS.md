@@ -43,9 +43,11 @@ File này là bảng bằng chứng sống. Cập nhật sau mỗi milestone; kh
 | Payment search và refund read API | `VERIFIED_LOCAL` | Payment 238 unit/slice + 62 PostgreSQL IT pass, 2026-08-04 | Merchant-scoped search/filter/page + nested refund lookup; Flyway V8/index và OpenAPI đã đồng bộ |
 | Refund financial runtime | `VERIFIED_LOCAL` | `RefundCapacityPersistenceIT` 8 test pass trong full Payment verify, 2026-08-04 | Concurrent capacity/rollback/journal-credit facts đã chứng minh trên PostgreSQL; broker-level refund E2E vẫn còn trong Phase 2 gate |
 | Audited manual-review operations | `VERIFIED_LOCAL` | Payment 250 unit/slice + 65 PostgreSQL IT; Gateway 11 security IT pass, 2026-08-04 | Scope `operations:write` tách khỏi merchant; state + outbox + typed append-only audit atomic; không có force-success/release |
+| Payment cancellation trước reservation | `VERIFIED_LOCAL` | Payment 263 unit/slice; `PaymentCancellationAndOperationsPersistenceIT` 2/2 pass trên PostgreSQL 17.10, 2026-09-10 | Merchant-owned, idempotent, lock Payment→Saga, atomic state/outbox; late risk fact sau cancel được inbox rồi bỏ qua |
+| Manual-review và webhook DEAD discovery queues | `VERIFIED_LOCAL` | Payment cancellation/queue IT 2/2 + Notification webhook persistence IT 1/1; Gateway security tests, 2026-09-10 | Phân trang bounded, oldest-first; response webhook không lộ raw body/secret |
 | Phase 2 Account/Ledger deployable split | `IMPLEMENTED` | Account 53 unit test; Ledger 32 unit test; PostgreSQL IT đã compile | Database/role/schema/outbox/inbox riêng; immutable-journal và concurrent-reserve gate chờ Docker |
 | Merchant service và Payment policy boundary | `IMPLEMENTED` | Merchant unit test + Payment remote-adapter test; no-Docker reactor gate | Profile full dùng authenticated internal REST, timeout/fail-closed và immutable fee/limit snapshot; Flyway/Keycloak runtime chờ Docker |
-| Webhook HMAC/retry/operations | `IMPLEMENTED` | Signature/retry unit test; PostgreSQL persistence IT đã compile | Stable event id/raw body, lease/retry/DEAD, subscribed-event filter và audited manual requeue; network/PostgreSQL gate chờ Docker |
+| Webhook HMAC/retry/operations | `VERIFIED_LOCAL` | 40 Notification unit test + `WebhookPersistenceIT` 1/1 trên PostgreSQL 17.10, 2026-09-10 | Stable event id/raw body, lease/retry/DEAD, queue/requeue audit; URL policy chặn SSRF bằng unit test, chưa gọi receiver Internet thật |
 | Reporting projection/rebuild | `IMPLEMENTED` | Parser unit test; rebuild-equivalence PostgreSQL IT đã compile | Event log idempotent, generation switch, fingerprint, version rejection/DLT và audited rebuild; PostgreSQL/Kafka gate chờ Docker |
 | Settlement/reconciliation/Docker/load | `VERIFIED_LOCAL` | Full clean verify 705/705; Compose + Keycloak + Kafka → Settlement runtime pass, 2026-09-09 | Settlement calculation/reconciliation/completion and idempotent outbox verified locally; k6 and deployed Prometheus/Grafana evidence remain pending; Kubernetes is intentionally deferred |
 
@@ -746,4 +748,18 @@ Result: PostgreSQL, Kafka, Redis, Keycloak, all full-profile business services a
 Console check: GET http://localhost:8084/console.html -> 200.
 Authenticated read checks: payflow-service token GET /api/v1/payments?page=0&size=1 -> 200; payflow-operations token GET /api/v1/operations/reconciliation/issues with bounded query -> 200. Tokens and client secrets remained process-memory-only and were not printed.
 Visual runtime check: Chrome headless loaded the Gateway-served Console at 1440x1000 and displayed Gateway readiness UP.
+```
+
+### 2026-09-10 — Cancellation, operations queues và webhook SSRF hardening
+
+```text
+Date/time (Asia/Bangkok): 2026-09-10T22:10:22+07:00
+Base commit SHA: f219ca4 (working tree changes not committed at gate time)
+Capability/scenario: merchant cancellation before funds reservation; manual-review discovery queue; webhook DEAD queue; validation at registration and immediately before delivery against private/reserved network targets.
+Docker-free command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Docker-free result: BUILD SUCCESS; 15/15 reactor projects; 645 tests, 0 failures/errors (625 Surefire + 20 Gateway Failsafe).
+PostgreSQL command: .\mvnw.cmd -B -ntp -pl services/payment-service,services/notification-service -am '-Dit.test=PaymentCancellationAndOperationsPersistenceIT,WebhookPersistenceIT' '-Dfailsafe.failIfNoSpecifiedTests=false' verify
+PostgreSQL result: BUILD SUCCESS; PaymentCancellationAndOperationsPersistenceIT 2/2 and WebhookPersistenceIT 1/1 pass against PostgreSQL 17.10 via Testcontainers.
+Static/config result: 5/5 OpenAPI YAML parse bằng SnakeYAML 2.6; Console JavaScript syntax pass; full Compose model resolves từ .env.example; git diff --check exits 0.
+Known boundary: API keys are issued/revoked and stored as hashes but are not accepted by Gateway authentication; runtime business APIs still require Keycloak Bearer JWT. No external webhook receiver or Internet endpoint was contacted by this gate.
 ```
