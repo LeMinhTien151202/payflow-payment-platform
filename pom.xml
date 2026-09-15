@@ -51,7 +51,7 @@
         <springdoc-openapi.version>3.0.3</springdoc-openapi.version>
 
         <!-- Được quản lý bởi Boot BOM; ghim ở đây cho những trường hợp BOM không quản lý. -->
-        <wiremock.version>3.13.1</wiremock.version>
+        <wiremock.version>3.13.2</wiremock.version>
 
         <!--
           Mặc định rỗng: `mvnw verify` chạy mọi integration test, bao gồm cả những bài test
