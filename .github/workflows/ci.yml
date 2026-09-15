@@ -59,7 +59,7 @@ jobs:
       - name: Upload Surefire reports
         # Báo cáo quan trọng nhất khi bước trên thất bại, nên bước này tuyệt đối không được bỏ qua khi có lỗi.
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: surefire-reports
           path: '**/target/surefire-reports/**'
@@ -97,7 +97,7 @@ jobs:
 
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: verify-reports
           path: |
