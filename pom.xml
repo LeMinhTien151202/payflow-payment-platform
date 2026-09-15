@@ -47,7 +47,7 @@
         <maven.compiler.release>21</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
-        <spring-cloud.version>2025.1.2</spring-cloud.version>
+        <spring-cloud.version>2025.1.3</spring-cloud.version>
         <springdoc-openapi.version>3.0.3</springdoc-openapi.version>
 
         <!-- Được quản lý bởi Boot BOM; ghim ở đây cho những trường hợp BOM không quản lý. -->
