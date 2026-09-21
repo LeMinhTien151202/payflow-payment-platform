@@ -97,6 +97,10 @@
             <groupId>com.payflow</groupId>
             <artifactId>error-contract</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.payflow</groupId>
+            <artifactId>identity-security-support</artifactId>
+        </dependency>
         <!--
           Event names, versions, and the envelope. payment-service owns the payment contracts in this
           module; it depends on the module rather than defining them locally so a consumer never has to

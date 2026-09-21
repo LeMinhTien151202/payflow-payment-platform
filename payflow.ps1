@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [ValidateSet('start', 'rebuild', 'stop', 'status', 'logs', 'token', 'smoke')]
+    [ValidateSet('start', 'rebuild', 'stop', 'status', 'logs', 'token', 'user-password', 'user-smoke', 'smoke')]
     [string]$Action = 'status',
 
     [Parameter(Position = 1)]
@@ -9,6 +9,9 @@ param(
 
     [ValidateSet('service', 'operations')]
     [string]$Client = 'service',
+
+    [ValidateSet('merchant-admin', 'merchant-user', 'operations')]
+    [string]$User = 'merchant-admin',
 
     [ValidateRange(30, 900)]
     [int]$TimeoutSeconds = 300,
@@ -173,6 +176,10 @@ function Prepare-And-Start {
         Wait-ServiceHealthy $name $deadline
     }
     Wait-Gateway $values $deadline
+    & (Join-Path $RepositoryRoot 'infrastructure\scripts\sync-local-merchant-memberships.ps1')
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Local Keycloak-to-merchant membership synchronization failed.'
+    }
 
     $gatewayPort = Require-Value $values 'PAYFLOW_GATEWAY_PORT'
     $issuer = (Require-Value $values 'PAYFLOW_OIDC_ISSUER_URI').TrimEnd('/')
@@ -221,6 +228,21 @@ function Copy-AccessToken {
     Write-Host "Scopes:  $($claims.scope)"
 }
 
+function Copy-LocalUserPassword {
+    Require-EnvFile
+    $values = Import-DotEnv
+    $personas = @{
+        'merchant-admin' = @{ Username = 'merchant.admin'; Role = 'MERCHANT_ADMIN'; Variable = 'PAYFLOW_MERCHANT_ADMIN_PASSWORD' }
+        'merchant-user' = @{ Username = 'merchant.user'; Role = 'MERCHANT_USER'; Variable = 'PAYFLOW_MERCHANT_USER_PASSWORD' }
+        'operations' = @{ Username = 'operations.admin'; Role = 'OPERATIONS'; Variable = 'PAYFLOW_OPERATIONS_USER_PASSWORD' }
+    }
+    $persona = $personas[$User]
+    Set-Clipboard -Value (Require-Value $values $persona.Variable)
+    Write-Host "Password for $($persona.Username) copied to clipboard; it was not printed." -ForegroundColor Green
+    Write-Host "Role: $($persona.Role)"
+    Write-Host 'Console: run .\payflow.ps1 start, then open the Gateway URL shown there.'
+}
+
 Push-Location $RepositoryRoot
 try {
     switch ($Action) {
@@ -260,6 +282,16 @@ try {
         }
         'token' {
             Copy-AccessToken
+        }
+        'user-password' {
+            Copy-LocalUserPassword
+        }
+        'user-smoke' {
+            Require-Docker
+            & (Join-Path $RepositoryRoot 'infrastructure\scripts\smoke-console-rbac.ps1')
+            if ($LASTEXITCODE -ne 0) {
+                throw 'Real-user RBAC smoke test failed.'
+            }
         }
         'smoke' {
             Require-Docker

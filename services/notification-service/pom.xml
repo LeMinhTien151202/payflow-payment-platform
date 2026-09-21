@@ -83,6 +83,10 @@
             <groupId>com.payflow</groupId>
             <artifactId>network-security-support</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.payflow</groupId>
+            <artifactId>identity-security-support</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

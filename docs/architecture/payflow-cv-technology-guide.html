@@ -19,13 +19,14 @@ main{padding:28px 0 70px}section{margin:30px 0;scroll-margin-top:62px}.head{disp
 pre{overflow:auto;padding:17px;color:#d9e8f5;background:#0c1420;border-radius:12px;font:13px/1.58 ui-monospace,Consolas,monospace}.kw{color:#73c8ff}.fn{color:#ffd173}.str{color:#9fe1a7}.cm{color:#8296a9}
 .copy{position:relative;padding:15px 75px 15px 15px;background:var(--soft);border-radius:10px}.copy button{position:absolute;top:9px;right:9px;padding:7px 9px;color:#fff;background:var(--brand);border:0;border-radius:7px;cursor:pointer}.badge{display:inline-block;padding:3px 8px;border-radius:99px;font-size:11px}.yes{color:var(--ok);background:color-mix(in srgb,var(--ok) 16%,transparent)}.no{color:var(--bad);background:color-mix(in srgb,var(--bad) 14%,transparent)}
 details{margin:8px 0;padding:11px 14px;background:var(--card);border:1px solid var(--line);border-radius:10px}summary{font-weight:800;cursor:pointer}details p{color:var(--muted)}footer{padding:25px 0;color:var(--muted);border-top:1px solid var(--line)}
-@media(max-width:850px){.g3,.g4{grid-template-columns:repeat(2,1fr)}.diagram{grid-template-columns:1fr}.arrow,.pa{transform:rotate(90deg)}.flow{grid-template-columns:1fr}.steps{display:grid;grid-template-columns:repeat(2,1fr)}.pipeline{display:grid;grid-template-columns:1fr}.view{min-height:0}}
-@media(max-width:560px){.g2,.g3,.g4,.io,.steps{grid-template-columns:1fr}.head{display:block}.head p{margin-top:6px}.wrap{width:calc(100% - 18px)}}
+.route{display:grid;gap:8px}.route-row{display:grid;grid-template-columns:36px 170px minmax(0,1fr);gap:10px;align-items:stretch}.route-no{display:grid;place-items:center;width:30px;height:30px;margin-top:8px;color:#fff;background:var(--brand);border-radius:50%;font-weight:850}.route-who{padding:9px 11px;color:var(--brand);background:var(--soft);border-radius:9px;font-weight:800}.route-what{padding:9px 11px;border-bottom:1px solid var(--line)}.route-what b{display:block}.fanout-source{max-width:470px;margin:auto;text-align:center}.fanout-arrow{text-align:center;color:var(--accent);font-size:25px;font-weight:900}.fanout-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.branch-label{display:block;margin-bottom:6px;color:var(--accent);font-size:12px;font-weight:850;text-transform:uppercase}.mini-flow{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center}.mini-flow .pa{min-width:28px}
+@media(max-width:850px){.g3,.g4{grid-template-columns:repeat(2,1fr)}.diagram{grid-template-columns:1fr}.arrow,.pa{transform:rotate(90deg)}.flow{grid-template-columns:1fr}.steps{display:grid;grid-template-columns:repeat(2,1fr)}.pipeline{display:grid;grid-template-columns:1fr}.view{min-height:0}.fanout-grid{grid-template-columns:1fr}.mini-flow{grid-template-columns:1fr}.route-row{grid-template-columns:36px 130px minmax(0,1fr)}}
+@media(max-width:560px){.g2,.g3,.g4,.io,.steps{grid-template-columns:1fr}.head{display:block}.head p{margin-top:6px}.wrap{width:calc(100% - 18px)}.route-row{grid-template-columns:34px 1fr}.route-what{grid-column:2}}
 </style>
 </head>
 <body>
 <header class="hero"><div class="wrap"><div class="eyebrow">Architecture handbook  CV companion</div><h1>PayFlow Payment Platform</h1><p>Payment sandbox theo microservices và event-driven: nhận lệnh bằng REST, điều phối giao dịch bằng Saga, truyền sự kiện qua Kafka, bảo vệ bằng Keycloak và giữ tính đúng đắn tài chính bằng idempotency + transactional outbox/inbox.</p><div class="chips"><span class="chip">Java 21</span><span class="chip">Spring Boot 4</span><span class="chip">Kafka</span><span class="chip">PostgreSQL</span><span class="chip">Redis</span><span class="chip">Keycloak</span><span class="chip">Docker Compose</span><span class="chip">Testcontainers</span></div></div></header>
-<nav><div class="wrap"><a href="#overview">Tổng quan</a><a href="#services">Services</a><a href="#tech">Công nghệ</a><a href="#kafka-detail">Kafka dùng ở đâu</a><a href="#config">Cấu hình</a><a href="#flow">Luồng code</a><a href="#code">Code mẫu</a><a href="#reliability">Độ tin cậy</a><a href="#cv">Viết CV</a><a href="#faq">Phỏng vấn</a></div></nav>
+<nav><div class="wrap"><a href="#overview">Tổng quan</a><a href="#services">Services</a><a href="#tech">Công nghệ</a><a href="#kafka-detail">Kafka dùng ở đâu</a><a href="#config">Cấu hình</a><a href="#flow">Luồng code</a><a href="#code">Code mẫu</a><a href="#workflow-map">Bản đồ luồng</a><a href="#glossary">Từ điển dễ hiểu</a><a href="#reliability">Độ tin cậy</a><a href="#cv">Viết CV</a><a href="#faq">Phỏng vấn</a></div></nav>
 <main class="wrap">
 <section id="overview"><div class="head"><div><div class="eyebrow">01  Mental model</div><h2>Hiểu dự án trong 30 giây</h2></div><p>Đây không phải CRUD ví điện tử hoàn chỉnh; đây là backend payment orchestration sandbox, nhấn mạnh cách nhiều service phối hợp an toàn.</p></div>
 <div class="grid g4"><div class="card metric"><b>9</b><span>Java deployables: Gateway + 8 business services</span></div><div class="card metric"><b>1</b><span>điểm vào public: API Gateway</span></div><div class="card metric"><b>REST</b><span>command, query, operations</span></div><div class="card metric"><b>Kafka</b><span>workflow bất đồng bộ và fan-out</span></div></div>
@@ -66,7 +67,7 @@ details{margin:8px 0;padding:11px 14px;background:var(--card);border:1px solid v
 <div id="security" class="panel grid g3">
 <div class="card tech"><h3>Keycloak 26</h3><b>OAuth2/OIDC IdP</b><p>Phát JWT cho user và service account; business database không lưu password.</p><code>issuer-uri + JWKS</code></div>
 <div class="card tech"><h3>JWT Resource Server</h3><b>Defense in depth</b><p>Gateway và từng service đều xác minh token, không chỉ tin lớp ngoài.</p><code>SecurityFilterChain</code></div>
-<div class="card tech"><h3>Scope + merchant_id</h3><b>RBAC/ABAC lai</b><p>Scope cho biết được làm gì; claim ownership cho biết được làm trên dữ liệu của ai.</p><code>SCOPE_payment:create</code></div>
+<div class="card tech"><h3>Scope + merchant_id</h3><b>RBAC/ABAC lai</b><p>Scope cho biết được làm gì; claim ownership cho biết được làm trên dữ liệu của ai.</p><code>SCOPE_payment:write</code></div>
 <div class="card tech"><h3>Client credentials</h3><b>Service-to-service</b><p>Payment/Notification gọi Merchant bằng service token.</p><code>OAuth2 client</code></div>
 <div class="card tech"><h3>Webhook HMAC</h3><b>Callback integrity</b><p>Ký timestamp + raw body bằng merchant secret.</p><code>signature headers</code></div>
 <div class="card tech"><h3>Network security support</h3><b>Chống SSRF</b><p>Chặn webhook URL loopback/private/không hợp lệ trước outbound call.</p><code>libs/network-security-support</code></div>
@@ -82,7 +83,7 @@ details{margin:8px 0;padding:11px 14px;background:var(--card);border:1px solid v
 
 <section id="kafka-detail"><div class="head"><div><div class="eyebrow">04 - Kafka map</div><h2>Kafka dùng ở đâu, vào luồng nào và tại sao?</h2></div><p>Kafka bắt đầu làm việc sau khi REST đã nhận và lưu payment. Nó vận chuyển command/event giữa các bounded context và fan-out kết quả cho reporting, notification, settlement.</p></div>
 <div class="callout"><b>Ranh giới dễ nhớ:</b> đăng nhập/lấy token, tạo hoặc tra cứu payment, merchant lookup và operations dùng HTTP/REST. Các bước Risk -> Reserve -> Ledger -> Capture cùng việc cập nhật báo cáo/thông báo/settlement dùng Kafka vì đây là workflow dài, cần retry và có nhiều consumer độc lập.</div>
-<div class="card" style="margin-top:14px"><h3>Luồng Kafka của một payment thành công</h3><div class="pipeline"><div class="pipe"><b>Payment</b><code>payment.created</code></div><div class="pa">-></div><div class="pipe"><b>Risk</b><code>risk.approved</code></div><div class="pa">-></div><div class="pipe"><b>Account</b><code>funds-reserved</code></div><div class="pa">-></div><div class="pipe"><b>Ledger</b><code>ledger.posted</code></div><div class="pa">-></div><div class="pipe"><b>Account</b><code>funds-captured</code></div><div class="pa">-></div><div class="pipe"><b>Payment</b><code>payment.succeeded</code></div></div><p class="muted">Payment Service nghe kết quả của Risk/Account/Ledger, cập nhật Saga rồi phát command kế tiếp. Kafka không tự quyết định nghiệp vụ; application handler của từng service mới là nơi quyết định.</p></div>
+<div class="card" style="margin-top:14px"><h3>Luồng Kafka của một payment thành công</h3><div class="pipeline"><div class="pipe"><b>Payment</b><code>payment.created</code></div><div class="pa">&rarr;</div><div class="pipe"><b>Risk</b><code>risk.assessment.completed</code></div><div class="pa">&rarr;</div><div class="pipe"><b>Account</b><code>account.funds-reserved</code></div><div class="pa">&rarr;</div><div class="pipe"><b>Ledger</b><code>ledger.payment-posted</code></div><div class="pa">&rarr;</div><div class="pipe"><b>Account</b><code>account.funds-captured</code></div><div class="pa">&rarr;</div><div class="pipe"><b>Payment</b><code>payment.succeeded</code></div></div><p class="muted">Đây là tên event đúng trong source. Giữa các kết quả, Payment còn phát command <code>account.reserve.requested</code>, <code>ledger.post-payment.requested</code> và <code>account.capture.requested</code>. Payment Service nghe kết quả, cập nhật Saga rồi phát command kế tiếp. Kafka không tự quyết định nghiệp vụ; application handler của từng service mới là nơi quyết định.</p></div>
 <div class="card table" style="margin-top:14px"><table><thead><tr><th>Topic</th><th>Producer chính</th><th>Consumer hiện tại</th><th>Dùng trong luồng</th><th>Tại sao qua Kafka?</th></tr></thead><tbody>
 <tr><td><code>payflow.payment.events.v1</code></td><td>Payment</td><td>Risk, Account, Ledger, Reporting, Notification, Settlement</td><td>Lifecycle payment và command do Saga điều phối: created, reserve/capture/release, ledger post, succeeded/failed/cancelled</td><td>Một kết quả có nhiều bên quan tâm; Payment không phải gọi tuần tự từng service.</td></tr>
 <tr><td><code>payflow.risk.events.v1</code></td><td>Risk</td><td>Payment</td><td>Risk approved, rejected hoặc manual review</td><td>Risk xử lý độc lập; Payment có thể resume Saga khi kết quả tới.</td></tr>
@@ -131,16 +132,264 @@ details{margin:8px 0;padding:11px 14px;background:var(--card);border:1px solid v
 }</pre></div>
 <div class="card"><h3>Vì sao làm vậy?</h3><ol><li><b>Idempotency:</b> chống client retry gây double charge.</li><li><b>Aggregate:</b> Payment tự giữ transition hợp lệ.</li><li><b>Saga state:</b> restart vẫn biết workflow đang ở đâu.</li><li><b>Outbox:</b> payment, saga và event intent commit nguyên tử.</li><li><b>Publisher riêng:</b> claim theo lease, publish ngoài DB transaction, rồi mark/retry.</li></ol><div class="callout"><b>Điểm quan trọng:</b> đây là local ACID + reliable event delivery, không phải distributed transaction phủ toàn bộ database.</div></div></div></section>
 
-<section id="reliability"><div class="head"><div><div class="eyebrow">08 - Correctness</div><h2>Kafka không tự làm hệ thống an toàn</h2></div><p>Độ tin cậy đến từ nhiều pattern phối hợp.</p></div>
+<section id="workflow-map"><div class="head"><div><div class="eyebrow">08 - Workflow atlas</div><h2>Hệ thống không chỉ có một luồng payment</h2></div><p>Happy path Risk &rarr; Reserve &rarr; Ledger &rarr; Capture là xương sống. Xung quanh nó còn có refund, cancel, manual review, notification, reporting, settlement và reconciliation.</p></div>
+
+<div class="grid g3">
+<div class="card"><h3>Luồng public</h3><ul><li>Đăng nhập Keycloak</li><li>Tạo, tra cứu và hủy payment</li><li>Tạo và tra cứu refund</li><li>Quản lý merchant/member</li><li>Xem báo cáo và settlement</li></ul></div>
+<div class="card"><h3>Luồng Kafka nội bộ</h3><ul><li>Risk assessment</li><li>Reserve/capture/release</li><li>Ledger post/reversal</li><li>Fan-out kết quả cuối</li><li>Retry, inbox/outbox và DLT</li></ul></div>
+<div class="card"><h3>Luồng Operations</h3><ul><li>Duyệt manual review</li><li>Retry webhook thất bại</li><li>Rebuild reporting projection</li><li>Chạy/hoàn tất settlement</li><li>Reconciliation các financial facts</li></ul></div>
+</div>
+<div class="callout" style="margin-top:14px"><b>Phạm vi chưa có:</b> đây chưa phải ví điện tử đầy đủ. Source hiện không có luồng P2P giữa hai ví người dùng, nạp/rút tiền qua ngân hàng, KYC/AML hoàn chỉnh, external payment processor hay payout ngân hàng thật. Settlement hiện mô phỏng accounting settlement và reconciliation.</div>
+
+<details open><summary>Sơ đồ 1 — Payment thành công từ API đến fan-out</summary>
+<div class="card route" style="margin-top:10px">
+<div class="route-row"><span class="route-no">1</span><div class="route-who">Merchant/User</div><div class="route-what"><b>Gọi API qua Gateway</b><code>POST /api/v1/payments</code> + User JWT + <code>Idempotency-Key</code>. Gateway kiểm chữ ký, thời hạn và quyền <code>payment:write</code>.</div></div>
+<div class="route-row"><span class="route-no">2</span><div class="route-who">Payment</div><div class="route-what"><b>Tiếp nhận an toàn</b>Kiểm ownership/idempotency, lấy merchant policy bằng Service JWT, rồi commit Payment + Saga + Outbox. API trả <code>202 Accepted</code>; lúc này chưa phải SUCCEEDED.</div></div>
+<div class="route-row"><span class="route-no">3</span><div class="route-who">Payment &rarr; Risk</div><div class="route-what"><b>Kiểm tra rủi ro</b><code>payment.created</code> &rarr; Risk dùng rule/Redis velocity &rarr; <code>risk.assessment.completed</code> với decision APPROVED.</div></div>
+<div class="route-row"><span class="route-no">4</span><div class="route-who">Payment &rarr; Account</div><div class="route-what"><b>Khóa tiền</b><code>account.reserve.requested</code> &rarr; available giảm, reserved tăng &rarr; <code>account.funds-reserved</code>.</div></div>
+<div class="route-row"><span class="route-no">5</span><div class="route-who">Payment &rarr; Ledger</div><div class="route-what"><b>Ghi sổ</b><code>ledger.post-payment.requested</code> &rarr; tạo journal có tổng Debit = Credit &rarr; <code>ledger.payment-posted</code>.</div></div>
+<div class="route-row"><span class="route-no">6</span><div class="route-who">Payment &rarr; Account</div><div class="route-what"><b>Chốt chi</b><code>account.capture.requested</code> &rarr; reserved giảm và khoản tiền được chốt &rarr; <code>account.funds-captured</code>.</div></div>
+<div class="route-row"><span class="route-no">7</span><div class="route-who">Payment</div><div class="route-what"><b>Kết thúc Saga</b>Payment chuyển <code>SUCCEEDED</code>, Saga chuyển COMPLETED và phát <code>payment.succeeded</code> v2.</div></div>
+<div class="route-row"><span class="route-no">8</span><div class="route-who">Kafka fan-out</div><div class="route-what"><b>Ba nhánh độc lập</b>Notification gửi callback, Reporting cập nhật read model, Settlement ghi nhận gross/fee/net. Payment không chờ ba nhánh này để giữ trạng thái SUCCEEDED.</div></div>
+</div></details>
+
+<details open><summary>Sơ đồ 2 — “Fan-out services” thực chất là ba service riêng</summary>
+<div class="card" style="margin-top:10px">
+<div class="pipe fanout-source"><b>Payment Service</b><code>payment.succeeded v2</code></div>
+<div class="fanout-arrow">&darr;</div>
+<div class="pipe fanout-source"><b>Kafka</b><code>payflow.payment.events.v1</code><br>Một message, nhiều consumer group</div>
+<div class="fanout-arrow">&darr; &nbsp;&nbsp;&nbsp; &darr; &nbsp;&nbsp;&nbsp; &darr;</div>
+<div class="fanout-grid">
+<div class="pipe"><span class="branch-label">Consumer group 1</span><b>Notification Service</b>Gửi email mock/webhook, ký HMAC, retry giới hạn và lưu DEAD nếu không thể gửi.</div>
+<div class="pipe"><span class="branch-label">Consumer group 2</span><b>Reporting Service</b>Dựng transaction read model và báo cáo; có thể eventual consistent và rebuild.</div>
+<div class="pipe"><span class="branch-label">Consumer group 3</span><b>Settlement Service</b>Ghi contribution của merchant để tính gross, refund, fee và net theo kỳ.</div>
+</div>
+<p class="muted"><b>Không tồn tại service tên Fan-out.</b> Ba service có offset riêng và nhận cùng event độc lập. Notification lỗi không rollback Payment; Reporting chậm không chặn Settlement.</p>
+</div></details>
+
+<details><summary>Sơ đồ 3 — Risk, lỗi tài chính và compensation</summary>
+<div class="card" style="margin-top:10px">
+<div class="pipe fanout-source"><b>Risk decision</b><code>risk.assessment.completed</code></div>
+<div class="fanout-arrow">&darr;</div>
+<div class="fanout-grid">
+<div class="pipe"><span class="branch-label">REJECTED</span><b>Payment FAILED</b>Không reserve, không ghi Ledger và không capture.</div>
+<div class="pipe"><span class="branch-label">REVIEW_REQUIRED</span><b>MANUAL_REVIEW_REQUIRED</b>Dừng workflow tự động và chờ Operations quyết định.</div>
+<div class="pipe"><span class="branch-label">APPROVED</span><b>Đi tiếp financial workflow</b>Reserve &rarr; Ledger post &rarr; Capture.</div>
+</div>
+<div class="fanout-arrow">&darr;</div>
+<div class="grid g2">
+<div class="pipe"><span class="branch-label">Reserve thất bại</span><b>Payment FAILED</b>Không đủ available balance nên không có tiền nào bị khóa.</div>
+<div class="pipe"><span class="branch-label">Ledger thất bại sau reserve</span><b>Compensation: Release</b>Payment phát <code>account.release.requested</code>; Account chuyển reserved trở lại available.</div>
+<div class="pipe"><span class="branch-label">Capture chưa chắc chắn</span><b>Giữ PROCESSING</b>Vì Ledger đã post, hệ thống retry hoặc manual review thay vì tùy tiện đánh FAILED.</div>
+<div class="pipe"><span class="branch-label">Poison message</span><b>Retry rồi DLT</b>Sau retry giới hạn, message được cô lập ở <code>payflow.dead-letter.v1</code>.</div>
+</div>
+</div></details>
+
+<details><summary>Sơ đồ 4 — Refund là một Saga riêng</summary>
+<div class="card" style="margin-top:10px">
+<div class="pipeline">
+<div class="pipe"><b>Merchant/User</b>POST refund<br><code>Idempotency-Key</code></div><div class="pa">&rarr;</div>
+<div class="pipe"><b>Payment</b>Kiểm refundable amount<br><code>refund.requested</code></div><div class="pa">&rarr;</div>
+<div class="pipe"><b>Ledger</b>Ghi reversal journal<br><code>ledger.refund-posted</code></div><div class="pa">&rarr;</div>
+<div class="pipe"><b>Account</b>Credit tiền hoàn<br><code>account.refund-credited</code></div><div class="pa">&rarr;</div>
+<div class="pipe"><b>Payment</b><code>refund.succeeded</code></div>
+</div>
+<p class="muted">Sau <code>refund.succeeded</code>, Notification gửi webhook, Reporting cập nhật giao dịch và Settlement trừ refund khỏi net. Nếu Ledger reversal thất bại, Payment phát <code>refund.failed</code> và giải phóng refundable capacity đã giữ.</p>
+</div></details>
+
+<details><summary>Sơ đồ 5 — Manual review và quyền Operations</summary>
+<div class="card" style="margin-top:10px">
+<div class="pipeline">
+<div class="pipe"><b>Risk</b>Decision<br>REVIEW_REQUIRED</div><div class="pa">&rarr;</div>
+<div class="pipe"><b>Payment</b>Status<br>MANUAL_REVIEW_REQUIRED</div><div class="pa">&rarr;</div>
+<div class="pipe"><b>Operations user</b>Đăng nhập Keycloak<br>role OPERATIONS</div><div class="pa">&rarr;</div>
+<div class="pipe"><b>Operations API</b>Duyệt hoặc từ chối<br>scope operations</div><div class="pa">&rarr;</div>
+<div class="pipe"><b>Saga tiếp tục</b>Approve: reserve tiền<br>Reject: payment failed</div>
+</div>
+<p class="muted">Merchant admin không có quyền duyệt hàng đợi Operations. Gateway và Payment Service đều kiểm token; đây là defense in depth.</p>
+</div></details>
+
+<details><summary>Sơ đồ 6 — Settlement và reconciliation</summary>
+<div class="card" style="margin-top:10px">
+<div class="fanout-grid">
+<div class="pipe"><span class="branch-label">Nguồn nghiệp vụ</span><b>Payment/Refund facts</b><code>payment.succeeded v2</code><br><code>refund.succeeded</code></div>
+<div class="pipe"><span class="branch-label">Nguồn số dư</span><b>Account facts</b><code>account.funds-captured</code><br><code>account.refund-credited</code></div>
+<div class="pipe"><span class="branch-label">Nguồn kế toán</span><b>Ledger facts</b><code>ledger.payment-posted</code><br><code>ledger.refund-posted</code></div>
+</div>
+<div class="fanout-arrow">&darr;</div>
+<div class="mini-flow">
+<div class="pipe"><b>Settlement batch</b>Tính <code>gross - refunds - fees = net</code> theo merchant và kỳ.</div>
+<div class="pa">&rarr;</div>
+<div class="pipe"><b>Reconciliation</b>Đối chiếu Payment, Account và Ledger để tìm thiếu event, sai amount hoặc trạng thái không khớp.</div>
+</div>
+<div class="fanout-arrow">&darr;</div>
+<div class="pipe fanout-source"><b>settlement.completed</b>Integration event sẵn cho bước mở rộng. Hiện chưa gọi ngân hàng và chưa payout tiền thật.</div>
+</div></details>
+
+<details><summary>Sơ đồ 7 — Notification và webhook retry</summary>
+<div class="card" style="margin-top:10px">
+<div class="pipeline">
+<div class="pipe"><b>Kafka terminal event</b>Payment/refund<br>succeeded hoặc failed</div><div class="pa">&rarr;</div>
+<div class="pipe"><b>Notification</b>Lấy webhook config<br>của merchant</div><div class="pa">&rarr;</div>
+<div class="pipe"><b>Security</b>Chống SSRF<br>ký HMAC timestamp + body</div><div class="pa">&rarr;</div>
+<div class="pipe"><b>HTTP outbound</b>Gửi callback<br>đến merchant</div><div class="pa">&rarr;</div>
+<div class="pipe"><b>Kết quả</b>DELIVERED hoặc retry<br>cuối cùng DEAD</div>
+</div>
+<p class="muted">Operations có API liệt kê và retry webhook DEAD. Webhook là thông báo kết quả ra hệ thống merchant, không phải bước trừ tiền và không quyết định payment có thành công hay không.</p>
+</div></details>
+
+<details><summary>Sơ đồ 8 — Một consumer xử lý Kafka message an toàn</summary>
+<div class="card route" style="margin-top:10px">
+<div class="route-row"><span class="route-no">1</span><div class="route-who">Kafka Listener</div><div class="route-what"><b>Nhận EventEnvelope</b>Kiểm tra topic, eventType, version và aggregate identity.</div></div>
+<div class="route-row"><span class="route-no">2</span><div class="route-who">Inbox</div><div class="route-what"><b>Chống xử lý trùng</b>Insert <code>(eventId, consumerName)</code>. Nếu đã tồn tại thì không chạy mutation lần hai.</div></div>
+<div class="route-row"><span class="route-no">3</span><div class="route-who">Application Handler</div><div class="route-what"><b>Áp dụng nghiệp vụ</b>Inbox + business mutation + outgoing outbox cùng một local DB transaction.</div></div>
+<div class="route-row"><span class="route-no">4</span><div class="route-who">Manual ACK</div><div class="route-what"><b>Xác nhận sau commit</b>Nếu crash trước ACK, Kafka giao lại nhưng Inbox biến lần lặp thành no-op.</div></div>
+<div class="route-row"><span class="route-no">5</span><div class="route-who">Outbox Publisher</div><div class="route-what"><b>Phát kết quả bền vững</b>Claim theo lease, publish Kafka ngoài transaction rồi mark published hoặc retry/failed.</div></div>
+</div></details>
+
+<div class="callout" style="margin-top:14px"><b>Cách nhìn tổng thể:</b> luồng payment là trục chính; refund và cancel thay đổi vòng đời giao dịch; manual review là nhánh con người can thiệp; Notification/Reporting/Settlement là các projection hoặc hậu xử lý; reconciliation kiểm tra những service tài chính có kể cùng một câu chuyện hay không.</div>
+</section>
+
+<section id="glossary"><div class="head"><div><div class="eyebrow">09 - Plain-text dictionary</div><h2>Đọc các thuật ngữ và chuỗi luồng như thế nào?</h2></div><p>Phần này dịch các từ kỹ thuật sang ngôn ngữ nghiệp vụ và gắn trực tiếp với tình huống trong PayFlow.</p></div>
+<div class="callout"><b>Quy tắc đọc nhanh:</b> dấu <code>&rarr;</code> nghĩa là bước bên trái tạo đầu vào cho bước bên phải. Ví dụ <code>Payment &rarr; payment.created &rarr; Risk</code> nghĩa là Payment phát message có <code>eventType=payment.created</code> lên Kafka, sau đó Risk nhận message đó. Nó không có nghĩa Payment gọi trực tiếp một hàm Java của Risk.</div>
+
+<div class="grid g2" style="margin-top:14px">
+<div class="card"><h3>REST và Kafka khác nhau ở đâu?</h3><p><b>REST</b> giống quầy tiếp nhận: client gửi yêu cầu và nhận phản hồi ngay như <code>POST /api/v1/payments</code>. <b>Kafka</b> giống băng chuyền nội bộ: sau khi payment đã được lưu, các service lần lượt nhận việc và trả kết quả bất đồng bộ.</p><p class="muted">PayFlow không dùng Kafka để đăng nhập hoặc thay thế toàn bộ API. Command/query ở biên hệ thống dùng REST; workflow dài và fan-out dùng Kafka.</p></div>
+<div class="card"><h3>Command, event và status</h3><p><b>Command</b> là yêu cầu làm việc, ví dụ <code>account.reserve.requested</code>: hãy khóa tiền. <b>Event</b> là sự thật đã xảy ra, ví dụ <code>account.funds-reserved</code>: tiền đã được khóa. <b>Status</b> là trạng thái đang lưu của aggregate, ví dụ <code>PROCESSING</code> hoặc <code>SUCCEEDED</code>.</p><p class="muted">Trong source, command và event cùng đi trong event envelope/Kafka topic; phân biệt bằng ý nghĩa của <code>eventType</code>.</p></div>
+<div class="card"><h3>Topic và eventType không phải một</h3><p><code>payflow.payment.events.v1</code> là <b>topic</b>, tức kênh chứa nhiều loại message. <code>payment.created</code> hoặc <code>account.reserve.requested</code> là <b>eventType</b>, tức loại cụ thể bên trong message.</p><p class="muted">Consumer nghe topic trước, sau đó router đọc eventType để gọi đúng handler. Message không liên quan sẽ được bỏ qua theo contract.</p></div>
+<div class="card"><h3>Producer và consumer</h3><p><b>Producer</b> là service gửi message; <b>consumer</b> là service nhận. Ví dụ Payment là producer của <code>payment.created</code>, Risk là consumer; sau đó Risk lại là producer của <code>risk.assessment.completed</code> và Payment là consumer.</p><p class="muted">Một service có thể vừa produce vừa consume trong cùng một Saga.</p></div>
+</div>
+
+<details open><summary>1. Từ vựng Kafka và messaging</summary>
+<div class="card table" style="margin-top:10px"><table><thead><tr><th>Thuật ngữ</th><th>Nghĩa dễ hiểu</th><th>Trong PayFlow dùng để làm gì?</th></tr></thead><tbody>
+<tr><td>Broker</td><td>Máy chủ Kafka lưu và phân phối message.</td><td>Docker Compose chạy Kafka để các service trao đổi workflow mà không gọi HTTP nối chuỗi.</td></tr>
+<tr><td>Topic</td><td>Kênh message có tên, tương tự một luồng thư.</td><td>Ví dụ <code>payflow.account.events.v1</code> chứa kết quả reserve/capture/release của Account.</td></tr>
+<tr><td>Partition</td><td>Một topic được chia thành nhiều luồng con để xử lý song song.</td><td>Cho phép scale consumer; chỉ bảo đảm thứ tự trong cùng một partition.</td></tr>
+<tr><td>Kafka key</td><td>Khóa Kafka dùng để chọn partition.</td><td>PayFlow dùng <code>paymentId</code>/<code>aggregateId</code>, nhờ đó message của cùng payment có xu hướng giữ đúng thứ tự.</td></tr>
+<tr><td>Producer</td><td>Thành phần gửi message lên Kafka.</td><td>Outbox publisher của từng service serialize <code>EventEnvelope</code> và publish.</td></tr>
+<tr><td>Consumer</td><td>Thành phần đọc và xử lý message.</td><td><code>@KafkaListener</code> nhận message, router chọn handler, handler thay đổi dữ liệu trong local transaction.</td></tr>
+<tr><td>Consumer group</td><td>Nhóm consumer cùng chia nhau công việc của một topic.</td><td>Nhiều instance cùng service không xử lý lặp mọi message; mỗi partition tại một thời điểm thuộc một member trong group.</td></tr>
+<tr><td>Offset</td><td>Vị trí đã đọc đến đâu trong partition.</td><td>Sau khi xử lý và commit thành công, consumer ACK để Kafka tiến offset.</td></tr>
+<tr><td>Manual ACK</td><td>Ứng dụng chủ động xác nhận message sau khi xử lý xong.</td><td>Tránh xác nhận quá sớm rồi mất business update nếu service crash giữa chừng.</td></tr>
+<tr><td>Lag</td><td>Khoảng cách giữa message mới nhất và offset consumer đã xử lý.</td><td>Lag tăng nghĩa là service đang chậm hoặc lỗi; API tạo payment vẫn có thể trả 202 nhưng trạng thái hoàn tất muộn.</td></tr>
+<tr><td>Rebalance</td><td>Kafka phân chia lại partition khi consumer vào/ra group.</td><td>Có thể làm message được giao lại; inbox/idempotency bảo vệ business effect khỏi bị lặp.</td></tr>
+<tr><td>Retry/backoff</td><td>Thử lại sau lỗi, thường chờ tăng dần giữa các lần.</td><td>Dùng cho lỗi tạm thời; retry có giới hạn để không chặn partition vô hạn.</td></tr>
+<tr><td>DLT/DLQ</td><td>Dead-letter topic/queue chứa message không thể xử lý sau retry.</td><td><code>payflow.dead-letter.v1</code> cô lập poison message để vận hành điều tra và replay có kiểm soát.</td></tr>
+<tr><td>Fan-out</td><td>Một event được nhiều consumer độc lập sử dụng.</td><td><code>payment.succeeded</code> đồng thời cập nhật Notification, Reporting và Settlement mà Payment không gọi từng service.</td></tr>
+</tbody></table></div></details>
+
+<details><summary>2. EventEnvelope và các ID dùng để lần theo luồng</summary>
+<div class="card table" style="margin-top:10px"><table><thead><tr><th>Trường</th><th>Ý nghĩa</th><th>Ví dụ sử dụng</th></tr></thead><tbody>
+<tr><td><code>eventId</code></td><td>ID duy nhất của message.</td><td>Inbox đặt unique để cùng message bị giao lại không trừ/ghi sổ lần hai.</td></tr>
+<tr><td><code>eventType</code></td><td>Tên loại message.</td><td><code>payment.created</code>, <code>risk.assessment.completed</code>, <code>account.funds-captured</code>.</td></tr>
+<tr><td><code>eventVersion</code></td><td>Phiên bản schema của event.</td><td>Consumer biết cách parse; <code>payment.succeeded</code> v2 có dữ liệu fee phục vụ Settlement.</td></tr>
+<tr><td><code>aggregateId</code></td><td>ID thực thể nghiệp vụ chính.</td><td>Thường là paymentId; đồng thời dùng làm Kafka key để giữ ordering theo payment.</td></tr>
+<tr><td><code>correlationId</code></td><td>ID nối toàn bộ request/workflow.</td><td>Tìm log từ HTTP ban đầu qua Payment, Risk, Account, Ledger và Notification.</td></tr>
+<tr><td><code>causationId</code></td><td>ID của message đã gây ra message hiện tại.</td><td>Cho biết <code>account.funds-reserved</code> là kết quả của command reserve nào.</td></tr>
+<tr><td><code>producer</code></td><td>Service đã phát message.</td><td>Giúp audit/debug và từ chối giả định sai về owner của event.</td></tr>
+<tr><td><code>occurredAt</code></td><td>Thời điểm sự kiện nghiệp vụ xảy ra.</td><td>Dùng trong log, báo cáo và settlement theo ngày; không nên nhầm với lúc consumer đọc.</td></tr>
+<tr><td><code>data</code></td><td>Payload nghiệp vụ đã được version hóa.</td><td>Chứa paymentId, amount, currency, decision hoặc failure code tùy eventType.</td></tr>
+</tbody></table></div></details>
+
+<details><summary>3. Các pattern chống mất hoặc xử lý trùng</summary>
+<div class="card table" style="margin-top:10px"><table><thead><tr><th>Thuật ngữ</th><th>Vấn đề nó giải quyết</th><th>Cách PayFlow áp dụng</th></tr></thead><tbody>
+<tr><td>Local ACID transaction</td><td>Các thay đổi trong một database phải cùng thành công hoặc cùng rollback.</td><td>Payment + Saga + outbox row được commit trong database Payment; không có một transaction phủ mọi service.</td></tr>
+<tr><td>Transactional Outbox</td><td>Tránh lỗi save DB thành công nhưng publish Kafka thất bại.</td><td>Handler ghi business row và ý định event vào bảng outbox trong cùng transaction; publisher gửi sau.</td></tr>
+<tr><td>Outbox publisher</td><td>Chuyển các outbox row chưa gửi sang Kafka.</td><td>Claim row, publish ngoài DB transaction, rồi mark published hoặc retry/failed.</td></tr>
+<tr><td>Lease</td><td>Quyền xử lý tạm thời có hạn trên một outbox row.</td><td>Nếu publisher chết, lease hết hạn để instance khác lấy lại; tránh row bị khóa vĩnh viễn.</td></tr>
+<tr><td>Inbox</td><td>Kafka có thể giao lại cùng event sau crash/rebalance.</td><td>Consumer insert <code>(eventId, consumerName)</code>; conflict nghĩa là đã xử lý và trở thành no-op.</td></tr>
+<tr><td>Idempotency</td><td>Lặp cùng thao tác không tạo thêm tác dụng phụ.</td><td>HTTP retry cùng key trả lại cùng payment; event retry cùng eventId không áp dụng lại mutation.</td></tr>
+<tr><td>Idempotency-Key</td><td>Khóa do client gửi để định danh một ý định nghiệp vụ.</td><td>Double-click hoặc timeout rồi retry không tạo payment/refund thứ hai.</td></tr>
+<tr><td>Payload fingerprint</td><td>Dấu vân tay của request.</td><td>Cùng idempotency key nhưng amount/currency khác bị từ chối, thay vì trả nhầm kết quả cũ.</td></tr>
+<tr><td>Unique constraint</td><td>DB là hàng rào cuối chống hai request đồng thời cùng tạo dữ liệu.</td><td>Ngăn race condition mà chỉ kiểm tra bằng Java không đủ bảo vệ.</td></tr>
+<tr><td>At-least-once</td><td>Message không dễ bị mất nhưng có thể được giao hơn một lần.</td><td>PayFlow chấp nhận redelivery và dùng inbox/idempotent handler để business effect chỉ xảy ra một lần.</td></tr>
+<tr><td>Exactly-once effect</td><td>Kết quả nghiệp vụ quan sát được chỉ áp dụng một lần.</td><td>Là hiệu quả đạt nhờ idempotency + unique constraint; dự án không tuyên bố Kafka exactly-once end-to-end.</td></tr>
+</tbody></table></div></details>
+
+<details><summary>4. Saga, state machine và compensation</summary>
+<div class="card table" style="margin-top:10px"><table><thead><tr><th>Thuật ngữ</th><th>Nghĩa dễ hiểu</th><th>Ví dụ PayFlow</th></tr></thead><tbody>
+<tr><td>Saga</td><td>Một giao dịch lớn được tách thành nhiều local transaction ở nhiều service.</td><td>Risk &rarr; Reserve &rarr; Ledger post &rarr; Capture; mỗi bước có dữ liệu và commit riêng.</td></tr>
+<tr><td>Orchestration</td><td>Một nhạc trưởng giữ trạng thái và ra lệnh bước tiếp.</td><td>Payment Service nhận kết quả Risk/Account/Ledger rồi phát command kế tiếp.</td></tr>
+<tr><td>State machine</td><td>Tập trạng thái và transition hợp lệ.</td><td>Không thể chuyển payment từ trạng thái tùy ý sang SUCCEEDED; handler/domain kiểm đúng bước Saga.</td></tr>
+<tr><td>Compensation</td><td>Hành động bù khi không thể rollback xuyên nhiều database.</td><td>Nếu Ledger thất bại sau khi đã reserve, Payment yêu cầu Account release tiền.</td></tr>
+<tr><td>Eventual consistency</td><td>Các service không cập nhật cùng một mili-giây nhưng sẽ hội tụ sau khi event được xử lý.</td><td>POST trả 202; một lúc sau payment mới SUCCEEDED và report/settlement mới nhìn thấy kết quả.</td></tr>
+<tr><td>Aggregate</td><td>Cụm domain object có một root bảo vệ invariant.</td><td>Payment aggregate sở hữu trạng thái payment; Account aggregate sở hữu available/reserved balance.</td></tr>
+<tr><td>Bounded context</td><td>Biên trách nhiệm và ngôn ngữ nghiệp vụ.</td><td>Payment không sửa balance; Account không tự quyết payment thành công; Ledger chỉ sở hữu journal.</td></tr>
+</tbody></table></div></details>
+
+<details><summary>5. Từ vựng tiền, kế toán và settlement</summary>
+<div class="card table" style="margin-top:10px"><table><thead><tr><th>Thuật ngữ</th><th>Nghĩa dễ hiểu</th><th>Khi nào dùng?</th></tr></thead><tbody>
+<tr><td>Available balance</td><td>Số tiền có thể sử dụng tiếp.</td><td>Reserve làm giảm available; release trả lại available.</td></tr>
+<tr><td>Reserved balance</td><td>Tiền đã khóa cho giao dịch nhưng chưa chốt chi.</td><td>Tránh hai payment đồng thời dùng cùng một khoản tiền.</td></tr>
+<tr><td>Reserve</td><td>Khóa tiền tạm thời.</td><td>Sau khi Risk approve, Account xử lý <code>account.reserve.requested</code>.</td></tr>
+<tr><td>Capture</td><td>Chốt khoản tiền đã reserve thành đã chi.</td><td>Chỉ thực hiện sau khi Ledger báo <code>ledger.payment-posted</code>.</td></tr>
+<tr><td>Release</td><td>Hủy khóa và trả tiền về available.</td><td>Là compensation khi bước sau reserve thất bại hoặc payment được hủy hợp lệ.</td></tr>
+<tr><td>Ledger</td><td>Sổ kế toán bất biến ghi mọi biến động tài chính.</td><td>Dùng để audit và reconciliation; khác với Account là số dư hiện tại.</td></tr>
+<tr><td>Double-entry</td><td>Mỗi journal có tổng debit bằng tổng credit.</td><td>Ngăn tiền tự sinh/mất trong sổ và tạo dấu vết kiểm toán.</td></tr>
+<tr><td>Journal</td><td>Một bút toán gồm nhiều dòng debit/credit.</td><td><code>ledger.payment-posted</code> xác nhận journal của payment đã ghi thành công.</td></tr>
+<tr><td>Refund</td><td>Hoàn lại toàn bộ hoặc một phần tiền của payment đã thành công.</td><td>Có Saga riêng: request &rarr; ledger reversal &rarr; account credit &rarr; refund succeeded.</td></tr>
+<tr><td>Gross</td><td>Tổng tiền payment thành công trước khấu trừ.</td><td>Là đầu vào tính settlement của merchant.</td></tr>
+<tr><td>Fee</td><td>Phí nền tảng xử lý payment.</td><td>Được trừ khi tính net; refund có thể đảo phần phí theo policy.</td></tr>
+<tr><td>Net</td><td>Số tiền ròng merchant được nhận theo công thức.</td><td><code>gross - refunds - fees</code> trong settlement batch.</td></tr>
+<tr><td>Settlement</td><td>Tổng hợp nghĩa vụ phải trả cho merchant theo kỳ.</td><td>Settlement Service tạo batch và trạng thái accounting; hiện chưa chuyển tiền thật ra ngân hàng.</td></tr>
+<tr><td>Payout</td><td>Lệnh chuyển tiền thực tế ra tài khoản ngân hàng merchant.</td><td>Chưa tích hợp provider thật; không nên ghi CV rằng PayFlow đã payout production.</td></tr>
+<tr><td>Reconciliation</td><td>Đối chiếu các nguồn sự thật để tìm lệch.</td><td>So payment/refund với Account và Ledger facts để phát hiện thiếu capture, thiếu journal hoặc sai amount.</td></tr>
+<tr><td>Reporting/read model</td><td>Dữ liệu tối ưu để tìm kiếm và lập báo cáo.</td><td>Reporting consume events và dựng projection; có thể trễ nhưng có khả năng rebuild.</td></tr>
+</tbody></table></div></details>
+
+<details><summary>6. Keycloak, token và phân quyền</summary>
+<div class="card table" style="margin-top:10px"><table><thead><tr><th>Thuật ngữ</th><th>Nghĩa dễ hiểu</th><th>Trong PayFlow</th></tr></thead><tbody>
+<tr><td>OAuth2</td><td>Khung cấp quyền truy cập API bằng access token.</td><td>Keycloak phát token; Spring Security kiểm token và authority trước API.</td></tr>
+<tr><td>OIDC</td><td>Lớp định danh xây trên OAuth2, cho biết người dùng là ai.</td><td>Console đăng nhập user qua Authorization Code + PKCE; token có subject/role/claim.</td></tr>
+<tr><td>IdP</td><td>Identity Provider quản lý đăng nhập và phát token.</td><td>Keycloak là IdP; database nghiệp vụ không lưu mật khẩu.</td></tr>
+<tr><td>JWT</td><td>Token có ba phần header.payload.signature.</td><td>Gateway và service kiểm chữ ký, issuer, thời hạn; payload chứa scope/role/claim tùy loại token.</td></tr>
+<tr><td>Issuer</td><td>Nơi đã phát token.</td><td>Token sai realm/issuer bị từ chối dù chữ ký có vẻ hợp lệ.</td></tr>
+<tr><td>JWKS</td><td>Bộ public key dùng xác minh chữ ký JWT.</td><td>Spring Resource Server lấy key từ Keycloak; không cần gọi Keycloak ở mỗi request.</td></tr>
+<tr><td>User token</td><td>Token đại diện người đang đăng nhập.</td><td>Browser &rarr; Gateway &rarr; public service; chứa persona/permission và merchant ownership của user.</td></tr>
+<tr><td>Service token</td><td>Token đại diện một ứng dụng/service, không phải người dùng.</td><td>Payment hoặc Notification gọi Merchant bằng client credentials, kể cả lúc xử lý Kafka không còn request user.</td></tr>
+<tr><td>Client credentials</td><td>Luồng OAuth2 cho máy với <code>client_id + client_secret</code>.</td><td><code>payflow-payment-internal</code> lấy token scope hẹp như <code>merchant:internal:read</code>.</td></tr>
+<tr><td>Role</td><td>Nhóm vai trò/quyền được gán cho danh tính.</td><td><code>MERCHANT_ADMIN</code>, <code>MERCHANT_USER</code>, <code>OPERATIONS</code> mô tả persona.</td></tr>
+<tr><td>Scope</td><td>Một trường trong token mô tả quyền OAuth được cấp.</td><td>Service token dùng scope; Spring chuyển thành authority có tiền tố <code>SCOPE_</code>.</td></tr>
+<tr><td>Claim</td><td>Một trường dữ liệu trong payload JWT.</td><td><code>sub</code>, <code>scope</code>, <code>realm_access</code>, <code>merchant_id</code>, <code>exp</code>.</td></tr>
+<tr><td>Realm role</td><td>Role dùng trong toàn realm Keycloak.</td><td>PayFlow hiện đặt persona và human permissions ở realm roles; composite persona bung ra các permission role.</td></tr>
+<tr><td>Client role</td><td>Role nằm trong namespace của một Keycloak client.</td><td>PayFlow hiện không dùng client role cho quyền API; đây là một thiết kế thay thế hợp lệ nhưng không nên nói là đang có.</td></tr>
+<tr><td>Client Scope</td><td>Gói cấu hình reusable kiểm soát claim/scope được đưa vào token.</td><td>PayFlow dùng permission-named Client Scopes cho machine client để tạo trường <code>scope</code> hẹp trong service token.</td></tr>
+<tr><td>RBAC</td><td>Cho phép theo role/capability.</td><td>Authority như <code>SCOPE_payment:write</code> quyết định người gọi có được tạo payment hay không.</td></tr>
+<tr><td>ABAC/ownership</td><td>Cho phép theo thuộc tính của người gọi và tài nguyên.</td><td><code>merchant_id</code> giới hạn merchant user chỉ đọc/sửa dữ liệu thuộc merchant của họ.</td></tr>
+<tr><td>Defense in depth</td><td>Nhiều lớp cùng kiểm soát thay vì chỉ một cửa.</td><td>Gateway kiểm JWT/scope và từng business service cũng là Resource Server kiểm lại.</td></tr>
+<tr><td>CORS</td><td>Quy tắc trình duyệt cho phép frontend origin nào gọi API.</td><td>Gateway trả CORS headers cho console/browser; CORS không thay authorization.</td></tr>
+<tr><td>Rate limiting</td><td>Giới hạn số request trong một khoảng thời gian.</td><td>Gateway dùng Redis để bảo vệ API khỏi burst/abuse; không liên quan Redis risk velocity.</td></tr>
+<tr><td>HMAC webhook</td><td>Chữ ký dùng shared secret để merchant kiểm body callback không bị sửa.</td><td>Notification ký timestamp + raw body trước HTTP outbound.</td></tr>
+<tr><td>SSRF</td><td>Lỗ hổng server bị dụ gọi URL nội bộ/nguy hiểm.</td><td>Network security support chặn loopback/private/URL không hợp lệ trước khi gửi webhook.</td></tr>
+</tbody></table></div></details>
+
+<details><summary>7. Các tình huống lỗi để hiểu tại sao cần những pattern trên</summary>
+<div class="card table" style="margin-top:10px"><table><thead><tr><th>Tình huống</th><th>Nếu không bảo vệ</th><th>PayFlow xử lý</th></tr></thead><tbody>
+<tr><td>Người dùng double-click hoặc retry sau timeout</td><td>Tạo hai payment và có nguy cơ trừ tiền hai lần.</td><td><code>Idempotency-Key</code> + fingerprint + unique constraint trả lại cùng payment.</td></tr>
+<tr><td>DB commit xong nhưng app chết trước khi gửi Kafka</td><td>Payment tồn tại nhưng Risk không bao giờ biết để xử lý.</td><td>Transactional outbox giữ ý định event; publisher gửi lại sau restart.</td></tr>
+<tr><td>Consumer commit DB xong nhưng chết trước ACK</td><td>Kafka giao lại và mutation có thể chạy lần hai.</td><td>Inbox thấy cùng eventId và biến lần giao lại thành no-op.</td></tr>
+<tr><td>Risk yêu cầu manual review</td><td>Không an toàn nếu tự động reserve/capture.</td><td>Payment chuyển <code>MANUAL_REVIEW_REQUIRED</code>; Operations phải quyết định theo API được phân quyền.</td></tr>
+<tr><td>Ledger lỗi sau khi Account đã reserve</td><td>Tiền bị khóa mãi.</td><td>Saga phát <code>account.release.requested</code> làm compensation; Account trả reserved về available.</td></tr>
+<tr><td>Capture chưa xác nhận nhưng ledger đã post</td><td>Không thể tùy tiện đánh FAILED vì sổ tài chính đã ghi.</td><td>Giữ trạng thái processing/uncertain để retry hoặc manual review, tránh bù sai.</td></tr>
+<tr><td>Consumer xử lý chậm, Kafka lag tăng</td><td>Payment và report cập nhật chậm.</td><td>Theo dõi lag/metrics; scale consumer theo partition và điều tra bottleneck.</td></tr>
+<tr><td>Message sai schema hoặc luôn gây exception</td><td>Partition có thể lặp lỗi vô hạn.</td><td>Retry giới hạn rồi chuyển <code>payflow.dead-letter.v1</code> để điều tra.</td></tr>
+<tr><td>Merchant user đọc payment merchant khác</td><td>Rò rỉ dữ liệu tenant.</td><td>Scope qua RBAC chưa đủ; service còn so <code>merchant_id</code> claim với resource ownership.</td></tr>
+<tr><td>Webhook endpoint tạm thời lỗi</td><td>Merchant không nhận kết quả payment.</td><td>Notification retry có giới hạn, lưu trạng thái; thất bại cuối chuyển DEAD để operations xử lý.</td></tr>
+</tbody></table></div></details>
+
+<div class="card" style="margin-top:14px"><h3>Đọc trọn một happy path bằng tiếng Việt</h3><p>Client đăng nhập Keycloak và mang user JWT gọi <code>POST /payments</code> qua Gateway. Payment kiểm quyền, ownership và idempotency, lưu payment + Saga + outbox rồi trả <code>202 Accepted</code>. Publisher đưa <code>payment.created</code> lên Kafka. Risk đánh giá và phát <code>risk.assessment.completed</code> với decision APPROVED. Payment nhận kết quả rồi yêu cầu Account reserve. Khi nhận <code>account.funds-reserved</code>, Payment yêu cầu Ledger ghi journal. Khi nhận <code>ledger.payment-posted</code>, Payment yêu cầu Account capture. Khi nhận <code>account.funds-captured</code>, Payment chốt SUCCEEDED và phát <code>payment.succeeded</code>. Notification, Reporting và Settlement tự nhận kết quả cuối theo consumer group riêng.</p><div class="callout"><b>Câu chốt để nhớ:</b> JWT trả lời “ai được gọi API nào”; REST nhận việc; Saga quyết định bước tiếp; Kafka vận chuyển; Account giữ số dư; Ledger giữ bằng chứng kế toán; Outbox chống mất event; Inbox chống xử lý trùng; Settlement tính nghĩa vụ ròng; Reconciliation tìm chênh lệch.</div></div>
+</section>
+
+<section id="reliability"><div class="head"><div><div class="eyebrow">10 - Correctness</div><h2>Kafka không tự làm hệ thống an toàn</h2></div><p>Độ tin cậy đến từ nhiều pattern phối hợp.</p></div>
 <div class="grid g3"><div class="card"><h3>Outbox</h3><p>Business row + event intent cùng transaction; publisher lease và conditional mark.</p></div><div class="card"><h3>Inbox</h3><p><code>INSERT ... ON CONFLICT DO NOTHING</code>; inbox + mutation + outgoing outbox cùng transaction.</p></div><div class="card"><h3>Manual ACK</h3><p>ACK Kafka sau commit; phát lại trở thành no-op nhờ inbox.</p></div><div class="card"><h3>At-least-once</h3><p>Chấp nhận redelivery và thiết kế idempotent; không claim exactly-once end-to-end.</p></div><div class="card"><h3>Ordering</h3><p>paymentId làm Kafka key và outbox ordering guard theo aggregate.</p></div><div class="card"><h3>Failure handling</h3><p>Risk reject không reserve; ledger fail thì retry/release; capture fail sau ledger posted giữ PROCESSING để xử lý tiếp.</p></div></div>
 <div class="card" style="margin-top:14px"><h3>Thứ tự happy path</h3><div class="pipeline"><div class="pipe"><b>Risk approved</b>Cho phép</div><div class="pa"></div><div class="pipe"><b>Funds reserved</b>Khóa tiền</div><div class="pa"></div><div class="pipe"><b>Ledger posted</b>Ghi debit/credit</div><div class="pa"></div><div class="pipe"><b>Funds captured</b>Chốt chi</div><div class="pa"></div><div class="pipe"><b>Payment succeeded</b>Fan-out</div></div></div></section>
 
-<section id="cv"><div class="head"><div><div class="eyebrow">09 - CV-ready</div><h2>Nội dung có thể dùng cho CV</h2></div><p>Dùng designed/implemented/validated; đừng biến sandbox thành hệ thống ngân hàng production.</p></div>
+<section id="cv"><div class="head"><div><div class="eyebrow">11 - CV-ready</div><h2>Nội dung có thể dùng cho CV</h2></div><p>Dùng designed/implemented/validated; đừng biến sandbox thành hệ thống ngân hàng production.</p></div>
 <div class="card" style="border-top:6px solid var(--brand)"><h3>Project summary  English</h3><div class="copy"><button data-copy="summary">Copy</button><div id="summary">Designed and implemented PayFlow, an event-driven payment orchestration sandbox built with Java 21, Spring Boot, Kafka, PostgreSQL, Redis, Keycloak and Docker Compose. Modeled payment processing as a Saga across risk, account, ledger, reporting, notification and settlement services, with transactional outbox/inbox, idempotent APIs, double-entry ledgering, OAuth2/OIDC authorization and observable, failure-aware workflows.</div></div>
 <h3>Achievement bullets</h3><div class="copy"><button data-copy="bullets">Copy</button><div id="bullets"> Implemented an asynchronous payment Saga coordinating risk assessment, fund reservation, double-entry ledger posting and final capture through versioned Kafka event contracts.<br> Improved message reliability with transactional outbox/inbox, lease-based publishers, manual acknowledgements and idempotent consumers for at-least-once delivery.<br> Secured public and service-to-service APIs using Keycloak OAuth2/OIDC, JWT scopes, merchant ownership claims and deny-by-default authorization.<br> Built service-owned PostgreSQL persistence with Flyway and a pragmatic JPA/JDBC mix, plus Redis-backed velocity signals for risk checks.<br> Validated the platform with a 645-test no-Docker Maven gate, targeted PostgreSQL Testcontainers tests and Docker Compose end-to-end payment smoke tests.</div></div></div>
 <div class="grid g2" style="margin-top:14px"><div class="card"><h3><span class="badge yes">NÊN GHI</span></h3><ul><li>Event-driven microservices + Saga</li><li>Idempotency, outbox/inbox, at-least-once</li><li>OAuth2/OIDC, scope + ownership</li><li>Double-entry ledger, settlement sandbox</li><li>Testcontainers + E2E evidence</li></ul></div><div class="card"><h3><span class="badge no">CHƯA NÊN GHI</span></h3><ul><li>Production/Kubernetes deployment</li><li>Exactly-once end-to-end</li><li>Ngân hàng hoặc payout tiền thật</li><li>SLA/throughput/P95 chưa benchmark</li><li>Monitoring production hoàn chỉnh</li></ul></div></div></section>
 
-<section id="faq"><div class="head"><div><div class="eyebrow">10 - Interview</div><h2>Câu hỏi nhà tuyển dụng có thể hỏi</h2></div><p>Trả lời bằng vấn đề, quyết định và trade-off.</p></div>
+<section id="faq"><div class="head"><div><div class="eyebrow">12 - Interview</div><h2>Câu hỏi nhà tuyển dụng có thể hỏi</h2></div><p>Trả lời bằng vấn đề, quyết định và trade-off.</p></div>
 <details><summary>Tại sao vừa REST vừa Kafka?</summary><p>REST nhận command và query tức thời. Kafka phù hợp workflow dài, retry và nhiều consumer. Kafka bổ sung REST chứ không thay thế mọi API.</p></details>
 <details><summary>Tại sao không gọi Risk  Account  Ledger bằng HTTP?</summary><p>Chuỗi HTTP ghép availability của mọi service và khó hồi phục giữa chừng. Saga bền hơn nhưng phải chấp nhận eventual consistency và vận hành phức tạp.</p></details>
 <details><summary>Outbox giải quyết lỗi gì?</summary><p>App có thể crash giữa save DB và publish Kafka. Outbox ghi business + event intent trong một local transaction rồi publish sau.</p></details>
@@ -148,7 +397,7 @@ details{margin:8px 0;padding:11px 14px;background:var(--card);border:1px solid v
 <details><summary>Phân quyền RBAC hay ABAC?</summary><p>Lai: role/scope là capability; merchant_id claim kiểm ownership tài nguyên. Gateway và service đều validate JWT, mặc định từ chối.</p></details>
 <details><summary>Tại sao vừa JPA vừa JDBC?</summary><p>JPA tiện cho aggregate. Inbox/outbox/lease/conditional update cần SQL chính xác nên JDBC phù hợp hơn.</p></details></section>
 </main>
-<footer><div class="wrap"><b>PayFlow learning guide</b><br><span class="muted">Dựa trên source, cấu hình và test evidence hiện có. Phạm vi hiện tại là local/Docker Compose sandbox; Kubernetes nằm ngoài runtime chính. Cập nhật 2026-09-14.</span></div></footer>
+<footer><div class="wrap"><b>PayFlow learning guide</b><br><span class="muted">Dựa trên source, cấu hình và test evidence hiện có. Phạm vi hiện tại là local/Docker Compose sandbox; Kubernetes nằm ngoài runtime chính. Cập nhật 2026-09-16.</span></div></footer>
 <script>
 const flow=[
 ["Client lấy access token","Keycloak realm/client configuration","Credentials hoặc client credentials","JWT chứa scopes và merchant_id","Keycloak xác thực danh tính; business service chỉ nhận token đã ký đúng issuer."],
@@ -157,10 +406,10 @@ const flow=[
 ["Tra cứu merchant","payment HTTP adapter  merchant-service","merchantId","Merchant snapshot/status","Remote call ở ngoài local DB transaction để không giữ connection/lock lúc chờ mạng."],
 ["Commit payment + saga + outbox","CreatePaymentHandler + JpaOutboxAppender","Validated command","Payment + Saga + payment.created row","Ba thay đổi commit nguyên tử trong database Payment; eventId tạo ổn định lúc insert."],
 ["Publish payment.created","payment-service PublishOutboxHandler","Claimed outbox row","Kafka event keyed by paymentId","Publisher claim bằng lease, publish ngoài transaction, rồi mark/retry/failed."],
-["Risk đánh giá","risk-service listener/handler","payment.created","risk.approved hoặc rejected","Redis cung cấp velocity signal; transaction ghi inbox + assessment + outgoing outbox."],
-["Account reserve","account-service reserve handler","account.reserve.requested","funds-reserved hoặc failed","Account là owner duy nhất của available/reserved balance; ACK sau commit."],
-["Ledger post","ledger-service journal handler","ledger.post.requested","ledger.posted hoặc failed","Ghi double-entry journal; journal thành công phải trước capture."],
-["Account capture","account-service capture handler","account.capture.requested","account.funds-captured","Reserved chuyển thành đã chi; lỗi sau ledger posted giữ PROCESSING để retry/manual review."],
+["Risk đánh giá","risk-service listener/handler","payment.created","risk.assessment.completed","Payload chứa decision APPROVED, REJECTED hoặc REVIEW_REQUIRED; Redis cung cấp velocity signal, còn transaction ghi inbox + assessment + outgoing outbox."],
+["Account reserve","account-service reserve handler","account.reserve.requested","account.funds-reserved hoặc account.funds-reservation-failed","Account là owner duy nhất của available/reserved balance; ACK sau commit."],
+["Ledger post","ledger-service journal handler","ledger.post-payment.requested","ledger.payment-posted hoặc ledger.payment-posting-failed","Ghi double-entry journal; journal thành công phải trước capture."],
+["Account capture","account-service capture handler","account.capture.requested","account.funds-captured","Reserved chuyển thành đã chi; lỗi sau ledger.payment-posted giữ PROCESSING để retry/manual review."],
 ["Payment hoàn tất","PaymentWorkflowKafkaListener","account.funds-captured","payment.succeeded","Handler đổi aggregate/saga và append event cuối; Kafka ACK sau commit."],
 ["Reporting cập nhật","reporting Kafka projection handlers","Lifecycle events","Transaction/report read views","Projection bất đồng bộ nên eventual consistency; có thể rebuild read model."],
 ["Notification gửi webhook","notification delivery worker","payment.succeeded + webhook config","HMAC-signed callback","Ký timestamp + raw body, chống SSRF, retry giới hạn rồi DEAD."],

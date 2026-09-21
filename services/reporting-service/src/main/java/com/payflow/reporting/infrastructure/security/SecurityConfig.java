@@ -15,6 +15,7 @@ class SecurityConfig{
     .requestMatchers("/swagger-ui.html","/swagger-ui/**","/v3/api-docs/**").permitAll()
     .requestMatchers("/api/v1/operations/reporting/**").hasAuthority("SCOPE_reporting:rebuild")
     .requestMatchers("/api/v1/reports/**").hasAuthority("SCOPE_reporting:read")
-    .anyRequest().denyAll()).oauth2ResourceServer(o->o.jwt(Customizer.withDefaults())).build();
+    .anyRequest().denyAll()).oauth2ResourceServer(o->o.jwt(jwt->jwt.jwtAuthenticationConverter(
+      com.payflow.security.jwt.PayFlowJwtAuthenticationConverters.servlet()))).build();
  }
 }

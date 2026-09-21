@@ -15,3 +15,7 @@ VALUES (
     'LOCAL_FEE_V1',
     'HALF_UP')
 ON CONFLICT (id) DO NOTHING;
+
+-- Local memberships are synchronized after startup by sync-local-merchant-memberships.ps1.
+-- Keycloak generates the authoritative user subject; storing a guessed UUID here would
+-- make merchant.members disagree with the `sub` claim in the user's real access token.

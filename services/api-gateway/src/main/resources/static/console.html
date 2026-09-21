@@ -39,23 +39,21 @@
 
       <section class="token-vault" aria-labelledby="token-title">
         <div class="token-heading">
-          <h2 id="token-title">Token trong phiên</h2>
+          <h2 id="token-title">Tài khoản đăng nhập</h2>
           <span class="memory-only">MEMORY ONLY</span>
         </div>
-        <p>Chạy <code>.\payflow.ps1 token</code>, sau đó dán JWT. Token không được lưu vào trình duyệt.</p>
+        <p>Đăng nhập thật qua Keycloak bằng Authorization Code + PKCE. Access token chỉ nằm trong bộ nhớ của tab.</p>
         <form id="token-form" autocomplete="off">
-          <label for="token-slot">Loại token</label>
-          <select id="token-slot" name="slot">
-            <option value="service">Merchant service</option>
-            <option value="operations">Operations</option>
-          </select>
-          <label for="token-input">Access token</label>
-          <div class="token-input-row">
-            <input id="token-input" name="token" type="password" spellcheck="false" autocomplete="off" placeholder="Dán JWT tại đây" required>
-            <button class="primary-button compact" type="submit">Nạp</button>
-          </div>
+          <button class="primary-button identity-login" id="login-button" type="submit">Đăng nhập với Keycloak</button>
         </form>
         <div class="token-list" id="token-list" aria-live="polite"></div>
+        <div class="persona-guide">
+          <strong>Persona local</strong>
+          <small><code>merchant.admin</code> · quản trị merchant</small>
+          <small><code>merchant.user</code> · chỉ đọc</small>
+          <small><code>operations.admin</code> · vận hành nền tảng</small>
+          <small>Mật khẩu: <code>.\payflow.ps1 user-password -User merchant-admin|merchant-user|operations</code></small>
+        </div>
       </section>
     </aside>
 

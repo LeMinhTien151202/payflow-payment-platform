@@ -76,7 +76,8 @@ public class SecurityConfig {
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .authenticationEntryPoint(problemEntryPoint(objectMapper))
                         .accessDeniedHandler(problemAccessDeniedHandler(objectMapper))
-                        .jwt(Customizer.withDefaults()))
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(
+                                com.payflow.security.jwt.PayFlowJwtAuthenticationConverters.servlet())))
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint(problemEntryPoint(objectMapper))
                         .accessDeniedHandler(problemAccessDeniedHandler(objectMapper)))

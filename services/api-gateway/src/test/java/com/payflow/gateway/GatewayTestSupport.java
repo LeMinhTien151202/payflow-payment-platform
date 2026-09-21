@@ -35,6 +35,7 @@ abstract class GatewayTestSupport {
     static final String TOKEN_OPERATIONS = "test-token-operations";
     static final String TOKEN_SETTLEMENT_READ = "test-token-settlement-read";
     static final String TOKEN_SETTLEMENT_OPERATIONS = "test-token-settlement-operations";
+    static final String TOKEN_MERCHANT_ADMIN_USER = "test-token-merchant-admin-user";
 
     /** Giá trị token mà mocked decoder từ chối, thay thế cho token hết hạn hoặc giả mạo. */
     static final String TOKEN_INVALID = "test-token-invalid";
@@ -98,6 +99,20 @@ abstract class GatewayTestSupport {
                 .audience(java.util.List.of("account"))
                 .claim("scope", scopes)
                 .claim("azp", "payflow-service")
+                .issuedAt(now)
+                .expiresAt(now.plus(15, ChronoUnit.MINUTES))
+                .build();
+    }
+
+    static Jwt jwtWithRealmRoles(String tokenValue, String... roles) {
+        Instant now = Instant.now();
+        return Jwt.withTokenValue(tokenValue)
+                .header("alg", "RS256")
+                .subject("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1")
+                .issuer("http://localhost:8180/realms/payflow")
+                .claim("preferred_username", "merchant.admin")
+                .claim("merchant_id", "11111111-1111-4111-8111-111111111111")
+                .claim("realm_access", java.util.Map.of("roles", java.util.List.of(roles)))
                 .issuedAt(now)
                 .expiresAt(now.plus(15, ChronoUnit.MINUTES))
                 .build();

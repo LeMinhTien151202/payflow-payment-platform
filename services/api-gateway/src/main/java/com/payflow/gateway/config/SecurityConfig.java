@@ -107,7 +107,11 @@ public class SecurityConfig {
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .authenticationEntryPoint((exchange, ex) -> errors.unauthenticated(exchange))
                         .accessDeniedHandler((exchange, ex) -> errors.forbidden(exchange))
-                        .jwt(Customizer.withDefaults()))
+                        .jwt(jwt -> jwt.jwtAuthenticationConverter(
+                                new org.springframework.security.oauth2.server.resource.authentication
+                                        .ReactiveJwtAuthenticationConverterAdapter(
+                                                com.payflow.security.jwt.PayFlowJwtAuthenticationConverters
+                                                        .servlet()))))
                 .exceptionHandling(handling -> handling
                         .authenticationEntryPoint((exchange, ex) -> errors.unauthenticated(exchange))
                         .accessDeniedHandler((exchange, ex) -> errors.forbidden(exchange)))

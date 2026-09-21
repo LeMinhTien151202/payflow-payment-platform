@@ -56,5 +56,14 @@ Add-Setting "PAYFLOW_SETTLEMENT_SERVICE_URI" "http://settlement-service:8089"
 Add-Setting "PAYFLOW_SETTLEMENT_CONSUMER_ENABLED" "true"
 Add-Setting "PAYFLOW_SETTLEMENT_BUSINESS_ZONE" "Asia/Ho_Chi_Minh"
 
+if (-not $existing.Contains("PAYFLOW_CONSOLE_ORIGIN")) {
+    Add-Content -LiteralPath $resolvedEnv -Value "`n# Local browser login personas" -Encoding utf8
+}
+Add-Setting "PAYFLOW_CONSOLE_ORIGIN" "http://localhost:8084"
+Add-Setting "PAYFLOW_CONSOLE_CLIENT_ID" "payflow-console"
+Add-Setting "PAYFLOW_MERCHANT_ADMIN_PASSWORD" (New-RandomSecret 24)
+Add-Setting "PAYFLOW_MERCHANT_USER_PASSWORD" (New-RandomSecret 24)
+Add-Setting "PAYFLOW_OPERATIONS_USER_PASSWORD" (New-RandomSecret 24)
+
 Write-Host "Phase 3 environment is ready. Existing values were preserved."
 Write-Host "Backup: $backup"

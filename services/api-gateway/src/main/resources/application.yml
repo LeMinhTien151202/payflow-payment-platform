@@ -18,6 +18,10 @@ server:
   max-http-request-header-size: 16KB
 
 payflow:
+  console:
+    oidc:
+      issuer-uri: ${PAYFLOW_OIDC_BROWSER_ISSUER_URI:${PAYFLOW_OIDC_ISSUER_URI:http://localhost:8180/realms/payflow}}
+      client-id: ${PAYFLOW_CONSOLE_CLIENT_ID:payflow-console}
   gateway:
     downstream:
       payment-service: ${PAYFLOW_PAYMENT_SERVICE_URI:http://localhost:8081}

@@ -161,3 +161,8 @@ foreach ($entry in $clientAssignments.GetEnumerator()) {
 }
 
 Write-Host 'Phase 3 Keycloak scopes provisioned without resetting the realm.' -ForegroundColor Green
+
+& (Join-Path $PSScriptRoot 'provision-console-identity.ps1')
+if ($LASTEXITCODE -ne 0) {
+    throw 'Console identity provisioning failed.'
+}

@@ -30,6 +30,7 @@
         <module>libs/error-contract</module>
         <module>libs/event-contracts</module>
         <module>libs/network-security-support</module>
+        <module>libs/identity-security-support</module>
         <module>services/api-gateway</module>
         <module>services/payment-service</module>
         <module>services/account-ledger-service</module>
@@ -103,6 +104,11 @@
             <dependency>
                 <groupId>com.payflow</groupId>
                 <artifactId>network-security-support</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.payflow</groupId>
+                <artifactId>identity-security-support</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

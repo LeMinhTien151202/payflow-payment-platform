@@ -17,10 +17,8 @@ import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.Arrays;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -93,8 +91,7 @@ public class MerchantController {
     private static MerchantActor actor(Jwt jwt){
         UUID merchantId=null; String claim=jwt.getClaimAsString("merchant_id");
         if(claim!=null&&!claim.isBlank()) merchantId=UUID.fromString(claim);
-        Set<String> scopes=Arrays.stream(jwt.getClaimAsString("scope")==null?new String[0]:jwt.getClaimAsString("scope").split(" "))
-          .filter(s->!s.isBlank()).collect(Collectors.toUnmodifiableSet());
+        Set<String> scopes=com.payflow.security.jwt.PayFlowJwtAuthenticationConverters.scopes(jwt);
         return new MerchantActor(jwt.getSubject(),merchantId,scopes);
     }
     private static String correlation(String value){return value==null||value.isBlank()?UUID.randomUUID().toString():value;}

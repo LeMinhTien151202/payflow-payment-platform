@@ -15,5 +15,6 @@ class SecurityConfig {
    .requestMatchers(HttpMethod.POST,"/api/v1/operations/reconciliation/**").hasAuthority("SCOPE_reconciliation:run")
    .requestMatchers(HttpMethod.GET,"/api/v1/operations/reconciliation/**").hasAuthority("SCOPE_reconciliation:read")
    .requestMatchers("/api/v1/settlements/**").hasAuthority("SCOPE_settlement:read").anyRequest().denyAll())
-  .oauth2ResourceServer(o->o.jwt(Customizer.withDefaults())).build();}
+  .oauth2ResourceServer(o->o.jwt(jwt->jwt.jwtAuthenticationConverter(
+    com.payflow.security.jwt.PayFlowJwtAuthenticationConverters.servlet()))).build();}
 }

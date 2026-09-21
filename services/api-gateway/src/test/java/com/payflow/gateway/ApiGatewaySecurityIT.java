@@ -51,6 +51,9 @@ class ApiGatewaySecurityIT extends GatewayTestSupport {
         given(jwtDecoder.decode(TOKEN_SETTLEMENT_OPERATIONS))
                 .willReturn(Mono.just(jwtWithScopes(TOKEN_SETTLEMENT_OPERATIONS,
                         "settlement:run reconciliation:read reconciliation:run")));
+        given(jwtDecoder.decode(TOKEN_MERCHANT_ADMIN_USER))
+                .willReturn(Mono.just(jwtWithRealmRoles(TOKEN_MERCHANT_ADMIN_USER,
+                        "MERCHANT_ADMIN", "payment:read", "payment:write")));
         given(jwtDecoder.decode(TOKEN_INVALID))
                 .willReturn(Mono.error(new BadJwtException("signature mismatch")));
 
@@ -186,6 +189,20 @@ class ApiGatewaySecurityIT extends GatewayTestSupport {
     }
 
     @Test
+    @DisplayName("a human Keycloak realm role is mapped to the same scoped API rule")
+    void humanRealmRoleReachesScopedRoute() {
+        webTestClient
+                .post()
+                .uri("/api/v1/payments")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + TOKEN_MERCHANT_ADMIN_USER)
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{}")
+                .exchange()
+                .expectStatus()
+                .isCreated();
+    }
+
+    @Test
     @DisplayName("operations scope reaches operations route without merchant scopes")
     void operationsScopeReachesOperationsRoute() {
         webTestClient
@@ -295,6 +312,12 @@ class ApiGatewaySecurityIT extends GatewayTestSupport {
                         .doesNotContain("client_secret", "PAYFLOW_SERVICE_CLIENT_SECRET"));
         webTestClient.get().uri("/console/app.css").exchange()
                 .expectStatus().isOk();
+        webTestClient.get().uri("/console/oidc-config").exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.issuerUri").isEqualTo("http://localhost:8180/realms/payflow")
+                .jsonPath("$.clientId").isEqualTo("payflow-console")
+                .jsonPath("$.clientSecret").doesNotExist();
     }
 
     /**

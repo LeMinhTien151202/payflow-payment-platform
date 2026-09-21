@@ -29,6 +29,7 @@ class SecurityConfig {
     .requestMatchers(HttpMethod.DELETE,"/api/v1/merchants/**").hasAnyAuthority(
       "SCOPE_merchant:write","SCOPE_merchant:write:any")
     .anyRequest().denyAll())
-   .oauth2ResourceServer(o->o.jwt(Customizer.withDefaults())).build();
+   .oauth2ResourceServer(o->o.jwt(jwt->jwt.jwtAuthenticationConverter(
+     com.payflow.security.jwt.PayFlowJwtAuthenticationConverters.servlet()))).build();
  }
 }

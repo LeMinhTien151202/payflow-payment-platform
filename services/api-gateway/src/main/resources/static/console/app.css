@@ -438,6 +438,42 @@ textarea {
   margin-top: 14px;
 }
 
+.identity-login {
+  width: 100%;
+}
+
+.persona-guide,
+.identity-claims {
+  display: grid;
+  gap: 6px;
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface-muted);
+  padding: 10px;
+}
+
+.persona-guide strong,
+.identity-claims span {
+  color: var(--ink-650);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.persona-guide small {
+  color: var(--ink-650);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.identity-claims code {
+  overflow-wrap: anywhere;
+  color: var(--ink-800);
+  font-size: 10px;
+}
+
 .token-item {
   display: grid;
   grid-template-columns: 9px 1fr auto;

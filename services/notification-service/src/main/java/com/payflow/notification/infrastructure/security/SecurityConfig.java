@@ -37,7 +37,8 @@ class SecurityConfig {
                         .requestMatchers("/api/v1/operations/webhooks/**")
                         .hasAuthority("SCOPE_webhook:retry")
                         .anyRequest().denyAll())
-                .oauth2ResourceServer(oauth -> oauth.jwt(Customizer.withDefaults()))
+                .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(
+                        com.payflow.security.jwt.PayFlowJwtAuthenticationConverters.servlet())))
                 .build();
     }
 }
