@@ -2,8 +2,8 @@
 param(
     [ValidateRange(30, 600)]
     [int]$TimeoutSeconds = 180,
-    [ValidateSet('mvp', 'full')]
-    [string]$Profile = 'mvp',
+    [ValidateSet('core')]
+    [string]$Profile = 'core',
     [ValidateRange(0.0001, 1000000000)]
     [decimal]$Amount = 500000
 )
@@ -14,7 +14,7 @@ $ErrorActionPreference = 'Stop'
 $RepositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $EnvFile = Join-Path $RepositoryRoot '.env'
 $HappyCustomerId = '3beff442-7f10-4504-aab4-12d985cf3e95'
-$HappySourceAccountId = '039bedb6-b2d6-47df-aa25-2035e39136a3'
+$HappySourceAccountId = '66666666-6666-4666-8666-666666666666'
 
 function Import-DotEnv {
     param([string]$Path)
@@ -143,19 +143,10 @@ try {
         'PAYFLOW_ACCOUNT_LEDGER_DB_PASSWORD',
         'PAYFLOW_RISK_DB_PASSWORD',
         'PAYFLOW_NOTIFICATION_DB_PASSWORD',
+        'PAYFLOW_SETTLEMENT_DB_PASSWORD',
         'KEYCLOAK_DB_PASSWORD',
         'KEYCLOAK_ADMIN_PASSWORD',
         'PAYFLOW_SERVICE_CLIENT_SECRET')
-    if ($Profile -eq 'full') {
-        $requiredSecrets.AddRange([string[]]@(
-            'PAYFLOW_ACCOUNT_DB_PASSWORD',
-            'PAYFLOW_LEDGER_DB_PASSWORD',
-            'PAYFLOW_MERCHANT_DB_PASSWORD',
-            'PAYFLOW_REPORTING_DB_PASSWORD',
-            'PAYFLOW_NOTIFICATION_CLIENT_SECRET',
-            'PAYFLOW_PAYMENT_INTERNAL_CLIENT_SECRET',
-            'PAYFLOW_SETTLEMENT_DB_PASSWORD'))
-    }
     foreach ($secretName in $requiredSecrets) {
         $secret = Require-EnvironmentValue $secretName
         if ($secret -eq 'change-me-local-only') {
@@ -170,22 +161,11 @@ try {
     $serviceHealthTargets = [System.Collections.Generic.List[string]]@(
         'payment-service',
         'risk-service',
-        'notification-service')
-    if ($Profile -eq 'full') {
-        $serviceHealthTargets.AddRange([string[]]@(
-            'account-service',
-            'ledger-service',
-            'merchant-service',
-            'reporting-service',
-            'settlement-service'))
-        $accountDatabase = 'payflow_account'
-        $ledgerDatabase = 'payflow_ledger'
-    }
-    else {
-        $serviceHealthTargets.Add('account-ledger-service')
-        $accountDatabase = 'payflow_account_ledger'
-        $ledgerDatabase = 'payflow_account_ledger'
-    }
+        'notification-service',
+        'settlement-service',
+        'account-ledger-service')
+    $accountDatabase = 'payflow_account_ledger'
+    $ledgerDatabase = 'payflow_account_ledger'
     foreach ($service in $serviceHealthTargets) {
         Wait-ComposeServiceHealthy $service $healthDeadline
     }

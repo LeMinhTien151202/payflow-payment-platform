@@ -24,16 +24,13 @@ $ErrorActionPreference = 'Stop'
 
 $RepositoryRoot = $PSScriptRoot
 $EnvFile = Join-Path $RepositoryRoot '.env'
-$Profile = 'full'
+$Profile = 'core'
 $RuntimeServices = @(
     'postgres',
     'kafka',
     'redis',
     'keycloak',
-    'merchant-service',
-    'account-service',
-    'ledger-service',
-    'reporting-service',
+    'account-ledger-service',
     'settlement-service',
     'risk-service',
     'notification-service',
@@ -88,11 +85,25 @@ function Invoke-Compose {
 }
 
 function Require-Docker {
-    # `docker info` emits harmless host capability warnings on some Docker Desktop/WSL setups.
-    # With ErrorActionPreference=Stop, PowerShell can promote stderr warnings to terminating errors.
-    & docker version --format '{{.Server.Version}}' *> $null
-    if ($LASTEXITCODE -ne 0) {
-        throw 'Docker Engine is not available. Start Docker Desktop and retry.'
+    if ($null -eq (Get-Command docker -ErrorAction SilentlyContinue)) {
+        throw 'Docker CLI was not found. Install Docker Desktop, then retry.'
+    }
+
+    # Windows PowerShell can promote native stderr to NativeCommandError while
+    # ErrorActionPreference=Stop. Probe quietly, capture the native exit code, then
+    # restore the repository-wide fail-fast policy.
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        & docker version --format '{{.Server.Version}}' 1> $null 2> $null
+        $dockerExitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    if ($dockerExitCode -ne 0) {
+        throw 'Docker Desktop Linux Engine is not running. Start Docker Desktop, wait until it reports Engine running, then retry.'
     }
 }
 
@@ -137,34 +148,25 @@ function Prepare-And-Start {
     Require-Docker
     Require-EnvFile
 
-    & (Join-Path $RepositoryRoot 'infrastructure\scripts\prepare-phase3-env.ps1')
-    if ($LASTEXITCODE -ne 0) {
-        throw 'Phase 3 environment preparation failed.'
-    }
     $values = Import-DotEnv
     Invoke-Compose config --quiet
 
     Invoke-Compose up --detach postgres
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     Wait-ServiceHealthy 'postgres' $deadline
-    & docker exec payflow-postgres bash /docker-entrypoint-initdb.d/02-provision-phase2-databases.sh
-    if ($LASTEXITCODE -ne 0) {
-        throw 'PostgreSQL database provisioning failed.'
-    }
-
     Invoke-Compose up --detach keycloak
     Wait-ServiceHealthy 'keycloak' $deadline
-    & (Join-Path $RepositoryRoot 'infrastructure\scripts\provision-phase3-keycloak.ps1')
+    & (Join-Path $RepositoryRoot 'infrastructure\scripts\provision-core-keycloak.ps1')
     if ($LASTEXITCODE -ne 0) {
         throw 'Keycloak scope provisioning failed.'
     }
 
     if ($Build) {
-        Invoke-Compose up --detach --build
+        Invoke-Compose up --detach --build --remove-orphans
     }
     else {
         try {
-            Invoke-Compose up --detach --no-build
+            Invoke-Compose up --detach --no-build --remove-orphans
         }
         catch {
             throw "Starting existing images failed. Run '.\payflow.ps1 rebuild' once to build them. $($_.Exception.Message)"
@@ -176,11 +178,6 @@ function Prepare-And-Start {
         Wait-ServiceHealthy $name $deadline
     }
     Wait-Gateway $values $deadline
-    & (Join-Path $RepositoryRoot 'infrastructure\scripts\sync-local-merchant-memberships.ps1')
-    if ($LASTEXITCODE -ne 0) {
-        throw 'Local Keycloak-to-merchant membership synchronization failed.'
-    }
-
     $gatewayPort = Require-Value $values 'PAYFLOW_GATEWAY_PORT'
     $issuer = (Require-Value $values 'PAYFLOW_OIDC_ISSUER_URI').TrimEnd('/')
     Write-Host ''
@@ -255,8 +252,8 @@ try {
         'stop' {
             Require-Docker
             Require-EnvFile
-            Invoke-Compose stop
-            Write-Host 'PayFlow containers stopped; volumes and data were preserved.' -ForegroundColor Green
+            Invoke-Compose down --remove-orphans
+            Write-Host 'PayFlow containers removed; images, volumes and database data were preserved.' -ForegroundColor Green
         }
         'status' {
             Require-Docker
@@ -296,10 +293,10 @@ try {
         'smoke' {
             Require-Docker
             Require-EnvFile
-            & (Join-Path $RepositoryRoot 'infrastructure\scripts\smoke-mvp.ps1') `
-                -Profile full -TimeoutSeconds $TimeoutSeconds -Amount 1000
+            & (Join-Path $RepositoryRoot 'infrastructure\scripts\smoke-core.ps1') `
+                -Profile core -TimeoutSeconds $TimeoutSeconds -Amount 1000
             if ($LASTEXITCODE -ne 0) {
-                throw 'Full-profile smoke test failed.'
+                throw 'Core-profile smoke test failed.'
             }
         }
     }

@@ -1,8 +1,0 @@
-package com.payflow.payment.infrastructure.merchant;
-
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.annotation.Configuration;
-
-@Configuration(proxyBeanMethods = false)
-@EnableConfigurationProperties(MerchantClientProperties.class)
-class MerchantClientConfig {}

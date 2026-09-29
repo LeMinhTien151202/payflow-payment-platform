@@ -1,52 +1,23 @@
-# PayFlow — tài liệu sản phẩm
+# PayFlow Core — mục lục tài liệu
 
-Đây là tài liệu bàn giao cho người đọc repository. Hướng dẫn dành cho agent trong
-giai đoạn xây dựng nằm ở [`.docs/`](../.docs/README.md) và
-[`.agent/AGENTS.md`](../.agent/AGENTS.md); hai thư mục không thay thế nhau.
+Đọc theo thứ tự này để không bị lẫn với topology cũ:
 
-| Thư mục | Nội dung | Trạng thái |
-| --- | --- | --- |
-| [adr/](adr/README.md) | ADR chính thức | ADR-004, ADR-007, ADR-011–ADR-021 (các ID có file) `ACCEPTED` |
-| [runbooks/](runbooks/mvp-docker.md) | Vận hành và chạy local | Docker MVP, local development, Saga manual review, outbox recovery, Payment workflow DLT và Notification delivery failure |
-| [api/](api/payment-service-v1.yaml) | OpenAPI contract | Payment create/search/get/cancel/refund, operations, merchant, reporting và settlement |
-| [events/](events/refund-workflow-v1.md) | Kafka event contract | Payment Saga, refund intake và refund financial workflow v1 |
-| [architecture/](architecture/business-processing-reference.md) | Nghiệp vụ, cấu hình, source layout và call flow | Có business reference, code-flow guide và Kafka guide |
-| `diagrams/` | Sequence/state diagram | Luồng chính được tóm tắt trong README gốc và các architecture guide |
-| Gateway Console | Form thử API | `http://localhost:8084/console.html`; thay cho Postman collection tĩnh |
+1. [PayFlow Core guide](architecture/payflow-core-guide.md): chức năng, sáu service, luồng payment,
+   Kafka, Outbox/Inbox, Saga, Keycloak, database và source path.
+2. [Core local runbook](runbooks/core-local.md): build, start, token, smoke, log và webhook local.
+3. [Payment OpenAPI](api/payment-service-v1.yaml): payment/refund/manual-review API.
+4. [Notification Operations OpenAPI](api/notification-operations-v1.yaml): tra cứu/retry webhook.
+5. [Settlement OpenAPI](api/settlement-service-v1.yaml): settlement/reconciliation API.
+6. [Event contracts](events/payment-workflow-v1.md): contract workflow Kafka.
+7. [ADR](adr/README.md): các quyết định reliability và money invariant.
 
-Bắt đầu từ đâu:
+Các runbook xử lý sự cố vẫn áp dụng:
 
-- Mới vào dự án và thấy luồng rối, muốn hiểu nghiệp vụ thật + luồng code + dữ liệu truyền giữa các service
-  theo đúng code hiện tại:
-  [architecture/current-business-code-flow-guide.md](architecture/current-business-code-flow-guide.md).
-- Muốn chạy toàn bộ MVP bằng Docker: [runbooks/mvp-docker.md](runbooks/mvp-docker.md).
-- Muốn hiểu toàn bộ nghiệp vụ đang chạy, cấu hình và vì sao chọn từng phương pháp:
-  [architecture/business-processing-reference.md](architecture/business-processing-reference.md).
-- Muốn lần source từ Controller/Kafka đến domain, transaction, adapter và database:
-  [architecture/code-flow-guide.md](architecture/code-flow-guide.md).
-- Muốn xem request đi qua chính xác file nào, Keycloak/phân quyền ra sao và từng handler xử lý gì:
-  [architecture/payment-api-code-walkthrough.md](architecture/payment-api-code-walkthrough.md).
-- Muốn hiểu `libs`, event contract, correlation/error convention và luồng `.env` → Compose → `application.yml`:
-  [architecture/shared-libraries-and-runtime-configuration-guide.md](architecture/shared-libraries-and-runtime-configuration-guide.md).
-- Muốn tra toàn bộ package/file trong năm service và biết request/event đi qua chúng thế nào:
-  [architecture/services-folder-reference.md](architecture/services-folder-reference.md).
-- Muốn hiểu `infrastructure`, root config, CI, `docs/.docs` và agent/governance folders:
-  [architecture/infrastructure-and-repository-folder-reference.md](architecture/infrastructure-and-repository-folder-reference.md).
-- Muốn học từng công nghệ đang dùng và biết dependency/config/code của Kafka, Keycloak, PostgreSQL, Redis, Swagger, Docker, test:
-  [architecture/technology-stack-configuration-guide.md](architecture/technology-stack-configuration-guide.md).
-- Mới làm quen event-driven, muốn hiểu REST dùng ở đâu và Kafka xử lý bước nào:
-  [architecture/rest-kafka-flow-guide.md](architecture/rest-kafka-flow-guide.md).
-- Chưa biết Kafka, hoặc muốn hiểu tận gốc luồng Kafka của dự án — khái niệm nền (partition, offset,
-  consumer group, at-least-once) cộng với topic/envelope/outbox/inbox/DLT theo đúng code hiện tại:
-  [architecture/kafka-concepts-and-flow-guide.md](architecture/kafka-concepts-and-flow-guide.md).
-- Muốn chạy app từ IDE/host: [runbooks/local-development.md](runbooks/local-development.md).
-- Muốn xử lý Saga bị dừng: [runbooks/saga-manual-review.md](runbooks/saga-manual-review.md).
-- Muốn triage/replay poison event: [runbooks/payment-workflow-dlt.md](runbooks/payment-workflow-dlt.md).
-- Muốn kiểm tra/requeue outbox bị lỗi: [runbooks/outbox-recovery.md](runbooks/outbox-recovery.md).
-- Muốn triage Notification delivery lỗi: [runbooks/notification-delivery-failure.md](runbooks/notification-delivery-failure.md).
-- Muốn hiểu vì sao stack là như vậy:
-  [adr/ADR-013](adr/ADR-013-platform-version-baseline.md) và
-  [adr/ADR-007](adr/ADR-007-postgresql-money-representation.md).
-- Muốn biết cái gì đã thật sự được kiểm chứng:
-  [`.docs/IMPLEMENTATION_STATUS.md`](../.docs/IMPLEMENTATION_STATUS.md). Không có
-  capability nào được coi là hoàn thành nếu thiếu command và kết quả tái tạo được.
+- [Saga manual review](runbooks/saga-manual-review.md)
+- [Outbox recovery](runbooks/outbox-recovery.md)
+- [Payment workflow DLT](runbooks/payment-workflow-dlt.md)
+- [Notification delivery failure](runbooks/notification-delivery-failure.md)
+- [Settlement/reconciliation](runbooks/settlement-reconciliation.md)
+
+[`archive/full-topology`](archive/full-topology/README.md) chỉ là lịch sử của bản nhiều service; không
+dùng lệnh hoặc đường dẫn source trong đó cho nhánh `portfolio-core`.

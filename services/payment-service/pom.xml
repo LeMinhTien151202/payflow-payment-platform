@@ -14,9 +14,8 @@
     <artifactId>payment-service</artifactId>
     <name>PayFlow Payment Service</name>
     <description>
-        Owns payment/refund lifecycle, idempotency, and Saga orchestration. Phase 1A implements
-        merchant-scoped payment intake, status history, transactional outbox, persisted Saga,
-        idempotent workflow consumers, and bounded recovery; refund remains roadmap-gated.
+        Owns merchant-scoped payment/refund lifecycle, local merchant policy, idempotency,
+        transactional outbox, persisted Saga, idempotent workflow consumers and bounded recovery.
     </description>
 
     <dependencies>

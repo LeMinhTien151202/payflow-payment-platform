@@ -5,13 +5,14 @@
 -- ghi đè lên số dư mà lập trình viên đã thay đổi. Để quay về trạng thái ban đầu như tài liệu, hãy xóa
 -- các volume Compose một cách thủ công và để migration tự dựng lại.
 
--- Source account là nguồn sự thật (source of truth) cho số dư vận hành. Tài khoản cho kịch bản happy-path bắt đầu với
--- 1.000.000 VND; tài khoản thứ hai phục vụ việc tái hiện kịch bản không đủ tiền (insufficient-funds).
+-- Source account là nguồn sự thật cho số dư vận hành. Tài khoản 666... dành riêng cho smoke lặp lại;
+-- hai tài khoản còn lại giữ các fixture lịch sử và insufficient-funds.
 INSERT INTO account.accounts (
     id, currency, available_balance, reserved_balance, status, version)
 VALUES
     ('039bedb6-b2d6-47df-aa25-2035e39136a3', 'VND', 1000000.0000, 0.0000, 'ACTIVE', 0),
-    ('55555555-5555-4555-8555-555555555555', 'VND',  100000.0000, 0.0000, 'ACTIVE', 0)
+    ('55555555-5555-4555-8555-555555555555', 'VND',  100000.0000, 0.0000, 'ACTIVE', 0),
+    ('66666666-6666-4666-8666-666666666666', 'VND', 1000000000.0000, 0.0000, 'ACTIVE', 0)
 ON CONFLICT (id) DO NOTHING;
 
 -- Các ánh xạ Ledger cố ý tách biệt với các tài khoản vận hành. Việc ghi nhận payment (payment posting) hiện tại
@@ -28,5 +29,7 @@ VALUES
     ('dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'CUSTOMER_ACCOUNT',
      '44444444-4444-4444-8444-444444444444', 'VND'),
     ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'CUSTOMER_ACCOUNT',
-     '55555555-5555-4555-8555-555555555555', 'VND')
+     '55555555-5555-4555-8555-555555555555', 'VND'),
+    ('ffffffff-ffff-4fff-8fff-ffffffffffff', 'CUSTOMER_ACCOUNT',
+     '66666666-6666-4666-8666-666666666666', 'VND')
 ON CONFLICT (id) DO NOTHING;

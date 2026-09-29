@@ -69,15 +69,18 @@ $adminBase = "$server/admin/realms/$RealmName"
 
 $permissionRoles = @(
     'payment:read', 'payment:write', 'operations:write',
-    'merchant:read', 'merchant:write', 'merchant:read:any', 'merchant:write:any',
-    'reporting:read', 'reporting:rebuild', 'webhook:retry',
+    'webhook:retry',
     'settlement:read', 'settlement:run', 'reconciliation:read', 'reconciliation:run'
 )
 $personas = [ordered]@{
-    'MERCHANT_ADMIN' = @('payment:read', 'payment:write', 'merchant:read', 'merchant:write', 'reporting:read', 'settlement:read')
-    'MERCHANT_USER' = @('payment:read', 'merchant:read', 'reporting:read', 'settlement:read')
-    'OPERATIONS' = @('operations:write', 'merchant:read:any', 'merchant:write:any', 'reporting:read', 'reporting:rebuild', 'webhook:retry', 'settlement:read', 'settlement:run', 'reconciliation:read', 'reconciliation:run')
+    'MERCHANT_ADMIN' = @('payment:read', 'payment:write', 'settlement:read')
+    'MERCHANT_USER' = @('payment:read', 'settlement:read')
+    'OPERATIONS' = @('operations:write', 'webhook:retry', 'settlement:read', 'settlement:run', 'reconciliation:read', 'reconciliation:run')
 }
+$retiredPermissionRoles = @(
+    'merchant:read', 'merchant:write', 'merchant:read:any', 'merchant:write:any',
+    'reporting:read', 'reporting:rebuild'
+)
 
 $roles = @(Invoke-KeycloakAdmin Get "$adminBase/roles" $headers)
 $rolesByName = @{}
@@ -99,6 +102,11 @@ foreach ($persona in $personas.GetEnumerator()) {
     $currentComposites = @(Invoke-KeycloakAdmin Get "$adminBase/roles-by-id/$($personaRole.id)/composites" $headers)
     $currentNames = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     foreach ($role in $currentComposites) { [void]$currentNames.Add([string]$role.name) }
+    $retiredComposites = @($currentComposites | Where-Object { $retiredPermissionRoles -contains [string]$_.name })
+    if ($retiredComposites.Count -gt 0) {
+        Invoke-KeycloakAdmin Delete "$adminBase/roles-by-id/$($personaRole.id)/composites" $headers $retiredComposites | Out-Null
+        Write-Host "[REMOVE] retired composites from $($persona.Key)"
+    }
     $missing = @($persona.Value | Where-Object { -not $currentNames.Contains([string]$_) } | ForEach-Object { $rolesByName[[string]$_] })
     if ($missing.Count -gt 0) {
         Invoke-KeycloakAdmin Post "$adminBase/roles-by-id/$($personaRole.id)/composites" $headers $missing | Out-Null

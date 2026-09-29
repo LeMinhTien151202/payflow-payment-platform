@@ -6,7 +6,7 @@
 #
 #   cp .env.example .env      # sau đó điền các giá trị local
 #   docker compose --profile infra up -d
-#   docker compose --profile mvp up -d --build
+#   docker compose --profile core up -d --build
 #   docker compose ps         # tất cả service phải báo (healthy)
 #
 # Các tag Image được ghim cố định chính xác theo bản vá. Một tag floating sẽ khiến "chạy được trên máy tôi"
@@ -16,7 +16,7 @@ name: payflow
 
 services:
   postgres:
-    profiles: ["infra", "mvp", "full"]
+    profiles: ["infra", "core"]
     image: postgres:17.10-alpine
     container_name: payflow-postgres
     restart: unless-stopped
@@ -31,14 +31,6 @@ services:
       PAYFLOW_PAYMENT_DB_PASSWORD: ${PAYFLOW_PAYMENT_DB_PASSWORD}
       PAYFLOW_ACCOUNT_LEDGER_DB_USERNAME: ${PAYFLOW_ACCOUNT_LEDGER_DB_USERNAME}
       PAYFLOW_ACCOUNT_LEDGER_DB_PASSWORD: ${PAYFLOW_ACCOUNT_LEDGER_DB_PASSWORD}
-      PAYFLOW_ACCOUNT_DB_USERNAME: ${PAYFLOW_ACCOUNT_DB_USERNAME}
-      PAYFLOW_ACCOUNT_DB_PASSWORD: ${PAYFLOW_ACCOUNT_DB_PASSWORD}
-      PAYFLOW_LEDGER_DB_USERNAME: ${PAYFLOW_LEDGER_DB_USERNAME}
-      PAYFLOW_LEDGER_DB_PASSWORD: ${PAYFLOW_LEDGER_DB_PASSWORD}
-      PAYFLOW_MERCHANT_DB_USERNAME: ${PAYFLOW_MERCHANT_DB_USERNAME}
-      PAYFLOW_MERCHANT_DB_PASSWORD: ${PAYFLOW_MERCHANT_DB_PASSWORD}
-      PAYFLOW_REPORTING_DB_USERNAME: ${PAYFLOW_REPORTING_DB_USERNAME}
-      PAYFLOW_REPORTING_DB_PASSWORD: ${PAYFLOW_REPORTING_DB_PASSWORD}
       PAYFLOW_SETTLEMENT_DB_USERNAME: ${PAYFLOW_SETTLEMENT_DB_USERNAME}
       PAYFLOW_SETTLEMENT_DB_PASSWORD: ${PAYFLOW_SETTLEMENT_DB_PASSWORD}
       PAYFLOW_RISK_DB_USERNAME: ${PAYFLOW_RISK_DB_USERNAME}
@@ -63,7 +55,7 @@ services:
       start_period: 10s
 
   redis:
-    profiles: ["infra", "mvp", "full"]
+    profiles: ["infra", "core"]
     image: redis:8.2.8-alpine
     container_name: payflow-redis
     restart: unless-stopped
@@ -80,7 +72,7 @@ services:
       retries: 20
 
   kafka:
-    profiles: ["infra", "mvp", "full"]
+    profiles: ["infra", "core"]
     image: apache/kafka:4.3.1
     container_name: payflow-kafka
     restart: unless-stopped
@@ -120,7 +112,7 @@ services:
   # contract có version trước khi bất kỳ listener nào bắt đầu; các Bean NewTopic của ứng dụng vẫn là khai báo
   # phía owner và sẽ kiểm chứng cùng một cấu trúc.
   kafka-init:
-    profiles: ["infra", "mvp", "full"]
+    profiles: ["infra", "core"]
     image: apache/kafka:4.3.1
     container_name: payflow-kafka-init
     restart: "no"
@@ -149,7 +141,7 @@ services:
         done
 
   keycloak:
-    profiles: ["infra", "mvp", "full"]
+    profiles: ["infra", "core"]
     image: quay.io/keycloak/keycloak:26.7.0
     container_name: payflow-keycloak
     restart: unless-stopped
@@ -179,8 +171,6 @@ services:
       PAYFLOW_SERVICE_CLIENT_SECRET: ${PAYFLOW_SERVICE_CLIENT_SECRET}
       PAYFLOW_OPERATIONS_CLIENT_SECRET: ${PAYFLOW_OPERATIONS_CLIENT_SECRET}
       PAYFLOW_READONLY_CLIENT_SECRET: ${PAYFLOW_READONLY_CLIENT_SECRET}
-      PAYFLOW_NOTIFICATION_CLIENT_SECRET: ${PAYFLOW_NOTIFICATION_CLIENT_SECRET}
-      PAYFLOW_PAYMENT_INTERNAL_CLIENT_SECRET: ${PAYFLOW_PAYMENT_INTERNAL_CLIENT_SECRET}
       PAYFLOW_CONSOLE_ORIGIN: ${PAYFLOW_CONSOLE_ORIGIN}
       PAYFLOW_MERCHANT_ADMIN_PASSWORD: ${PAYFLOW_MERCHANT_ADMIN_PASSWORD}
       PAYFLOW_MERCHANT_USER_PASSWORD: ${PAYFLOW_MERCHANT_USER_PASSWORD}
@@ -210,7 +200,7 @@ services:
       start_period: 30s
 
   payment-service:
-    profiles: ["mvp", "full"]
+    profiles: ["core"]
     image: payflow/payment-service:dev
     build:
       context: .
@@ -241,12 +231,6 @@ services:
       PAYFLOW_SAGA_STEP_TIMEOUT: ${PAYFLOW_SAGA_STEP_TIMEOUT}
       PAYFLOW_SAGA_MAX_RETRIES: ${PAYFLOW_SAGA_MAX_RETRIES}
       PAYFLOW_SAGA_RECOVERY_BATCH_SIZE: ${PAYFLOW_SAGA_RECOVERY_BATCH_SIZE}
-      PAYFLOW_MERCHANT_CATALOG_MODE: ${PAYFLOW_MERCHANT_CATALOG_MODE}
-      PAYFLOW_MERCHANT_SERVICE_URI: http://merchant-service:8087
-      PAYFLOW_SERVICE_TOKEN_URI: http://keycloak:8080/realms/payflow/protocol/openid-connect/token
-      PAYFLOW_PAYMENT_INTERNAL_CLIENT_ID: ${PAYFLOW_PAYMENT_INTERNAL_CLIENT_ID}
-      PAYFLOW_PAYMENT_INTERNAL_CLIENT_SECRET: ${PAYFLOW_PAYMENT_INTERNAL_CLIENT_SECRET}
-      PAYFLOW_MERCHANT_HTTP_TIMEOUT: ${PAYFLOW_MERCHANT_HTTP_TIMEOUT}
     expose:
       - "8081"
     depends_on:
@@ -256,8 +240,6 @@ services:
         condition: service_completed_successfully
       keycloak:
         condition: service_healthy
-      merchant-service:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "java", "-cp", "/opt/payflow/healthcheck", "HealthCheck", "http://localhost:8081/actuator/health/readiness"]
       interval: 10s
@@ -266,7 +248,7 @@ services:
       start_period: 30s
 
   account-ledger-service:
-    profiles: ["mvp"]
+    profiles: ["core"]
     image: payflow/account-ledger-service:dev
     build:
       context: .
@@ -307,144 +289,8 @@ services:
       retries: 20
       start_period: 30s
 
-  account-service:
-    profiles: ["full"]
-    image: payflow/account-service:dev
-    build:
-      context: .
-      dockerfile: infrastructure/docker/java-service.Dockerfile
-      args:
-        SERVICE_MODULE: account-service
-    environment:
-      SPRING_PROFILES_ACTIVE: local
-      PAYFLOW_ACCOUNT_DB_URL: jdbc:postgresql://postgres:5432/payflow_account
-      PAYFLOW_ACCOUNT_DB_USERNAME: ${PAYFLOW_ACCOUNT_DB_USERNAME}
-      PAYFLOW_ACCOUNT_DB_PASSWORD: ${PAYFLOW_ACCOUNT_DB_PASSWORD}
-      PAYFLOW_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
-      PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS: ${PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS}
-      PAYFLOW_OIDC_ISSUER_URI: ${PAYFLOW_OIDC_ISSUER_URI}
-      PAYFLOW_OIDC_JWK_SET_URI: http://keycloak:8080/realms/payflow/protocol/openid-connect/certs
-      PAYFLOW_ACCOUNT_CONSUMER_ENABLED: ${PAYFLOW_ACCOUNT_CONSUMER_ENABLED}
-      PAYFLOW_OUTBOX_ENABLED: ${PAYFLOW_OUTBOX_ENABLED}
-      PAYFLOW_OUTBOX_POLL_INTERVAL: ${PAYFLOW_OUTBOX_POLL_INTERVAL}
-      PAYFLOW_OUTBOX_BATCH_SIZE: ${PAYFLOW_OUTBOX_BATCH_SIZE}
-      PAYFLOW_OUTBOX_LEASE: ${PAYFLOW_OUTBOX_LEASE}
-      PAYFLOW_OUTBOX_MAX_ATTEMPTS: ${PAYFLOW_OUTBOX_MAX_ATTEMPTS}
-      PAYFLOW_OUTBOX_MAX_BACKOFF: ${PAYFLOW_OUTBOX_MAX_BACKOFF}
-    expose:
-      - "8082"
-    depends_on:
-      postgres: {condition: service_healthy}
-      kafka-init: {condition: service_completed_successfully}
-      keycloak: {condition: service_healthy}
-    healthcheck:
-      test: ["CMD","java","-cp","/opt/payflow/healthcheck","HealthCheck","http://localhost:8082/actuator/health/readiness"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-      start_period: 30s
-
-  ledger-service:
-    profiles: ["full"]
-    image: payflow/ledger-service:dev
-    build:
-      context: .
-      dockerfile: infrastructure/docker/java-service.Dockerfile
-      args:
-        SERVICE_MODULE: ledger-service
-    environment:
-      SPRING_PROFILES_ACTIVE: local
-      PAYFLOW_LEDGER_PORT: 8086
-      PAYFLOW_LEDGER_DB_URL: jdbc:postgresql://postgres:5432/payflow_ledger
-      PAYFLOW_LEDGER_DB_USERNAME: ${PAYFLOW_LEDGER_DB_USERNAME}
-      PAYFLOW_LEDGER_DB_PASSWORD: ${PAYFLOW_LEDGER_DB_PASSWORD}
-      PAYFLOW_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
-      PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS: ${PAYFLOW_KAFKA_DELIVERY_TIMEOUT_MS}
-      PAYFLOW_OIDC_ISSUER_URI: ${PAYFLOW_OIDC_ISSUER_URI}
-      PAYFLOW_OIDC_JWK_SET_URI: http://keycloak:8080/realms/payflow/protocol/openid-connect/certs
-      PAYFLOW_LEDGER_CONSUMER_ENABLED: ${PAYFLOW_LEDGER_CONSUMER_ENABLED}
-      PAYFLOW_OUTBOX_ENABLED: ${PAYFLOW_OUTBOX_ENABLED}
-      PAYFLOW_OUTBOX_POLL_INTERVAL: ${PAYFLOW_OUTBOX_POLL_INTERVAL}
-      PAYFLOW_OUTBOX_BATCH_SIZE: ${PAYFLOW_OUTBOX_BATCH_SIZE}
-      PAYFLOW_OUTBOX_LEASE: ${PAYFLOW_OUTBOX_LEASE}
-      PAYFLOW_OUTBOX_MAX_ATTEMPTS: ${PAYFLOW_OUTBOX_MAX_ATTEMPTS}
-      PAYFLOW_OUTBOX_MAX_BACKOFF: ${PAYFLOW_OUTBOX_MAX_BACKOFF}
-    expose:
-      - "8086"
-    depends_on:
-      postgres: {condition: service_healthy}
-      kafka-init: {condition: service_completed_successfully}
-      keycloak: {condition: service_healthy}
-    healthcheck:
-      test: ["CMD","java","-cp","/opt/payflow/healthcheck","HealthCheck","http://localhost:8086/actuator/health/readiness"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-      start_period: 30s
-
-  merchant-service:
-    profiles: ["mvp", "full"]
-    image: payflow/merchant-service:dev
-    build:
-      context: .
-      dockerfile: infrastructure/docker/java-service.Dockerfile
-      args:
-        SERVICE_MODULE: merchant-service
-    environment:
-      SPRING_PROFILES_ACTIVE: local
-      PAYFLOW_MERCHANT_PORT: 8087
-      PAYFLOW_MERCHANT_DB_URL: jdbc:postgresql://postgres:5432/payflow_merchant
-      PAYFLOW_MERCHANT_DB_USERNAME: ${PAYFLOW_MERCHANT_DB_USERNAME}
-      PAYFLOW_MERCHANT_DB_PASSWORD: ${PAYFLOW_MERCHANT_DB_PASSWORD}
-      PAYFLOW_MERCHANT_ENCRYPTION_KEY_BASE64: ${PAYFLOW_MERCHANT_ENCRYPTION_KEY_BASE64}
-      PAYFLOW_WEBHOOK_ALLOW_UNSAFE_LOCAL_TARGETS: ${PAYFLOW_WEBHOOK_ALLOW_UNSAFE_LOCAL_TARGETS:-false}
-      PAYFLOW_OIDC_ISSUER_URI: ${PAYFLOW_OIDC_ISSUER_URI}
-      PAYFLOW_OIDC_JWK_SET_URI: http://keycloak:8080/realms/payflow/protocol/openid-connect/certs
-    expose:
-      - "8087"
-    depends_on:
-      postgres: {condition: service_healthy}
-      keycloak: {condition: service_healthy}
-    healthcheck:
-      test: ["CMD","java","-cp","/opt/payflow/healthcheck","HealthCheck","http://localhost:8087/actuator/health/readiness"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-      start_period: 30s
-
-  reporting-service:
-    profiles: ["full"]
-    image: payflow/reporting-service:dev
-    build:
-      context: .
-      dockerfile: infrastructure/docker/java-service.Dockerfile
-      args:
-        SERVICE_MODULE: reporting-service
-    environment:
-      SPRING_PROFILES_ACTIVE: local
-      PAYFLOW_REPORTING_PORT: 8088
-      PAYFLOW_REPORTING_DB_URL: jdbc:postgresql://postgres:5432/payflow_reporting
-      PAYFLOW_REPORTING_DB_USERNAME: ${PAYFLOW_REPORTING_DB_USERNAME}
-      PAYFLOW_REPORTING_DB_PASSWORD: ${PAYFLOW_REPORTING_DB_PASSWORD}
-      PAYFLOW_KAFKA_BOOTSTRAP_SERVERS: kafka:19092
-      PAYFLOW_REPORTING_CONSUMER_ENABLED: ${PAYFLOW_REPORTING_CONSUMER_ENABLED}
-      PAYFLOW_OIDC_ISSUER_URI: ${PAYFLOW_OIDC_ISSUER_URI}
-      PAYFLOW_OIDC_JWK_SET_URI: http://keycloak:8080/realms/payflow/protocol/openid-connect/certs
-    expose:
-      - "8088"
-    depends_on:
-      postgres: {condition: service_healthy}
-      kafka-init: {condition: service_completed_successfully}
-      keycloak: {condition: service_healthy}
-    healthcheck:
-      test: ["CMD","java","-cp","/opt/payflow/healthcheck","HealthCheck","http://localhost:8088/actuator/health/readiness"]
-      interval: 10s
-      timeout: 5s
-      retries: 20
-      start_period: 30s
-
   settlement-service:
-    profiles: ["full"]
+    profiles: ["core"]
     image: payflow/settlement-service:dev
     restart: unless-stopped
     build:
@@ -483,7 +329,7 @@ services:
       start_period: 30s
 
   risk-service:
-    profiles: ["mvp", "full"]
+    profiles: ["core"]
     image: payflow/risk-service:dev
     build:
       context: .
@@ -529,7 +375,7 @@ services:
       start_period: 30s
 
   notification-service:
-    profiles: ["mvp", "full"]
+    profiles: ["core"]
     image: payflow/notification-service:dev
     build:
       context: .
@@ -556,11 +402,9 @@ services:
       PAYFLOW_WEBHOOK_BATCH_SIZE: ${PAYFLOW_WEBHOOK_BATCH_SIZE}
       PAYFLOW_WEBHOOK_LEASE: ${PAYFLOW_WEBHOOK_LEASE}
       PAYFLOW_WEBHOOK_HTTP_TIMEOUT: ${PAYFLOW_WEBHOOK_HTTP_TIMEOUT}
+      PAYFLOW_WEBHOOK_ENDPOINT_URI: ${PAYFLOW_WEBHOOK_ENDPOINT_URI:-http://host.docker.internal:8090/payflow-webhook}
+      PAYFLOW_WEBHOOK_SIGNING_SECRET: ${PAYFLOW_WEBHOOK_SIGNING_SECRET:-local-disabled}
       PAYFLOW_WEBHOOK_ALLOW_UNSAFE_LOCAL_TARGETS: ${PAYFLOW_WEBHOOK_ALLOW_UNSAFE_LOCAL_TARGETS:-false}
-      PAYFLOW_MERCHANT_SERVICE_URI: http://merchant-service:8087
-      PAYFLOW_SERVICE_TOKEN_URI: http://keycloak:8080/realms/payflow/protocol/openid-connect/token
-      PAYFLOW_NOTIFICATION_CLIENT_ID: ${PAYFLOW_NOTIFICATION_CLIENT_ID}
-      PAYFLOW_NOTIFICATION_CLIENT_SECRET: ${PAYFLOW_NOTIFICATION_CLIENT_SECRET}
     expose:
       - "8085"
     depends_on:
@@ -570,8 +414,6 @@ services:
         condition: service_completed_successfully
       keycloak:
         condition: service_healthy
-      merchant-service:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "java", "-cp", "/opt/payflow/healthcheck", "HealthCheck", "http://localhost:8085/actuator/health/readiness"]
       interval: 10s
@@ -580,7 +422,7 @@ services:
       start_period: 30s
 
   api-gateway:
-    profiles: ["mvp", "full"]
+    profiles: ["core"]
     image: payflow/api-gateway:dev
     build:
       context: .
@@ -590,9 +432,7 @@ services:
     restart: unless-stopped
     environment:
       PAYFLOW_PAYMENT_SERVICE_URI: http://payment-service:8081
-      PAYFLOW_MERCHANT_SERVICE_URI: http://merchant-service:8087
       PAYFLOW_NOTIFICATION_SERVICE_URI: http://notification-service:8085
-      PAYFLOW_REPORTING_SERVICE_URI: http://reporting-service:8088
       PAYFLOW_SETTLEMENT_SERVICE_URI: http://settlement-service:8089
       PAYFLOW_OIDC_ISSUER_URI: ${PAYFLOW_OIDC_ISSUER_URI}
       PAYFLOW_OIDC_JWK_SET_URI: http://keycloak:8080/realms/payflow/protocol/openid-connect/certs

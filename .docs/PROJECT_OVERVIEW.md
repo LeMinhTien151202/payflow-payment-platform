@@ -1,87 +1,32 @@
-# Tổng quan dự án PayFlow
+# Tổng quan PayFlow Core
 
 ## Mục tiêu
 
-PayFlow là nền tảng thanh toán giả lập dùng để chứng minh năng lực Java backend, hệ thống phân tán và vận hành production-like. Dự án không tối ưu cho số lượng service; dự án tối ưu cho bằng chứng rằng một workflow tài chính nhỏ vẫn đúng khi request bị retry, event bị giao trùng hoặc service chết giữa chừng.
+PayFlow Core là một vertical slice payment đủ sâu để chứng minh Java backend và distributed-system
+reliability, nhưng đủ nhỏ để một người có thể vận hành và giải thích.
 
-## Giá trị portfolio cần chứng minh
+## Phạm vi
 
-1. API idempotent không tạo payment/refund trùng.
-2. Số dư không âm dưới tải đồng thời.
-3. Ledger double-entry bất biến và luôn cân bằng.
-4. Database commit không làm mất event nhờ Transactional Outbox.
-5. Event at-least-once không tạo business side effect trùng nhờ inbox/processed event.
-6. Saga compensation khôi phục reservation khi bước ledger thất bại.
-7. Một giao dịch được truy vết xuyên Gateway, Kafka và các service.
-8. Docker Compose, CI và test tự động tái tạo được demo.
-9. Chỉ số throughput/latency/recovery được đo, không bịa cho CV.
+- Payment create/search/detail/cancel và full/partial refund.
+- Risk decision, account reserve/capture/release, double-entry journal.
+- Saga compensation, retry hữu hạn, DLT và manual review.
+- Notification/webhook HMAC + retry.
+- Settlement/reconciliation.
+- Keycloak OAuth2/OIDC, Gateway và service-level authorization.
+- PostgreSQL, Kafka, Redis, Flyway, Swagger và Docker Compose.
 
-## Ranh giới hệ thống
+## Ngoài phạm vi
 
-### Trong phạm vi
+- Tiền/thẻ/ngân hàng/PSP/payout thật.
+- KYC, PCI production certification, machine-learning fraud.
+- Merchant-management service và reporting dashboard riêng.
+- Kubernetes và multi-region production deployment.
 
-- Merchant/customer/operations identity qua Keycloak.
-- Payment, balance reservation/capture/release, double-entry ledger.
-- Rule-based risk assessment.
-- Refund toàn phần/một phần.
-- Notification email mock và outbound webhook có HMAC/retry.
-- Reporting read model và rebuild/replay ở Phase 2.
-- Settlement và reconciliation ở Phase 3.
-- Metrics, logs, traces, CI/CD, Docker và Kubernetes theo roadmap.
+## Bằng chứng portfolio
 
-### Ngoài phạm vi
-
-- Tiền, thẻ, KYC hoặc tài khoản ngân hàng thật.
-- PCI DSS production certification.
-- Card network/bank integration.
-- Machine-learning fraud model, crypto hoặc multi-region active-active trong bản portfolio cốt lõi.
-- Frontend đẹp trước khi backend workflow và failure recovery được chứng minh.
-
-## MVP được phép
-
-MVP gồm `api-gateway`, `payment-service`, `account-ledger-service`, `risk-service` và `notification-service`. Account và Ledger được phép tạm gộp để hoàn thành vertical slice; ranh giới domain vẫn phải rõ để tách ở phase 2 mà không đổi contract nghiệp vụ.
-
-Profile `full` của Phase 2 thay deployable ghép bằng `account-service` và `ledger-service`, đồng thời thêm
-`merchant-service` và `reporting-service`. Mỗi service mới sở hữu database/credential riêng; Payment lấy
-merchant policy qua authenticated internal REST, không đọc database Merchant.
-
-Luồng demo tối thiểu:
-
-```text
-create payment
- -> risk decision
- -> reserve funds
- -> post balanced journal
- -> finalize capture/payment outcome according to accepted ADR-011
- -> persist notification/webhook delivery
-```
-
-Failure path bắt buộc trước khi mở rộng:
-
-```text
-reserve succeeded
- -> ledger fails after bounded retry
- -> Saga requests release
- -> reservation released exactly once
- -> Saga/payment outcome follows resolved OD-006 contract
- -> trace and metrics explain what happened
-```
-
-## Stack đích
-
-- Java 21, Maven, Spring Boot/Spring Cloud version đã được xác minh và khóa trong parent POM.
-- Spring MVC cho business services; Spring Cloud Gateway WebFlux ở edge.
-- PostgreSQL + Flyway, Kafka, Redis, Keycloak.
-- Micrometer/Prometheus, OpenTelemetry, Grafana, Tempo và Loki.
-- JUnit 5, AssertJ, Mockito, Testcontainers, WireMock, REST Assured và k6.
-- Docker Compose trước; Kubernetes chỉ sau production-like gate.
-
-## Tiêu chí thành công
-
-Một milestone chỉ có giá trị portfolio khi có:
-
-- scenario chạy được từ môi trường sạch;
-- automated test cho invariant và failure path;
-- log/metric/trace giúp giải thích workflow;
-- tài liệu contract và lệnh demo;
-- kết quả đo có script, cấu hình và ngày chạy đi kèm.
+1. Idempotency key không tạo payment/refund trùng.
+2. Inbox chống Kafka redelivery; Outbox không làm mất event sau DB commit.
+3. Balance/reservation và immutable balanced journal giữ invariant.
+4. Saga bù trừ reserve khi ledger thất bại.
+5. JWT scope + merchant ownership được kiểm ở Gateway và service.
+6. Smoke test chạy luồng payment end-to-end.

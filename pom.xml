@@ -34,10 +34,6 @@
         <module>services/api-gateway</module>
         <module>services/payment-service</module>
         <module>services/account-ledger-service</module>
-        <module>services/account-service</module>
-        <module>services/ledger-service</module>
-        <module>services/merchant-service</module>
-        <module>services/reporting-service</module>
         <module>services/settlement-service</module>
         <module>services/risk-service</module>
         <module>services/notification-service</module>
@@ -196,7 +192,8 @@
 
           Đây là tùy chọn tham gia (opt-in) cố ý. Lệnh `verify` mặc định bao gồm cả các bài test dựa trên container, do đó
           không ai có thể pass gate thực sự nếu chưa chạy chúng; một dev muốn bỏ qua chúng phải chỉ định rõ trên câu lệnh.
-          Các bài test có tag @Tag("docker") là các bài test bị loại trừ — xem PaymentServiceFoundationIT và docs/runbooks/local-development.md.
+          Các bài test có tag @Tag("docker") là các bài test bị loại trừ — xem
+          PaymentServiceFoundationIT và docs/runbooks/core-local.md.
         -->
         <profile>
             <id>no-docker</id>

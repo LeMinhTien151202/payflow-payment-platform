@@ -12,8 +12,8 @@
 -- Everything here is invented. AGENTS.md section 8 requires seed data to be fake: no real merchant,
 -- no real person, no credential, no value copied from anywhere that exists.
 --
--- The identifiers are fixed rather than generated so that integration tests, the runbook, and manual
--- curl calls all refer to the same merchant. They are documented in docs/runbooks/local-development.md.
+-- The identifiers are fixed rather than generated so integration tests, the Core runbook and manual
+-- API calls all refer to the same merchant.
 
 INSERT INTO merchant.merchants (
     id, code, name, status, default_currency, max_transaction_amount, created_at, updated_at, version)
@@ -33,10 +33,6 @@ VALUES
      'ACTIVE', 'VND', 100000.0000, now(), now(), 0)
 ON CONFLICT (id) DO NOTHING;
 
--- Customers and source accounts are intentionally absent.
---
--- Phase 1A's roadmap line says "merchant/customer/account seed", but the tables those rows belong in
--- are owned by account-service, which does not exist yet. Seeding them here would mean creating them
--- in the payment schema, which is precisely the ownership violation MODULE_MAP.md exists to prevent.
--- payments.customer_id and payments.source_account_id are therefore unvalidated in Phase 1A, and any
--- UUID is accepted. Recorded as a known deviation in .docs/IMPLEMENTATION_STATUS.md.
+-- Customer and source-account rows are intentionally absent because Account owns balance data in
+-- account-ledger-service. Payment stores their UUIDs as cross-boundary references and never joins
+-- the Account database.

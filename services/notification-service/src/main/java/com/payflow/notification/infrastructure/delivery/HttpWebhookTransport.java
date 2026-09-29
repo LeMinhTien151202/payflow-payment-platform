@@ -7,34 +7,28 @@ import java.time.Clock;
 import java.util.UUID;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.*;
-import tools.jackson.databind.ObjectMapper;
 
 public final class HttpWebhookTransport implements WebhookTransport {
- private final RestClient rest;private final WebhookProperties props;private final ClientCredentialsTokenProvider tokens;private final ObjectMapper json;private final Clock clock;
- public HttpWebhookTransport(RestClient rest,WebhookProperties props,ObjectMapper json,Clock clock){
-  this.rest=rest;this.props=props;this.json=json;this.clock=clock;this.tokens=new ClientCredentialsTokenProvider(rest,props,json,clock);
+ private final RestClient rest;private final WebhookProperties props;private final Clock clock;
+ public HttpWebhookTransport(RestClient rest,WebhookProperties props,Clock clock){
+  this.rest=rest;this.props=props;this.clock=clock;
  }
  public Result send(UUID merchantId,UUID eventId,String eventType,String rawBody){
   try{
-   String config=rest.get().uri(props.merchantServiceUri().resolve("/internal/v1/merchants/"+merchantId+"/webhook"))
-    .header("Authorization","Bearer "+tokens.token()).retrieve().body(String.class);
-   var configJson=json.readTree(config);
-   if(!configJson.get("enabled").asBoolean())return new Result(410,"webhook disabled",false);
-   var subscriptions=json.readTree(configJson.required("subscribedEvents").stringValue());
-   boolean subscribed=subscriptions.isArray()&&subscriptions.valueStream()
-    .anyMatch(node->eventType.equals(node.stringValue()));
-   if(!subscribed)return new Result(204,"event type not subscribed",false);
    URI url;
    try {
     url=OutboundHttpUrlPolicy.requireAllowed(
-      configJson.get("url").stringValue(),props.allowUnsafeLocalTargets());
+      props.endpointUri().toString(),props.allowUnsafeLocalTargets());
    } catch(IllegalArgumentException unsafeTarget) {
     return new Result(400,"webhook target blocked by security policy",false);
    }
-   String secret=configJson.get("signingSecret").stringValue();long timestamp=clock.instant().getEpochSecond();
+   long timestamp=clock.instant().getEpochSecond();
    var response=rest.post().uri(url).contentType(MediaType.APPLICATION_JSON)
     .header("X-PayFlow-Event-Id",eventId.toString()).header("X-PayFlow-Timestamp",Long.toString(timestamp))
-    .header("X-PayFlow-Signature",WebhookSignature.sign(secret,timestamp,rawBody)).body(rawBody).retrieve().toEntity(String.class);
+    .header("X-PayFlow-Event-Type",eventType)
+    .header("X-PayFlow-Merchant-Id",merchantId.toString())
+    .header("X-PayFlow-Signature",WebhookSignature.sign(props.signingSecret(),timestamp,rawBody))
+    .body(rawBody).retrieve().toEntity(String.class);
    return new Result(response.getStatusCode().value(),safe(response.getBody()),false);
   }catch(HttpStatusCodeException ex){return new Result(ex.getStatusCode().value(),safe(ex.getResponseBodyAsString()),false);}
    catch(ResourceAccessException ex){return new Result(null,"network failure",true);}

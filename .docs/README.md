@@ -1,75 +1,40 @@
-# PayFlow — Documentation Index
-
-Đây là điểm bắt đầu cho mọi công việc phân tích, thiết kế, triển khai và review PayFlow.
+# PayFlow Core — agent documentation index
 
 ## Nguồn sự thật
 
-Khi tài liệu hoặc implementation mâu thuẫn, dùng thứ tự sau:
+Khi có mâu thuẫn, ưu tiên:
 
-1. Yêu cầu hiện tại đã được người dùng phê duyệt rõ ràng.
-2. ADR đã accepted cho đúng phạm vi quyết định.
-3. `PAYFLOW_MICROSERVICE_PROJECT_SPEC.md`.
-4. Bộ tài liệu triển khai trong `.docs/`.
-5. API/event contract, Flyway migration và automated test hiện hành.
-6. Code runtime hiện tại.
+1. Yêu cầu hiện tại đã được người dùng phê duyệt.
+2. Accepted ADR cho đúng phạm vi.
+3. Contract/migration/test và code runtime hiện tại.
+4. `.docs` và spec tổng.
 
-Không âm thầm chọn một phía nếu xung đột có thể ảnh hưởng tiền, trạng thái, bảo mật hoặc compatibility. Ghi nhận xung đột và cập nhật các nguồn liên quan trong cùng thay đổi.
+Không tự chọn một phía nếu xung đột ảnh hưởng money invariant, trạng thái, security hoặc compatibility.
 
-## Tài liệu bắt buộc
+## Tài liệu hiện hành
 
-| Tài liệu | Nội dung |
+| File | Nội dung |
 | --- | --- |
-| [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) | Mục tiêu portfolio, phạm vi và tiêu chí thành công |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Topology, data ownership, Saga và hướng phụ thuộc |
-| [MODULE_MAP.md](MODULE_MAP.md) | Service/module owner, dữ liệu, contract và phase |
-| [DELIVERY_ROADMAP.md](DELIVERY_ROADMAP.md) | Thứ tự triển khai và quality gate từng giai đoạn |
-| [TESTING_STRATEGY.md](TESTING_STRATEGY.md) | Test pyramid, invariant suite, E2E/chaos/load gate |
-| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Trạng thái thực tế và evidence đã kiểm chứng |
-| [OPEN_DECISIONS.md](OPEN_DECISIONS.md) | Contract/architecture blocker phải chốt trước khi code |
-| [adr/README.md](adr/README.md) | Danh mục quyết định kiến trúc và quy tắc ADR |
-| [adr/ADR-TEMPLATE.md](adr/ADR-TEMPLATE.md) | Template cho quyết định mới |
+| [PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md) | Phạm vi portfolio Core |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Topology, Saga, ownership và security |
+| [MODULE_MAP.md](MODULE_MAP.md) | Sáu deployable, library và event ownership |
+| [TESTING_STRATEGY.md](TESTING_STRATEGY.md) | Test pyramid và invariant gate |
+| [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) | Evidence theo ngày; các entry cũ là lịch sử |
+| [OPEN_DECISIONS.md](OPEN_DECISIONS.md) | Quyết định còn mở |
+| [../docs/architecture/payflow-core-guide.md](../docs/architecture/payflow-core-guide.md) | Tài liệu học chính |
+| [../docs/runbooks/core-local.md](../docs/runbooks/core-local.md) | Chạy Core local |
 
-## Cách đọc theo loại công việc
+`DELIVERY_ROADMAP.md` và `PAYFLOW_MICROSERVICE_PROJECT_SPEC.md` giữ lịch sử/backlog của topology
+đầy đủ. Chúng không được dùng để tự động thêm lại service đã loại khỏi nhánh `portfolio-core`.
 
-- Foundation/dependency: đọc **toàn bộ spec**, sau đó chú ý Overview, Architecture, Roadmap và các mục 3, 5, 17–20.
-- Payment/refund: đọc Architecture, Module Map, Testing và các mục 7.4, 9, 10, 14 trong spec.
-- Account/ledger: đọc Architecture, Testing và các mục 7.5–7.6, 14–15 trong spec.
-- Kafka/outbox/Saga: đọc Architecture, Roadmap, Testing và các mục 8–9, 12–14 trong spec.
-- Security/API key/webhook: đọc Architecture, Module Map và các mục 7.1–7.3, 7.8, 10–12 trong spec.
-- Settlement/reporting: đọc Module Map, Testing và các mục 7.9–7.10, 14, 20–23 trong spec.
-- Kubernetes/CI/observability: chỉ thực hiện sau quality gate tương ứng; đọc các mục 13, 17–20 và 22 trong spec.
+## Runtime hiện tại
 
-Trước mọi feature, kiểm tra `OPEN_DECISIONS.md`; không implement phạm vi đang bị đánh dấu blocker.
+- Profile duy nhất: `core`.
+- Deployable: API Gateway, Payment, Risk, Account-Ledger, Notification, Settlement.
+- Đã bỏ: Merchant, Reporting, Account tách và Ledger tách.
+- Không có Kubernetes trong runtime hiện tại.
+- Merchant policy là dữ liệu cục bộ của Payment.
+- Reporting riêng được thay bằng payment query và settlement/reconciliation.
 
-## Tài liệu bàn giao trong `docs/`
-
-`.docs/` là guidance cho agent; `docs/` là tài liệu sản phẩm. ADR chính thức, runbook, OpenAPI và event schema thuộc `docs/`, không thuộc `.docs/`.
-
-| Tài liệu | Nội dung |
-| --- | --- |
-| [../docs/README.md](../docs/README.md) | Index tài liệu bàn giao |
-| [../docs/adr/README.md](../docs/adr/README.md) | ADR đã viết (ADR-004, ADR-007, ADR-011–ADR-021 theo index) |
-| [../docs/runbooks/local-development.md](../docs/runbooks/local-development.md) | Build, test và bật hạ tầng Docker |
-| [../docs/runbooks/saga-manual-review.md](../docs/runbooks/saga-manual-review.md) | Triage và resolution an toàn cho Saga manual review |
-| [../docs/runbooks/outbox-recovery.md](../docs/runbooks/outbox-recovery.md) | Triage và requeue có kiểm soát cho outbox publisher |
-| [../docs/runbooks/notification-delivery-failure.md](../docs/runbooks/notification-delivery-failure.md) | Triage read-only cho Notification delivery failure |
-
-## Trạng thái hiện tại
-
-- Phase 1A payment intake/outbox core đã có code và test không Docker; PostgreSQL/Kafka gate vẫn chưa chạy.
-- Theo yêu cầu của repository owner, Phase 1B được triển khai code-first. Payment, Account-Ledger, Risk và Notification đã có deployable/runtime adapters. Điều này không đồng nghĩa Phase 1B đã mở gate vì PostgreSQL/Redis/Kafka/Keycloak thật chưa chạy.
-- ADR-011/012/016/018 đã khóa risk decision, financial finalization, recovery gate và manual-review contract. Payment đã có Saga persistence/scheduler và Kafka consumer code với inbox + Payment/Saga + outbox transaction; PostgreSQL/Kafka runtime và E2E vẫn chưa được chạy.
-- ADR-019/020/021 đã khóa fee snapshot, refundable capacity và thứ tự Ledger reversal → Account
-  credit → refund success. Pure core/contract cho cả ba boundary đã có; Payment refund outcome
-  consumer đã nối inbox + row lock + state + outbox transaction và lưu durable journal/credit ID.
-  Account-Ledger đã có Spring Boot, Flyway/JPA/JDBC, refund consumers và ADR-014 outbox publisher
-  code-first; toàn bộ PostgreSQL/Kafka runtime vẫn chưa được chạy.
-- Risk đã có Spring Boot, Redis velocity, Flyway/JDBC inbox + assessment + outbox transaction,
-  payment.created consumer và ADR-014 publisher. Contract v1 mới tự động hóa amount/velocity;
-  PostgreSQL/Redis/Kafka runtime và bốn enrichment signal còn lại chưa được kiểm chứng.
-- Notification đã có Spring Boot, Flyway/JDBC inbox + notification transaction, Payment/Refund
-  outcome consumers và lease-based email mock worker. PostgreSQL/Kafka/DLT/crash-window mới có
-  Testcontainers code, chưa được chạy; webhook và audited manual retry vẫn thuộc Phase 2.
-- Build và test không cần Docker đã pass; hạ tầng Docker **chưa từng được start** và test cần Docker **chưa từng chạy**. Chi tiết và giới hạn nằm trong `IMPLEMENTATION_STATUS.md`.
-- Không mô tả feature là hoàn thành cho tới khi có code, test và lệnh tái tạo kết quả.
-- Spec vẫn là backlog tổng; `DELIVERY_ROADMAP.md` quyết định lát cắt được phép triển khai tiếp theo.
+Trước khi gọi một capability là verified, phải ghi command và kết quả tái tạo vào
+`IMPLEMENTATION_STATUS.md`.

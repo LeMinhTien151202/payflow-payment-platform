@@ -25,9 +25,7 @@ payflow:
   gateway:
     downstream:
       payment-service: ${PAYFLOW_PAYMENT_SERVICE_URI:http://localhost:8081}
-      merchant-service: ${PAYFLOW_MERCHANT_SERVICE_URI:http://localhost:8087}
       notification-service: ${PAYFLOW_NOTIFICATION_SERVICE_URI:http://localhost:8085}
-      reporting-service: ${PAYFLOW_REPORTING_SERVICE_URI:http://localhost:8088}
       settlement-service: ${PAYFLOW_SETTLEMENT_SERVICE_URI:http://localhost:8089}
 
 springdoc:
@@ -42,10 +40,6 @@ springdoc:
     urls:
       - name: Payment API
         url: /openapi/payment-service-v1.yaml
-      - name: Merchant API
-        url: /openapi/merchant-service-v1.yaml
-      - name: Reporting API
-        url: /openapi/reporting-service-v1.yaml
       - name: Webhook Operations API
         url: /openapi/notification-operations-v1.yaml
       - name: Settlement API

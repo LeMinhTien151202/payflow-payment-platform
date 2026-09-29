@@ -3,7 +3,7 @@
 | Thuộc tính | Giá trị |
 | --- | --- |
 | Owner/producer | `payment-service` |
-| Consumers | `notification-service`, `reporting-service`; Account khi compensation contract yêu cầu |
+| Consumers | `notification-service` |
 | Topic | `payflow.payment.events.v1` |
 | Kafka key | `paymentId` |
 | Event type | `payment.failed` |

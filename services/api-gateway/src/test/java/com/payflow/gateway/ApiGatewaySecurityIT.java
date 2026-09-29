@@ -286,7 +286,7 @@ class ApiGatewaySecurityIT extends GatewayTestSupport {
                 .expectStatus().isOk()
                 .expectBody()
                 .jsonPath("$.urls").isArray()
-                .jsonPath("$.urls.length()").isEqualTo(5);
+                .jsonPath("$.urls.length()").isEqualTo(3);
         webTestClient.get().uri("/openapi/payment-service-v1.yaml").exchange()
                 .expectStatus().isOk()
                 .expectBody(String.class)

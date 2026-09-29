@@ -13,7 +13,7 @@ function Import-DotEnv {
     param([string]$Path)
 
     if (-not (Test-Path -LiteralPath $Path)) {
-        throw "Missing $Path. Run prepare-phase3-env.ps1 first."
+        throw "Missing $Path. Copy .env.example to .env first."
     }
 
     $values = @{}
@@ -160,7 +160,7 @@ foreach ($entry in $clientAssignments.GetEnumerator()) {
     }
 }
 
-Write-Host 'Phase 3 Keycloak scopes provisioned without resetting the realm.' -ForegroundColor Green
+Write-Host 'PayFlow Core Keycloak scopes provisioned without resetting the realm.' -ForegroundColor Green
 
 & (Join-Path $PSScriptRoot 'provision-console-identity.ps1')
 if ($LASTEXITCODE -ne 0) {

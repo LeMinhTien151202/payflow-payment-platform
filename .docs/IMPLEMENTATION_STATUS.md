@@ -763,3 +763,48 @@ PostgreSQL result: BUILD SUCCESS; PaymentCancellationAndOperationsPersistenceIT 
 Static/config result: 5/5 OpenAPI YAML parse bằng SnakeYAML 2.6; Console JavaScript syntax pass; full Compose model resolves từ .env.example; git diff --check exits 0.
 Known boundary: API keys are issued/revoked and stored as hashes but are not accepted by Gateway authentication; runtime business APIs still require Keycloak Bearer JWT. No external webhook receiver or Internet endpoint was contacted by this gate.
 ```
+
+### 2026-09-24 — PayFlow Core topology reduction
+
+```text
+Date/time (Asia/Bangkok): 2026-09-24T15:49:20+07:00
+Base commit SHA: bac568b (portfolio-core working tree not committed at gate time)
+Capability/scenario: reduced portfolio topology with one core profile; retained Payment Saga, Risk,
+Account/Ledger financial invariants, Notification webhook and Settlement/Reconciliation.
+Removed deployables: account-service, ledger-service, merchant-service and reporting-service.
+Replacement boundaries: account-ledger-service remains internally modular; merchant policy is local to
+payment-service; payment query plus settlement replace the dedicated reporting projection.
+Docker-free command: .\mvnw.cmd -B -ntp -Pno-docker verify
+Docker-free result: BUILD SUCCESS in 01:32; all 12 reactor modules SUCCESS; 553 tests, 0 failures,
+0 errors and 0 skipped across Surefire/Failsafe output.
+Static checks: PowerShell scripts parse; realm-payflow.json parses; console app.js syntax passes;
+docker compose --env-file .env.example --profile core config --quiet passes; git diff --check passes.
+Swagger evidence: API Gateway build copies exactly 3 OpenAPI resources and Gateway security tests
+pass 21/21.
+Known boundary: this gate is code-first/static. Existing Docker containers were not rebuilt or smoke
+tested against the new Core topology.
+```
+
+### 2026-09-24 — PayFlow Core Docker runtime verification
+
+```text
+Date/time (Asia/Bangkok): 2026-09-24
+Base commit SHA: bac568b (portfolio-core working tree not committed at gate time)
+Capability/scenario: rebuild and run the reduced Core topology with persisted PostgreSQL/Keycloak
+data; verify Keycloak service token, idempotent payment intake and the complete Kafka Saga.
+Runtime command: .\\payflow.ps1 rebuild -TimeoutSeconds 300
+Runtime result: six business deployables plus API Gateway became healthy; obsolete account, ledger,
+merchant and reporting containers were removed as Compose orphans without deleting volumes.
+Smoke command: .\\payflow.ps1 smoke -TimeoutSeconds 300
+Smoke result: CORE SMOKE PASSED for payment acbb96e0-0283-4913-946a-f03d99836c95.
+Verified flow: Payment accepted/idempotent replay -> Risk APPROVED -> funds reserved -> balanced
+two-entry journal -> funds captured -> Payment SUCCEEDED -> Notification SENT.
+Data result: dedicated smoke account started at 1,000,000,000 VND and ended at 999,999,000 VND
+available with 0 reserved after the 1,000 VND payment; replay retained exactly one payment row.
+Security result: Keycloak issued a service token; current Core roles/users were synchronized while
+retired merchant/reporting permission composites were removed without resetting the realm.
+Recovery notes: Docker Desktop Linux Engine had stopped and was restarted; an historical Flyway V1
+checksum mismatch was resolved by restoring the immutable migration text, without repair or data reset.
+Static checks: payflow.ps1, smoke-core.ps1 and provision-console-identity.ps1 parse successfully;
+git diff --check exits 0.
+```
